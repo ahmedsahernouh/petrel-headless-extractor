@@ -9,11 +9,13 @@ The release ZIP includes Python and all pinned runtime dependencies. No Python i
 ## Run on your project
 
 1. Download the **standalone ZIP** from Releases and extract the whole folder. GitHub's automatic "Source code" archives do not include the runtime.
-2. Keep `Project.pet` and its complete matching `Project.ptd` directory together. Close the project in Petrel during extraction.
+2. Open the inner `PetrelExtractor` folder containing the BAT, `scripts`, and `runtime`. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
 3. Drag the `.pet` file onto `run_portable_petrel_extract.bat`, or double-click the BAT and enter its path.
 4. Open the printed `PROJECT_REPORT.html` path. Results default to `%USERPROFILE%\Petrel_Extracts`, in a new folder for each run.
 
 Keep the whole extracted release together: the BAT alone is a launcher, not the application. Choose an output folder outside your source project.
+
+**Windows "Path too long" during extraction:** cancel the incomplete extraction and use **v0.2.1 or newer**. These releases use short ZIP and folder names. Extract to a short destination and do not skip files. Version 0.2.0's long repeated folder names could interrupt Windows Explorer extraction and leave the BAT without its scripts.
 
 ```bat
 run_portable_petrel_extract.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert

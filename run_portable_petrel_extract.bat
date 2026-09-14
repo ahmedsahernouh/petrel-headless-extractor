@@ -204,5 +204,28 @@ echo The output root must be outside the source-project directory.
 exit /b 0
 
 :standalone
+if not exist "%~dp0scripts\launch_standalone_petrel.ps1" goto incomplete_standalone
+if not exist "%~dp0runtime\python.exe" goto incomplete_standalone
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\launch_standalone_petrel.ps1" %*
-exit /b %errorlevel%
+set "STANDALONE_EXIT=%errorlevel%"
+if not "%STANDALONE_EXIT%"=="0" (
+    echo.
+    echo ERROR: The extractor could not finish. Read the error above.
+    call :pause_standalone_error %*
+)
+exit /b %STANDALONE_EXIT%
+
+:incomplete_standalone
+echo.
+echo ERROR: This standalone extraction is incomplete.
+echo Required launcher scripts or the bundled Python runtime are missing.
+echo Extract the whole ZIP into a short folder, for example C:\PetrelTools.
+echo If Windows reports 0x80010135 - Path too long, cancel and use a shorter folder.
+echo Do not skip files during extraction.
+call :pause_standalone_error %*
+exit /b 2
+
+:pause_standalone_error
+for %%A in (%*) do if /I "%%~A"=="-NoPause" exit /b 0
+pause
+exit /b 0

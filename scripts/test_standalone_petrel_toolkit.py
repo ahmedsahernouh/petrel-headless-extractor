@@ -19,23 +19,39 @@ def main():
     parser.add_argument('--project',type=Path,action='append',default=[])
     args=parser.parse_args();evidence=args.evidence_dir.resolve();evidence.mkdir(parents=True,exist_ok=False)
     relocated=Path(tempfile.mkdtemp(prefix='Petrel Offline Test '))
+    # Match Explorer Extract All: destination/ZIP-stem/archive-root. The original
+    # acceptance harness omitted the ZIP-stem layer and missed long-path failures.
+    extraction_root=relocated/'Downloads'/args.zip.stem
+    extraction_root.mkdir(parents=True)
     with zipfile.ZipFile(args.zip) as z:
+        roots={Path(m.filename).parts[0] for m in z.infolist()}
+        assert roots=={'PetrelExtractor'},roots
+        longest_extracted_path=max(len(str(extraction_root/m.filename)) for m in z.infolist())
+        assert longest_extracted_path<240, longest_extracted_path
         for member in z.infolist():
-            if not (relocated/member.filename).resolve().is_relative_to(relocated):raise ValueError('Unsafe ZIP member')
-        z.extractall(relocated)
-    package=next(relocated.iterdir());bat=package/'run_portable_petrel_extract.bat'
+            if not (extraction_root/member.filename).resolve().is_relative_to(extraction_root):raise ValueError('Unsafe ZIP member')
+    # Use Windows PowerShell's .NET ZIP extractor, not Python's long-path-aware
+    # extraction alone, for this Windows distribution regression.
+    unzip_script=evidence/'extract_windows.ps1'
+    unzip_script.write_text('param([string]$Archive,[string]$Destination)\n$ErrorActionPreference="Stop"\nAdd-Type -AssemblyName System.IO.Compression.FileSystem\n[System.IO.Compression.ZipFile]::ExtractToDirectory($Archive,$Destination)\n',encoding='utf-8')
+    win=Path(os.environ['SystemRoot'])
+    unzipped=subprocess.run([str(win/'System32/WindowsPowerShell/v1.0/powershell.exe'),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(unzip_script),'-Archive',str(args.zip.resolve()),'-Destination',str(extraction_root)],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=600)
+    (evidence/'windows_extraction.txt').write_text(unzipped.stdout,encoding='utf-8')
+    assert unzipped.returncode==0,unzipped.stdout
+    package=extraction_root/'PetrelExtractor';bat=package/'run_portable_petrel_extract.bat'
     env=os.environ.copy();win=Path(os.environ['SystemRoot'])
     env.update(PATH=str(win/'System32')+';'+str(win/'System32/WindowsPowerShell/v1.0'),
                PYTHONHOME=str(relocated/'NONEXISTENT_SYSTEM_PYTHON'),PYTHONPATH=str(relocated/'FORBIDDEN_IMPORTS'),
                PYTHON=str(relocated/'python_missing.exe'),PETREL_MCP_PYTHON=str(relocated/'python_missing.exe'),
                HTTP_PROXY='http://127.0.0.1:9',HTTPS_PROXY='http://127.0.0.1:9',PIP_NO_INDEX='1')
     checks=[]
-    def run(label,arguments,expected=0):
+    def run(label,arguments,expected=0,input_text=None):
         # cmd executes only this fixed BAT; paths are Windows-quoted without shell-built deletion.
         command='"'+str(bat)+'"'+''.join(' "'+str(a)+'"' for a in arguments)
         command_line='"'+str(win/'System32/cmd.exe')+'" /d /s /c "'+command+'"'
+        stdin_args={'stdin':subprocess.DEVNULL} if input_text is None else {'input':input_text}
         proc=subprocess.run(command_line,cwd=relocated,env=env,
-                            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
+                            **stdin_args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(proc.stdout,encoding='utf-8')
         passed=(proc.returncode==expected) if expected==0 else proc.returncode!=0
         checks.append({'name':label,'passed':passed,'exit_code':proc.returncode,'log':label+'.txt'})
@@ -43,6 +59,15 @@ def main():
         if not passed:raise AssertionError(label+'\n'+proc.stdout[-4000:])
         return proc.stdout
     run('bundle_check',['--check','-NoPause'])
+    # Reproduce an interrupted Explorer extraction, where the BAT is present but
+    # its PowerShell target is missing. This must produce a useful BAT-level error.
+    launcher=package/'scripts/launch_standalone_petrel.ps1';launcher_bytes=launcher.read_bytes()
+    try:
+        launcher.unlink()
+        message=run('reject_incomplete_extraction',['--check','-NoPause'],expected=1)
+        assert 'This standalone extraction is incomplete' in message
+        assert 'Path too long' in message
+    finally:launcher.write_bytes(launcher_bytes)
     source=relocated/'Test Project & Spaces';source.mkdir();store=source/'Fixture.ptd';store.mkdir()
     project=source/'Fixture.pet';project.write_text('Synthetic read-only acceptance fixture')
     with sqlite3.connect(store/'Data.ptd') as db:
@@ -54,6 +79,16 @@ def main():
     assert payload['status']=='passed' and payload['source_mutated'] is False
     assert payload['extraction_audit']['status']=='passed' and payload['qc_audit']['status']=='passed'
     assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha for p,sha in original.items())
+    prompted=run('interactive_project_prompt',[],input_text=str(project)+'\n'+str(relocated/'Prompted Results')+'\n\n')
+    # ConsoleHost omits Read-Host labels when redirected; verify the inputs were
+    # actually consumed and produced a valid run in the requested destination.
+    assert 'SUCCESS:' in prompted
+    prompt_result=next((relocated/'Prompted Results').rglob('RUN_RESULT.json'))
+    prompt_payload=json.loads(prompt_result.read_text())
+    prompt_request=json.loads((prompt_result.parent/'request.json').read_text())
+    assert prompt_payload['status']=='passed' and prompt_payload['source_mutated'] is False
+    assert prompt_request['project_file']==str(project)
+    assert prompt_request['output_root']==str(relocated/'Prompted Results')
     run('reject_output_inside_source',[project,source/'bad','convert','-NoPause'],expected=1)
     assert not (source/'bad').exists()
     orphan=source/'MissingStore.pet';orphan.write_text('missing matching ptd')
@@ -87,7 +122,8 @@ def main():
     report={'status':'passed','zip':str(args.zip.resolve()),'relocated_root':str(relocated),'package_root':str(package),
             'checks':checks,'runs':results,'system_python_available_on_test_path':False,
             'python_environment_poisoned':True,'network_proxy_unavailable':True,
-            'network_physically_disconnected':False,'machine':'same Windows host, isolated relocated package; not a second physical machine'}
+            'network_physically_disconnected':False,'machine':'same Windows host, isolated relocated package; not a second physical machine',
+            'explorer_style_nesting':True,'windows_dotnet_zip_extraction':True,'longest_extracted_path':longest_extracted_path}
     (evidence/'acceptance.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print('Acceptance passed: '+str(evidence/'acceptance.json'))
 

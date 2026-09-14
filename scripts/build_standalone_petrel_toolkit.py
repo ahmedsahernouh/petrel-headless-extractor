@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = '0.2.1'
+PACKAGE_FOLDER = 'PetrelExtractor'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
 PYTHON_SHA256 = '791ada5e20aba24524f8d939cdeb069976d632a699fe5cb65274b23f4545e68a'
@@ -52,7 +54,10 @@ def main():
     archive=args.runtime_archive.resolve();wheels=args.wheels.resolve()
     if digest(archive)!=PYTHON_SHA256:
         raise ValueError('Official Python archive SHA-256 mismatch')
-    name='Petrel_Headless_Extractor_Standalone_v0.2.0_Windows_x64_'+datetime.now().strftime('%Y%m%d_%H%M%S')
+    # Explorer adds a directory named after the ZIP during Extract All. Keep both
+    # that name and the archive's own root short enough for legacy Windows paths.
+    name=PACKAGE_FOLDER
+    zip_name='PetrelExtractor-'+VERSION+'-win64.zip'
     package=args.output_root.resolve()/name
     package.mkdir(parents=True,exist_ok=False)
     scripts=package/'scripts';scripts.mkdir()
@@ -85,7 +90,7 @@ def main():
     skill=package/'.agents/skills/petrel-portable-extractor';skill.mkdir(parents=True)
     shutil.copy2(ROOT/'portable_petrel_toolkit/.agents/skills/petrel-portable-extractor/SKILL.md',skill/'SKILL.md')
     metadata=json.loads((ROOT/'portable_petrel_toolkit/toolkit.json').read_text())
-    metadata.update(version='0.2.0',distribution='standalone_windows_x64',python_required=False,
+    metadata.update(version=VERSION,distribution='standalone_windows_x64',python_required=False,
                     internet_required=False,bundled_python=PYTHON_VERSION,entrypoint='run_portable_petrel_extract.bat',
                     receipt_contract='petrel-geoscience-1',automatic_package_qc=True)
     write_json(package/'toolkit.json',metadata)
@@ -107,19 +112,26 @@ def main():
     (package/'THIRD_PARTY_NOTICES.md').write_text(notes,encoding='utf-8')
     records=[{'path':p.relative_to(package).as_posix(),'size_bytes':p.stat().st_size,'sha256':digest(p)}
              for p in sorted(package.rglob('*')) if p.is_file()]
-    write_json(manifests/'toolkit_files.json',{'toolkit':'portable-petrel-project-extractor','version':'0.2.0',
+    # Exercise Explorer's normal Downloads/ZIP-stem/archive-root nesting, allowing
+    # a longer user name. Leave headroom under the classic 260-character limit.
+    explorer_root=Path('C:/Users/Example Windows Username/Downloads')/Path(zip_name).stem/name
+    longest_explorer_path=max(len(str(explorer_root/row['path'])) for row in records)
+    if longest_explorer_path>=240:
+        raise ValueError('Release layout exceeds Windows extraction path budget: '+str(longest_explorer_path))
+    write_json(manifests/'toolkit_files.json',{'toolkit':'portable-petrel-project-extractor','version':VERSION,
                 'distribution':'standalone_windows_x64','files':records,'file_count_excluding_this_manifest':len(records)})
     check=subprocess.run([str(runtime/'python.exe'),'-B',str(scripts/'standalone_petrel_extract.py'),'--check'],capture_output=True,text=True)
     (args.output_root/(name+'_build_check.txt')).write_text(check.stdout+'\n'+check.stderr,encoding='utf-8')
     if check.returncode:raise RuntimeError('Bundled runtime preflight failed: '+check.stderr)
-    zip_path=package.parent/(name+'.zip')
+    zip_path=package.parent/zip_name
     with zipfile.ZipFile(zip_path,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
         for p in sorted(package.rglob('*')):
             if p.is_file():z.write(p,name+'/'+p.relative_to(package).as_posix())
     sha=digest(zip_path)
     zip_path.with_suffix('.zip.sha256').write_text(sha+'  '+zip_path.name+'\n',encoding='ascii')
     result={'package':str(package),'zip':str(zip_path),'sha256':sha,'zip_bytes':zip_path.stat().st_size,
-            'files':len(records),'python':PYTHON_VERSION,'dependencies':len(inventory),'preflight':'passed'}
+            'files':len(records),'python':PYTHON_VERSION,'dependencies':len(inventory),'preflight':'passed',
+            'version':VERSION,'max_simulated_explorer_path':longest_explorer_path}
     write_json(args.output_root/(name+'_build.json'),result)
     print(json.dumps(result,indent=2))
 

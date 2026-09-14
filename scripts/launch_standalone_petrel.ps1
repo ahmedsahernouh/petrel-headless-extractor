@@ -28,7 +28,7 @@ try {
         & $pythonExe -B (Join-Path $PSScriptRoot "standalone_petrel_extract.py") --check
         $exitCode = $LASTEXITCODE
     } else {
-        Write-Output "Petrel Headless Extractor 0.2.0 - standalone, read-only"
+        Write-Output "Petrel Headless Extractor 0.2.1 - standalone, read-only"
         if ([string]::IsNullOrWhiteSpace($ProjectFile)) {
             $pairs = @(Get-ChildItem -LiteralPath $toolkitRoot -File -Filter '*.pet' | Where-Object {
                 Test-Path -LiteralPath (Join-Path $_.DirectoryName ($_.BaseName + '.ptd')) -PathType Container
