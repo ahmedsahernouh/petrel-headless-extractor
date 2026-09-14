@@ -1,0 +1,25 @@
+{
+  "name": "portable-petrel-project-extractor",
+  "version": "0.2.0",
+  "execution_boundary": "read_only_zero_gui_no_ocean",
+  "source_mutation": false,
+  "petrel_required": false,
+  "core_conversions": [
+    "LAS to CSV",
+    "XLSX/XLSM sheets to CSV",
+    "Shapefile to CSV plus GeoJSON with explicit coordinate columns",
+    "Petrel Well Tops ASCII to structured CSV",
+    "Native Model.ptd WellTraceSubject names and well-head XY coordinates to CSV",
+    "Validated native Points3 and Polygons3 LZ4/BXML coordinates to CSV",
+    "Validated native trajectory-provider BXML records to CSV",
+    "Native well-top rows after Petrel ASCII XYZ calibration"
+  ],
+  "specialist_inventory": [
+    "SEG-Y",
+    "ZGY",
+    "ZMAP or ambiguous DAT",
+    "RESQML/EPC"
+  ],
+  "native_boundary": "evidence-gated Petrel 2010/2018 spatial layouts only; unrecognized layouts fail closed and CRS is not inferred from coordinates",
+  "empty_output_policy": "domain folders and zero-row artifacts are omitted"
+}
