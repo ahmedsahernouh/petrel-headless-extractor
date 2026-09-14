@@ -6,6 +6,8 @@ Date: 2026-09-14. [Website](https://saherlabs.dev/) · [Project repository](http
 
 This document preserves the v0.2.5 research assessment. The subsequent v0.3.0 implementation and exact beta limits are in [ZGY_TO_SEGY.md](ZGY_TO_SEGY.md).
 
+The v0.4.0 native well-log and surface implementation is documented in [NATIVE_LOGS_SURFACES.md](NATIVE_LOGS_SURFACES.md). Use that profile for current native binary applicability; this research snapshot remains historical.
+
 ## Decision
 
 **Add a dedicated ZGY-to-SEG-Y exporter as the first new seismic conversion.** The required reader, writer and compression dependencies are already present in the standalone runtime. Controlled tests demonstrate numerical feasibility. It is not a feature of the released v0.2.5 BAT, and the tests do not establish compatibility with every ZGY or receiving application.

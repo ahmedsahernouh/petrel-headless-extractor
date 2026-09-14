@@ -331,19 +331,28 @@ def gather_native_inventory(package: Path) -> dict:
 
     spatial_path = package / "07_workflows_reports" / "native_spatial_zero_gui" / "native_spatial_decode_report.json"
     spatial = load_json_file(spatial_path) or {}
+    recovery_path = package / "07_workflows_reports" / "native_recovery" / "native_recovery_report.json"
+    recovery = load_json_file(recovery_path) or {}
+    recovery_objects = recovery.get("objects", []) if recovery.get("status") in ("completed", "partial") and recovery.get("source_unchanged") is True else []
     decoded_ids: dict[str, set[str]] = {}
-    for item in spatial.get("objects", []):
+    for item in [*spatial.get("objects", []), *recovery_objects]:
         if item.get("status") == "decoded" and item.get("object_id") and item.get("blob_type"):
             decoded_ids.setdefault(item["blob_type"], set()).add(item["object_id"])
     return {
-        "available": bool(type_rows or spatial),
+        "available": bool(type_rows or spatial or recovery),
+        "native_recovery_report_path": str(recovery_path) if recovery else "",
+        "native_recovery_status": recovery.get("status", "not_run"),
+        "native_recovery_status_counts": recovery.get("object_status_counts", {}),
+        "native_las_files": sum(item.get("las_status") == "written_verified" and item.get("status") == "decoded" for item in recovery_objects),
+        "native_log_samples": sum(to_int(item.get("sample_count")) for item in recovery_objects if item.get("status") == "decoded"),
+        "native_surface_nodes": sum(to_int(item.get("defined_nodes")) for item in recovery_objects if item.get("status") == "decoded"),
         "registry_path": str(type_path) if type_path.is_file() else "",
         "registry_types": type_rows,
         "registry_by_type": by_type,
         "registry_unique_objects": sum(row["unique_object_ids"] for row in type_rows),
         "spatial_report_path": str(spatial_path) if spatial else "",
         "spatial_tool_version": spatial.get("tool_version", ""),
-        "inspected_object_type_counts": spatial.get("object_type_counts", {}),
+        "inspected_object_type_counts": {**spatial.get("object_type_counts", {}), **recovery.get("object_type_counts", {})},
         "decoded_object_type_counts": {kind: len(ids) for kind, ids in sorted(decoded_ids.items())},
         "object_status_counts": spatial.get("object_status_counts", {}),
         "polygon_vertex_rows": to_int(spatial.get("polygon_vertex_rows")),
@@ -992,7 +1001,9 @@ def render_html(audit: dict, title: str) -> str:
     decoded = native.get("decoded_object_type_counts", {})
 
     def registered(object_type: str) -> int:
-        return to_int((registry.get(object_type) or {}).get("unique_object_ids"))
+        if object_type in registry:
+            return to_int(registry[object_type].get("unique_object_ids"))
+        return to_int(native.get("inspected_object_type_counts", {}).get(object_type))
 
     trajectory_registered = sum(
         registered(name)
@@ -1055,8 +1066,9 @@ def render_html(audit: dict, title: str) -> str:
         ["Point sets", points_registered, points_decoded, f'{native.get("point_vertex_rows", 0):,} XYZ vertices', "Object identity/attributes may remain unresolved"],
         ["Seismic", seismic_registered, 0, "Use the separate ZGY-to-SEG-Y BAT", "Legacy ZGY reports do not establish project-linked open-format recovery"],
         ["Fault interpretations", faults_registered, 0, "Metadata only", "Native fault geometry decoder not validated"],
-        ["Regular-value grids", grids_registered, 0, "Native payload not decoded", "Separate surface files do not establish registry-object recovery without identity linkage"],
-        ["Well logs", logs_registered, 0, "Native payload not decoded", "Existing LAS/CSV companions are not native binary log recovery"],
+        ["Regular-value grids", grids_registered, to_int(decoded.get("RegValGrid2")), "Native XYZ/CSV with node and cell masks", "Explicit unrotated metric profile; unknown geometry/units rejected"],
+        ["Explicit XYZ grids", registered("ValGrid2"), to_int(decoded.get("ValGrid2")), "Native XYZ/CSV", "Surface subjects with explicit triples and matching model bounds"],
+        ["Well logs", logs_registered, to_int(decoded.get("FloatWellLog")) + to_int(decoded.get("IntWellLog")), f'{native.get("native_las_files", 0)} LAS files; native sample CSV', "Original MD positions; interval records stay CSV; unknown units not counted as decoded"],
         ["Well tops (rows)", "not enumerated", native.get("validated_native_well_top_rows", 0), "Validated native CSV rows only", "Native labels require independent calibration; companion tops excluded"],
     ]
     coverage_html = html_table(
@@ -1130,6 +1142,7 @@ def render_html(audit: dict, title: str) -> str:
         ("Export manifest", manifest.get("path", "")),
         ("Native object registry", native.get("registry_path", "")),
         ("Native spatial decoder", native.get("spatial_report_path", "")),
+        ("Native log and surface recovery", native.get("native_recovery_report_path", "")),
         ("Native semantic report", semantic.get("report_path", "")),
         ("Surfaces report", surfaces.get("report_path", "")),
         ("Seismic report", seismic.get("report_path", "")),
@@ -1250,6 +1263,9 @@ def render_html(audit: dict, title: str) -> str:
       <h3>Saved images and screenshots</h3><div class="gallery">{gallery_html}</div>
       <p class="note">Images are embedded exactly as found in the copied project/package. They are visual evidence and are not used to infer coordinates, interpretation, or approval.</p></section>
     <section id="coverage"><h2>Extraction coverage and remaining boundaries</h2>{coverage_html}
+      <p>Native log/surface recovery: <strong>{esc(native.get('native_recovery_status', 'not_run'))}</strong>.
+      {esc(json.dumps(native.get('native_recovery_status_counts', {}), sort_keys=True))}.
+      Per-object reasons and file hashes are linked under QC &amp; evidence. Only decoded objects from an unchanged source snapshot count as recovered.</p>
       <p class="note">“Registry IDs” and “decoded/exported” are intentionally separate. Zero means the object class was not converted by a validated decoder in this package; it does not mean the source project lacks the data.</p></section>
     <section id="wells"><h2>Native well-head coordinates</h2>{head_table}<p class="note">Native Model.ptd X/Y values are retained. Trajectory-start Z is included only after X/Y matching and is not asserted to be a datum elevation.</p></section>
     <section id="native"><h2>Native project object inventory</h2>{native_table}

@@ -23,7 +23,7 @@ try {
         Write-Output 'Use -Inspect to read metadata or -Capabilities to list supported profiles. Double-click or drag a ZGY to enter missing metadata interactively.'
         exit 0
     }
-    Write-Output 'Petrel binary seismic to SEG-Y 0.3.0 - beta, source read-only'
+    Write-Output 'Petrel binary seismic to SEG-Y 0.4.0 - beta, source read-only'
     . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
     $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
     $arguments = @('-B', (Join-Path $PSScriptRoot 'petrel_file_convert.py'))

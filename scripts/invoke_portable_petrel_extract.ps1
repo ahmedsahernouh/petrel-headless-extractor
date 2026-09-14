@@ -16,6 +16,7 @@ param(
     [switch]$SkipSemanticExtraction,
     [switch]$SkipCompanionExtraction,
     [switch]$SkipNativeSpatialExtraction,
+    [switch]$SkipNativeBinaryRecovery,
     [switch]$SkipAudit,
     [switch]$NoValidate
 )
@@ -82,6 +83,7 @@ $pythonExe = Resolve-PetrelMcpPython -ExplicitPath $PythonPath -ProjectRoot $too
 $nativeExporter = Get-RequiredFile -Path (Join-Path $scriptDir "export_petrel_native_project_zero_gui.ps1") -Label "Native exporter"
 $semanticExporter = Get-RequiredFile -Path (Join-Path $scriptDir "export_petrel_native_semantic_zero_gui.py") -Label "Semantic exporter"
 $nativeSpatialExporter = Get-RequiredFile -Path (Join-Path $scriptDir "export_petrel_native_spatial_zero_gui.py") -Label "Native spatial exporter"
+$nativeBinaryExporter = Get-RequiredFile -Path (Join-Path $scriptDir "petrel_native_recovery.py") -Label "Native log and surface exporter"
 $companionExtractor = Get-RequiredFile -Path (Join-Path $scriptDir "portable_petrel_companion_extract.py") -Label "Companion extractor"
 $registrar = Get-RequiredFile -Path (Join-Path $scriptDir "register_petrel_file_exports.ps1") -Label "File registrar"
 $validator = Get-RequiredFile -Path (Join-Path $scriptDir "validate_export_package.ps1") -Label "Package validator"
@@ -147,6 +149,13 @@ if ((-not $SkipNativeSpatialExtraction) -and $CompanionMode -eq "convert") {
     Write-Output "Stage 4/6: skipped because companion mode is $CompanionMode"
 }
 
+if ((-not $SkipNativeBinaryRecovery) -and $CompanionMode -eq "convert") {
+    Write-Output "Recovering validated native well logs and surfaces into LAS/CSV/XYZ"
+    & $pythonExe $nativeBinaryExporter --export-package $exportPackage
+    $nativeBinaryCode = Get-PetrelMcpLastExitCode
+    if ($nativeBinaryCode -ne 0) { exit $nativeBinaryCode }
+}
+
 $prunedBeforeAudit = Remove-EmptyPackageDirectories -PackageRoot $exportPackage
 if ($prunedBeforeAudit -gt 0) { Write-Output "Sparse package cleanup: removed $prunedBeforeAudit empty directories before audit" }
 
@@ -210,13 +219,14 @@ $summary = [ordered]@{
     source_mutated = $false
     companion_mode = $CompanionMode
     native_spatial_extraction = if ((-not $SkipNativeSpatialExtraction) -and $CompanionMode -eq "convert") { "attempted_evidence_gated" } else { "skipped" }
+    native_log_surface_recovery = if ((-not $SkipNativeBinaryRecovery) -and $CompanionMode -eq "convert") { "attempted_validated_profiles" } else { "skipped" }
     manifest_rows = $manifestRows.Count
     manifest_rows_at_summary_creation = $manifestRows.Count
     validation_status = $validationStatus
     validation_report = $validationReport
     html_report = $htmlReport
     boundaries = @(
-        "Only validated Model.ptd WellTraceSubject well-head fields, Points3, Polygons3, and three trajectory-provider BXML layouts are decoded; every other layout fails closed.",
+        "Only validated native spatial, well-log and surface profiles are decoded; unsupported layouts and unresolved metadata are reported per object.",
         "Well-head X/Y values are native Model.ptd coordinates; CRS and horizontal units remain unresolved until independently confirmed.",
         "Trajectory-start Z is attached to a well head only after native X/Y cross-check and is not asserted to be datum elevation.",
         "Native well-top labels are emitted only after independent Petrel-authored ASCII XYZ calibration.",

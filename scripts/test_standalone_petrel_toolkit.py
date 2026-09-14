@@ -169,12 +169,41 @@ def main():
     for index,real in enumerate(args.project,1):
         run('real_project_'+str(index),[real.resolve(),relocated/('Real Results '+str(index)),'convert','-NoPause'])
     py=package/'runtime/python.exe';ps=win/'System32/WindowsPowerShell/v1.0/powershell.exe'
+    native_fixture_script=evidence/'make_native_fixture.py'
+    native_fixture_script.write_text('''import sys,shutil,sqlite3
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from test_petrel_native_recovery import RecoveryTests
+root=Path(sys.argv[2]);root.mkdir()
+t=RecoveryTests();t.setUp();t.root=root
+surface=sys.argv[3]=='surface'
+p=t.fixture(kind='RegValGrid2' if surface else 'FloatWellLog',surface=surface)
+src=root/'source';src.mkdir()
+shutil.copyfile(p/'08_native_project/project_file/test.pet',src/'Fixture.pet')
+shutil.copytree(p/'08_native_project/ptd_store',src/'Fixture.ptd')
+db=sqlite3.connect(src/'Fixture.ptd/Data.ptd')
+db.execute('ALTER TABLE data ADD COLUMN time_stamp TEXT');db.commit();db.close()
+print(src/'Fixture.pet')
+''',encoding='utf-8')
+    for fixture_kind, expected_type in [('log','FloatWellLog'),('surface','RegValGrid2')]:
+        made=subprocess.run([str(py),'-B',str(native_fixture_script),str(package/'scripts'),str(relocated/('Native '+fixture_kind)),fixture_kind],env=env,capture_output=True,text=True,check=True)
+        native_project=Path(made.stdout.strip().splitlines()[-1])
+        original_native={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in native_project.parent.rglob('*') if p.is_file()}
+        native_results=relocated/('Native Results '+fixture_kind)
+        run('native_'+fixture_kind+'_actual_bat',[native_project,native_results,'convert','-NoPause'])
+        native_report=json.loads(next(native_results.rglob('native_recovery_report.json')).read_text(encoding='utf-8'))
+        assert native_report['status']=='completed' and native_report['source_unchanged']
+        assert native_report['object_status_counts']=={'decoded':1}
+        assert native_report['objects'][0]['blob_type']==expected_type
+        assert list(native_results.rglob('curve.las' if fixture_kind=='log' else 'surface.xyz'))
+        assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in original_native.items())
     for label,cmd in [
         ('synthetic_toolkit_smoke',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/test_portable_petrel_toolkit.ps1'),'-PythonPath',str(py)]),
         ('native_spatial_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_spatial_zero_gui.py')]),
         ('large_companion_controls',[str(py),'-B',str(package/'scripts/test_companion_large_files.py')]),
         ('progress_controls',[str(py),'-B',str(package/'scripts/test_petrel_progress.py')]),
         ('binary_conversion_controls',[str(py),'-B',str(package/'scripts/test_petrel_binary_conversion.py')]),
+        ('native_log_surface_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_recovery.py')]),
         ('portable_doctor',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/doctor_portable_petrel_toolkit.ps1')])]:
         p=subprocess.run(cmd,cwd=relocated,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(p.stdout,encoding='utf-8')

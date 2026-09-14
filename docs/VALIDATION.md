@@ -1,5 +1,7 @@
 # Release validation
 
+Version 0.4.0 adds native well-log and surface recovery to project extraction. The [profile and aggregate evidence](NATIVE_LOGS_SURFACES.md) document private native numerical checks, sparse independent LAS reference comparisons, regular-grid geometry calibration and the unresolved cases. Its synthetic regression suite covers literal/dictionary NBFX records, bounded framing, corruption, units, source mutation, masks, inherited geometry, irregular MD, null collisions, latest-version selection, partial output and report counts. The standalone acceptance harness runs these tests from the delivered relocated runtime. Release-specific executed results are attached as `VALIDATION.json`.
+
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
 The initial standalone package passed 12 acceptance checks on Windows x64, including extraction of two locally supplied projects, on 2026-09-12. Those projects are not distributed. The public release is rebuilt with generic path defaults and the project license, then validated separately before upload.

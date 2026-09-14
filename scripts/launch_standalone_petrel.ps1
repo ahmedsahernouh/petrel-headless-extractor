@@ -26,7 +26,7 @@ try {
         Write-Output 'Or: run_portable_petrel_extract.bat --check -NoPause'
         exit 0
     }
-    Write-Output "Petrel Headless Extractor 0.3.0 - standalone, read-only"
+    Write-Output "Petrel Headless Extractor 0.4.0 - standalone, read-only"
     . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
     $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
     if ($Check -or $ProjectFile -eq "--check") {

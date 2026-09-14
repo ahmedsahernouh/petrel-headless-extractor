@@ -6,6 +6,8 @@
 
 **Historical release audited: v0.2.5. ZGY-to-SEG-Y was not available in its BAT.** The table preserves that research snapshot. Version 0.3.0 now includes the [beta ZGY-to-SEG-Y converter](ZGY_TO_SEGY.md); use its documented profile for current applicability.
 
+Version 0.4.0 also adds [native well-log LAS/CSV and surface XYZ/CSV recovery](NATIVE_LOGS_SURFACES.md) to project extraction. That profile supersedes the historical native-log/surface availability entries below for its explicitly supported layouts.
+
 This table separates the installed user feature from development tools and upstream feasibility. An upstream library or installed dependency does not establish application support. Priorities are recommendations: P0 correctness, P1 next practical additions, P2 follow-on work, P3 specialist work, P4 unverified or lower relevance.
 
 Read the [detailed applicability review](CONVERSION_REVIEW_2026-09-14.md) for tests, packaging, metadata requirements and the implementation sequence. [Machine-readable matrix](conversion_capabilities.json) · [Source inventory](conversion_sources.json).

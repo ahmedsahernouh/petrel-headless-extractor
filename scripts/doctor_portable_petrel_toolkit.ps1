@@ -32,6 +32,8 @@ $required = @(
     "export_petrel_native_project_zero_gui.ps1",
     "export_petrel_native_semantic_zero_gui.py",
     "export_petrel_native_spatial_zero_gui.py",
+    "petrel_native_binary.py",
+    "petrel_native_recovery.py",
     "portable_petrel_companion_extract.py",
     "petrel_progress.py",
     "register_petrel_file_exports.ps1",

@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 PACKAGE_FOLDER = 'PetrelExtractor'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -41,6 +41,7 @@ SCRIPTS = [
     'repair_standalone_dependencies.ps1',
     'test_companion_large_files.py', 'petrel_progress.py', 'test_petrel_progress.py',
     'petrel_file_convert.py', 'launch_zgy_conversion.ps1', 'test_petrel_binary_conversion.py',
+    'petrel_native_binary.py', 'petrel_native_recovery.py', 'test_petrel_native_recovery.py',
 ]
 
 
@@ -98,6 +99,7 @@ def main():
     shutil.copy2(ROOT/'docs/BINARY_EXTRACTION_PURPOSE.md',package/'BINARY_EXTRACTION_PURPOSE.md')
     shutil.copy2(ROOT/'docs/native_binary_audit.json',package/'native_binary_audit.json')
     shutil.copy2(ROOT/'docs/ZGY_TO_SEGY.md',package/'ZGY_TO_SEGY.md')
+    shutil.copy2(ROOT/'docs/NATIVE_LOGS_SURFACES.md',package/'NATIVE_LOGS_SURFACES.md')
     shutil.copy2(ROOT/'portable_petrel_toolkit/STANDALONE_README.md',package/'README.md')
     skill=package/'.agents/skills/petrel-portable-extractor';skill.mkdir(parents=True)
     shutil.copy2(ROOT/'portable_petrel_toolkit/.agents/skills/petrel-portable-extractor/SKILL.md',skill/'SKILL.md')

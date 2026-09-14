@@ -6,7 +6,7 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-**Purpose:** recover Petrel binary data into open formats. See the [native-data coverage and priorities](docs/BINARY_EXTRACTION_PURPOSE.md). Version 0.3.0 adds a [beta ZGY-to-SEG-Y BAT](docs/ZGY_TO_SEGY.md); native log, fault and grid payload decoding remains incomplete.
+**Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The [beta ZGY-to-SEG-Y BAT](docs/ZGY_TO_SEGY.md) remains available separately. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
 
 The release ZIP includes Python and all pinned runtime dependencies. No Python installation, Petrel, Ocean SDK, administrator access, or internet connection is needed to run it. Windows 10/11 x64 with built-in Windows PowerShell is the target.
 
@@ -39,6 +39,7 @@ The BAT shows an overall stage bar and elapsed timer automatically. Large-file h
 - A separate beta BAT for **binary ZGY to SEG-Y**, with amplitude/geometry checks, progress and timing; see [supported profile](docs/ZGY_TO_SEGY.md).
 - Native `.pet`/`.ptd` copies and source/artifact SHA-256 hashes.
 - Supported native metadata, well heads, and structurally validated point, polygon, and trajectory layouts.
+- Native continuous logs as LAS/CSV, categorical boundary records as CSV, and validated surface arrays as XYZ/CSV with node/cell masks. Units and geometry must match the supported profiles.
 - Supported LAS, modern Excel, shapefile, and Petrel Well Tops ASCII conversions.
 - An HTML project report, searchable file inventory, extraction manifest, QC findings, unsupported-format inventory, and run receipts.
 

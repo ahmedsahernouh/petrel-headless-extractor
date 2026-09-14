@@ -1,18 +1,17 @@
 {
   "name": "portable-petrel-project-extractor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
   "core_conversions": [
-    "LAS to CSV",
-    "XLSX/XLSM sheets to CSV",
-    "Shapefile to CSV plus GeoJSON with explicit coordinate columns",
-    "Petrel Well Tops ASCII to structured CSV",
     "Native Model.ptd WellTraceSubject names and well-head XY coordinates to CSV",
     "Validated native Points3 and Polygons3 LZ4/BXML coordinates to CSV",
     "Validated native trajectory-provider BXML records to CSV",
-    "Native well-top rows after Petrel ASCII XYZ calibration"
+    "Native well-top rows after Petrel ASCII XYZ calibration",
+    "Native FloatWellLog continuous curves to LAS/CSV with original MD, values and nulls",
+    "Native IntWellLog categorical/boundary records to CSV with codes and null flags",
+    "Validated native RegValGrid2 and explicit ValGrid2 surface arrays to XYZ/CSV with definition masks"
   ],
   "specialist_inventory": [
     "SEG-Y",
@@ -20,7 +19,7 @@
     "ZMAP or ambiguous DAT",
     "RESQML/EPC"
   ],
-  "native_boundary": "evidence-gated Petrel 2010/2018 spatial layouts only; unrecognized layouts fail closed and CRS is not inferred from coordinates",
+  "native_boundary": "Observed LZ4/BXML object versions only; log/surface unit profile is non-customized Metric. Missing metadata and unsupported geometry are explicit; CRS remains unresolved.",
   "empty_output_policy": "domain folders and zero-row artifacts are omitted",
   "author": "Ahmed Saher Nouh",
   "homepage": "https://saherlabs.dev/",
@@ -35,5 +34,17 @@
       "status": "beta_time_domain_profile",
       "whole_project_integration": false
     }
-  ]
+  ],
+  "companion_conversions": [
+    "LAS to CSV",
+    "XLSX/XLSM sheets to CSV",
+    "Shapefile to CSV plus GeoJSON with explicit coordinate columns",
+    "Petrel Well Tops ASCII to structured CSV"
+  ],
+  "native_recovery": {
+    "entrypoint": "run_portable_petrel_extract.bat",
+    "mode": "convert",
+    "status": "beta_validated_profiles",
+    "docs": "NATIVE_LOGS_SURFACES.md"
+  }
 }

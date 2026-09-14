@@ -1,5 +1,9 @@
 # Deferred release requests
 
+## v0.4.0 native recovery
+
+Implemented native well logs to LAS/CSV and validated native surfaces to XYZ/CSV in the normal `convert` pipeline. The website/repository-only CLI banner is retained. See [profile and validation](NATIVE_LOGS_SURFACES.md). Remaining work is native unit/geometry inheritance, further version fixtures, categories and interval semantics, ZGY project linkage, then faults/grids/properties. Generic open-to-open conversions remain outside the core priority.
+
 ## Next update after v0.2.5: website and project repository CLI attribution
 
 Registered on 2026-09-14. Status: implemented for v0.3.0 and checked through actual BAT startup output. v0.2.5 remains unchanged.
