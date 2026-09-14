@@ -4,6 +4,8 @@ By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://
 
 This toolkit is read-only with respect to source Petrel projects.
 
+Before release work, review [deferred release requests](docs/RELEASE_BACKLOG.md). Implement pending requests in their specified update; registration alone does not authorize an immediate release.
+
 1. Run `scripts\doctor_portable_petrel_toolkit.ps1` before extraction.
 2. Require an exact `.pet` path and matching `<stem>.ptd` directory.
 3. Require the output root to be outside the source project.
