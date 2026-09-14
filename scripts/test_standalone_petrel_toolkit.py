@@ -58,7 +58,63 @@ def main():
         print(label,proc.returncode,flush=True)
         if not passed:raise AssertionError(label+'\n'+proc.stdout[-4000:])
         return proc.stdout
-    run('bundle_check',['--check','-NoPause'])
+    # The outer ZIP has no Python at all: the actual BAT must bootstrap offline.
+    assert not (package/'runtime').exists()
+    first=run('bundle_check',['--check','-NoPause'])
+    log=package/'build/dependencies/last_check.json'
+    install=json.loads(log.read_text())
+    assert install['status']=='repaired' and install['installed_file_count']>1000
+    assert install['network_used'] is False and install['system_python_modified'] is False
+    assert 'ZFP compression check passed' in first
+    assert "No module named 'sdglue'" not in first and "No module named 'zfpy'" not in first
+    manifest=json.loads((package/'00_manifest/toolkit_files.json').read_text())
+    installed_path_length=max(len(str(package/row['path'])) for row in manifest['files'])
+    assert installed_path_length<240,installed_path_length
+    runtime_files={row['path']:row for row in manifest['files'] if row['path'].startswith('runtime/')}
+    assert install['installed_file_count']==len(runtime_files)
+    for label,relative,corrupt in [
+        ('repair_missing_dependency','runtime/Lib/site-packages/shapefile/__init__.py',False),
+        ('repair_corrupt_dependency','runtime/Lib/site-packages/lasio/__init__.py',True),
+        ('repair_missing_python','runtime/python.exe',False)]:
+        target=package/relative
+        # pyshp distributions can provide either a module file or a package.
+        if relative.endswith('shapefile/__init__.py') and not target.exists():
+            relative='runtime/Lib/site-packages/shapefile.py';target=package/relative
+        saved=target.read_bytes()
+        try:
+            if corrupt:target.write_bytes(b'broken dependency test')
+            else:target.unlink()
+            run(label,['--check','-NoPause'])
+            assert target.read_bytes()==saved
+            repaired=json.loads(log.read_text())
+            assert repaired['installed_files']==[relative],repaired
+        finally:target.write_bytes(saved)
+    # A healthy installation can run without the cache; a broken one cannot.
+    cache=package/'bootstrap/runtime.zip';cache_bytes=cache.read_bytes()
+    dependency=package/'runtime/Lib/site-packages/lasio/__init__.py';dependency_bytes=dependency.read_bytes()
+    try:
+        cache.unlink()
+        run('healthy_runtime_without_cache',['--check','-NoPause'])
+        dependency.unlink()
+        message=run('reject_missing_repair_cache',['--check','-NoPause'],expected=1)
+        assert 'offline dependency cache is missing or damaged' in message and not dependency.exists()
+        cache.write_bytes(b'corrupt repair cache test')
+        message=run('reject_corrupt_repair_cache',['--check','-NoPause'],expected=1)
+        assert 'offline dependency cache is missing or damaged' in message and not dependency.exists()
+    finally:
+        cache.write_bytes(cache_bytes);dependency.write_bytes(dependency_bytes)
+    # Do not replace a runtime used by an active extraction.
+    python=package/'runtime/python.exe'
+    busy=subprocess.Popen([str(python),'-B','-c','import sys; print("ready",flush=True); sys.stdin.readline()'],
+                          stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=env)
+    try:
+        assert busy.stdout.readline().strip()=='ready'
+        dependency.unlink()
+        message=run('reject_repair_while_runtime_in_use',['--check','-NoPause'],expected=1)
+        assert 'An extractor is using this runtime' in message and not dependency.exists()
+    finally:
+        dependency.write_bytes(dependency_bytes)
+        busy.communicate('\n',timeout=30)
     # Reproduce an interrupted Explorer extraction, where the BAT is present but
     # its PowerShell target is missing. This must produce a useful BAT-level error.
     launcher=package/'scripts/launch_standalone_petrel.ps1';launcher_bytes=launcher.read_bytes()
@@ -123,7 +179,9 @@ def main():
             'checks':checks,'runs':results,'system_python_available_on_test_path':False,
             'python_environment_poisoned':True,'network_proxy_unavailable':True,
             'network_physically_disconnected':False,'machine':'same Windows host, isolated relocated package; not a second physical machine',
-            'explorer_style_nesting':True,'windows_dotnet_zip_extraction':True,'longest_extracted_path':longest_extracted_path}
+            'explorer_style_nesting':True,'windows_dotnet_zip_extraction':True,'longest_extracted_path':longest_extracted_path,
+            'longest_installed_path':installed_path_length,'first_run_runtime_absent':True,
+            'offline_installed_files':install['installed_file_count'],'zfp_round_trip':'passed'}
     (evidence/'acceptance.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print('Acceptance passed: '+str(evidence/'acceptance.json'))
 

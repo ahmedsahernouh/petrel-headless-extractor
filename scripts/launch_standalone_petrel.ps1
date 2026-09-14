@@ -16,19 +16,18 @@ $pythonExe = Join-Path $toolkitRoot "runtime\python.exe"
 $pauseAtEnd = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
 $exitCode = 1
 try {
-    if (-not (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
-        throw "Bundled runtime missing. Extract the whole standalone ZIP; do not copy only its BAT."
-    }
     if ($Help -or $ProjectFile -in @("--help", "/?")) {
         Write-Output 'Usage: run_portable_petrel_extract.bat "PROJECT.pet" [OUTPUT_ROOT] [convert|copy|inventory] [LABEL] [PETREL_VERSION] [-NoPause]'
         Write-Output 'Or: run_portable_petrel_extract.bat --check -NoPause'
         exit 0
     }
+    Write-Output "Petrel Headless Extractor 0.2.2 - standalone, read-only"
+    . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
+    $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
     if ($Check -or $ProjectFile -eq "--check") {
         & $pythonExe -B (Join-Path $PSScriptRoot "standalone_petrel_extract.py") --check
         $exitCode = $LASTEXITCODE
     } else {
-        Write-Output "Petrel Headless Extractor 0.2.1 - standalone, read-only"
         if ([string]::IsNullOrWhiteSpace($ProjectFile)) {
             $pairs = @(Get-ChildItem -LiteralPath $toolkitRoot -File -Filter '*.pet' | Where-Object {
                 Test-Path -LiteralPath (Join-Path $_.DirectoryName ($_.BaseName + '.ptd')) -PathType Container

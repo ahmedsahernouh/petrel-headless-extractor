@@ -9,9 +9,10 @@ The release ZIP includes Python and all pinned runtime dependencies. No Python i
 ## Run on your project
 
 1. Download the **standalone ZIP** from Releases and extract the whole folder. GitHub's automatic "Source code" archives do not include the runtime.
-2. Open the inner `PetrelExtractor` folder containing the BAT, `scripts`, and `runtime`. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
+2. Open the inner `PetrelExtractor` folder containing the BAT, `scripts`, and `bootstrap`. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
 3. Drag the `.pet` file onto `run_portable_petrel_extract.bat`, or double-click the BAT and enter its path.
-4. Open the printed `PROJECT_REPORT.html` path. Results default to `%USERPROFILE%\Petrel_Extracts`, in a new folder for each run.
+4. The BAT installs Python and dependencies from its bundled cache on first launch. Later launches automatically repair missing or damaged runtime files before checking imports. This stays inside the extracted toolkit folder and works offline.
+5. Open the printed `PROJECT_REPORT.html` path. Results default to `%USERPROFILE%\Petrel_Extracts`, in a new folder for each run.
 
 Keep the whole extracted release together: the BAT alone is a launcher, not the application. Choose an output folder outside your source project.
 
@@ -21,7 +22,7 @@ Keep the whole extracted release together: the BAT alone is a launcher, not the 
 run_portable_petrel_extract.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert
 ```
 
-Append `-NoPause` for unattended runs. Check the bundle without opening a project:
+Append `-NoPause` for unattended runs. Check and repair dependencies without opening a project:
 
 ```bat
 run_portable_petrel_extract.bat --check -NoPause
@@ -46,7 +47,7 @@ The release is checked with synthetic fixtures, actual BAT execution from a relo
 
 This repository contains the extractor, its build scripts, tests, and documentation. The full agent/MCP tooling is a separate project: [petrel-agent-mcp](https://github.com/ahmedsahernouh/petrel-agent-mcp).
 
-Source users need Python and dependencies; see [BUILD.md](docs/BUILD.md). The prebuilt release is the installation-free option. The source checkout's legacy BAT defaults to `inventory`; the standalone release defaults to `convert`.
+Source users need Python and dependencies; see [BUILD.md](docs/BUILD.md). The prebuilt release installs its bundled runtime automatically inside its own folder. The source checkout's legacy BAT defaults to `inventory`; the standalone release defaults to `convert`.
 
 Licensed manuals, KB content, demonstration projects, client data, machine-local settings, and private development history are not distributed.
 

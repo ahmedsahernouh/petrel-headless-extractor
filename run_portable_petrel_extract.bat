@@ -205,7 +205,7 @@ exit /b 0
 
 :standalone
 if not exist "%~dp0scripts\launch_standalone_petrel.ps1" goto incomplete_standalone
-if not exist "%~dp0runtime\python.exe" goto incomplete_standalone
+if not exist "%~dp0scripts\repair_standalone_dependencies.ps1" goto incomplete_standalone
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\launch_standalone_petrel.ps1" %*
 set "STANDALONE_EXIT=%errorlevel%"
 if not "%STANDALONE_EXIT%"=="0" (
@@ -218,7 +218,7 @@ exit /b %STANDALONE_EXIT%
 :incomplete_standalone
 echo.
 echo ERROR: This standalone extraction is incomplete.
-echo Required launcher scripts or the bundled Python runtime are missing.
+echo Required launcher or dependency-repair scripts are missing.
 echo Extract the whole ZIP into a short folder, for example C:\PetrelTools.
 echo If Windows reports 0x80010135 - Path too long, cancel and use a shorter folder.
 echo Do not skip files during extraction.

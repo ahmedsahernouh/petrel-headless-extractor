@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 PACKAGE_FOLDER = 'PetrelExtractor'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -33,6 +33,7 @@ SCRIPTS = [
     'register_petrel_file_exports.ps1', 'validate_export_package.ps1',
     'report_petrel_project_audit.py', 'petrel_geoscience_tools.py',
     'standalone_petrel_extract.py', 'launch_standalone_petrel.ps1',
+    'repair_standalone_dependencies.ps1',
 ]
 
 
@@ -92,9 +93,10 @@ def main():
     metadata=json.loads((ROOT/'portable_petrel_toolkit/toolkit.json').read_text())
     metadata.update(version=VERSION,distribution='standalone_windows_x64',python_required=False,
                     internet_required=False,bundled_python=PYTHON_VERSION,entrypoint='run_portable_petrel_extract.bat',
-                    receipt_contract='petrel-geoscience-1',automatic_package_qc=True)
+                    receipt_contract='petrel-geoscience-1',automatic_package_qc=True,
+                    automatic_dependency_repair=True,dependency_install_source='verified_offline_cache')
     write_json(package/'toolkit.json',metadata)
-    (package/'STANDALONE.txt').write_text('Offline distribution. Keep the BAT, scripts and runtime together.\n',encoding='ascii')
+    (package/'STANDALONE.txt').write_text('Offline distribution. Keep the BAT, scripts, manifests and bootstrap cache together. The BAT installs runtime on first use.\n',encoding='ascii')
     write_json(manifests/'runtime_provenance.json',{'python_version':PYTHON_VERSION,'url':PYTHON_URL,
                 'official_manifest_url':OFFICIAL_MANIFEST,'sha256':PYTHON_SHA256,'architecture':'Windows x64',
                 'archive_hash_verified':True,'built_at_utc':datetime.now(timezone.utc).isoformat()})
@@ -110,8 +112,18 @@ def main():
     notes='# Third-party notices\n\nPython is distributed under its included license at `runtime/LICENSE.txt`.\n\nDependency license texts and notices are retained in `runtime/Lib/site-packages`, including each distribution metadata directory. Exact wheel hashes and license metadata are in `00_manifest/dependency_inventory.json`.\n\n'
     notes+='\n'.join('- '+x['name']+' '+x['version'] for x in inventory)+'\n'
     (package/'THIRD_PARTY_NOTICES.md').write_text(notes,encoding='utf-8')
+    # Ship one compressed runtime cache. PowerShell installs it on first launch,
+    # so Python itself can be missing and Explorer never expands dependency trees.
+    cache=package/'bootstrap/runtime.zip';cache.parent.mkdir()
+    with zipfile.ZipFile(cache,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+        for p in sorted(runtime.rglob('*')):
+            if p.is_file():z.write(p,p.relative_to(package).as_posix())
+    write_json(manifests/'dependency_repair.json',{
+        'version':VERSION,'scope':'runtime_only','network_required':False,
+        'archive':{'path':cache.relative_to(package).as_posix(),'size_bytes':cache.stat().st_size,'sha256':digest(cache)},
+        'log':'build/dependencies/last_check.json'})
     records=[{'path':p.relative_to(package).as_posix(),'size_bytes':p.stat().st_size,'sha256':digest(p)}
-             for p in sorted(package.rglob('*')) if p.is_file()]
+             for p in sorted(package.rglob('*')) if p.is_file() and p!=cache]
     # Exercise Explorer's normal Downloads/ZIP-stem/archive-root nesting, allowing
     # a longer user name. Leave headroom under the classic 260-character limit.
     explorer_root=Path('C:/Users/Example Windows Username/Downloads')/Path(zip_name).stem/name
@@ -126,12 +138,16 @@ def main():
     zip_path=package.parent/zip_name
     with zipfile.ZipFile(zip_path,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
         for p in sorted(package.rglob('*')):
-            if p.is_file():z.write(p,name+'/'+p.relative_to(package).as_posix())
+            if p.is_file() and not p.is_relative_to(runtime):
+                z.write(p,name+'/'+p.relative_to(package).as_posix(),
+                        compress_type=zipfile.ZIP_STORED if p==cache else zipfile.ZIP_DEFLATED)
     sha=digest(zip_path)
     zip_path.with_suffix('.zip.sha256').write_text(sha+'  '+zip_path.name+'\n',encoding='ascii')
     result={'package':str(package),'zip':str(zip_path),'sha256':sha,'zip_bytes':zip_path.stat().st_size,
             'files':len(records),'python':PYTHON_VERSION,'dependencies':len(inventory),'preflight':'passed',
-            'version':VERSION,'max_simulated_explorer_path':longest_explorer_path}
+            'version':VERSION,'max_simulated_explorer_path':longest_explorer_path,
+            'runtime_install':'verified_offline_cache','automatic_dependency_repair':True,
+            'runtime_cache_sha256':digest(cache)}
     write_json(args.output_root/(name+'_build.json'),result)
     print(json.dumps(result,indent=2))
 

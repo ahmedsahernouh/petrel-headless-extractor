@@ -17,7 +17,9 @@ $neighborPtdRoot = Join-Path $sourceRoot "Neighbor.ptd"
 $coLocatedScripts = Join-Path $sourceRoot "scripts"
 $coLocatedVenv = Join-Path $sourceRoot ".venv"
 $coLocatedRuntime = Join-Path $sourceRoot "runtime"
-New-Item -ItemType Directory -Path $ptdRoot, $neighborPtdRoot, $outputRoot, $coLocatedScripts, $coLocatedVenv, $coLocatedRuntime -Force | Out-Null
+$coLocatedBootstrap = Join-Path $sourceRoot "bootstrap"
+$coLocatedBuild = Join-Path $sourceRoot "build"
+New-Item -ItemType Directory -Path $ptdRoot, $neighborPtdRoot, $outputRoot, $coLocatedScripts, $coLocatedVenv, $coLocatedRuntime, $coLocatedBootstrap, $coLocatedBuild -Force | Out-Null
 
 try {
     [System.IO.File]::WriteAllText($projectFile, "Synthetic Petrel project smoke fixture")
@@ -50,6 +52,8 @@ try {
     [System.IO.File]::WriteAllText((Join-Path $coLocatedScripts "invoke_portable_petrel_extract.ps1"), "synthetic toolkit marker")
     [System.IO.File]::WriteAllText((Join-Path $coLocatedVenv "runtime.bin"), "synthetic runtime file")
     [System.IO.File]::WriteAllText((Join-Path $coLocatedRuntime "runtime.bin"), "standalone runtime must not become companion data")
+    [System.IO.File]::WriteAllText((Join-Path $coLocatedBootstrap "runtime.zip"), "dependency cache is not companion data")
+    [System.IO.File]::WriteAllText((Join-Path $coLocatedBuild "last_check.json"), "dependency logs are not companion data")
     [System.IO.File]::WriteAllText((Join-Path $sourceRoot "STANDALONE.txt"), "standalone marker")
 
     $shapeFixture = @'
@@ -104,7 +108,7 @@ with open(base + ".prj", "w", encoding="utf-8") as handle:
     if (@($companionRows | Where-Object { $_.source_relative_path -eq "Neighbor.pet" -or $_.source_relative_path -like "Neighbor.ptd\*" }).Count -ne 0) {
         throw "Neighbor Petrel project was incorrectly ingested as companion data."
     }
-    if (@($companionRows | Where-Object { $_.source_relative_path -eq "run_portable_petrel_extract.bat" -or $_.source_relative_path -eq "toolkit.json" -or $_.source_relative_path -eq "STANDALONE.txt" -or $_.source_relative_path -like "scripts\*" -or $_.source_relative_path -like ".venv\*" -or $_.source_relative_path -like "runtime\*" }).Count -ne 0) {
+    if (@($companionRows | Where-Object { $_.source_relative_path -eq "run_portable_petrel_extract.bat" -or $_.source_relative_path -eq "toolkit.json" -or $_.source_relative_path -eq "STANDALONE.txt" -or $_.source_relative_path -like "scripts\*" -or $_.source_relative_path -like ".venv\*" -or $_.source_relative_path -like "runtime\*" -or $_.source_relative_path -like "bootstrap\*" -or $_.source_relative_path -like "build\*" }).Count -ne 0) {
         throw "Co-located portable toolkit files were incorrectly ingested as companion data."
     }
     $capabilityReport = Get-Content -Raw -LiteralPath $capability | ConvertFrom-Json

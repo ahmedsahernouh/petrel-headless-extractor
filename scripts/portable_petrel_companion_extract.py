@@ -534,7 +534,7 @@ def main() -> int:
         project_root / "scripts" / "invoke_portable_petrel_extract.ps1",
     ]
     co_located_toolkit_detected = all(path.is_file() for path in toolkit_markers)
-    toolkit_directory_names = [".venv", ".agents", "scripts", "00_manifest", "runtime"]
+    toolkit_directory_names = [".venv", ".agents", "scripts", "00_manifest", "runtime", "bootstrap", "build"]
     toolkit_file_names = [
         "run_portable_petrel_extract.bat",
         "README.md",

@@ -9,13 +9,14 @@ import re
 import sys
 import traceback
 import uuid
+import warnings
 from datetime import datetime
 from pathlib import Path
 
 import petrel_geoscience_tools as g
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'pyzgy')
+MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy')
 
 
 def preflight():
@@ -28,18 +29,35 @@ def preflight():
             raise g.InputError('Bundle integrity failed: ' + row['path'])
     modules = {}
     for name in MODULES:
-        module = importlib.import_module(name)
+        with warnings.catch_warnings():
+            # Local files do not use the optional authenticated SeismicStore
+            # backend. Suppress only its exact missing-module warning; report
+            # the absent capability explicitly below. Other warnings stay visible.
+            warnings.filterwarnings('ignore',
+                message="^seismic store access is not available: No module named 'sdglue'$",
+                category=UserWarning, module=r'^openzgy\.impl\.file$')
+            module = importlib.import_module(name)
         path = Path(module.__file__).resolve()
         if not path.is_relative_to(ROOT / 'runtime'):
             raise g.InputError('Dependency escaped bundled runtime: ' + name)
         modules[name] = str(path.relative_to(ROOT))
+    numpy = importlib.import_module('numpy')
+    zfpy = importlib.import_module('zfpy')
+    sample = numpy.arange(64, dtype=numpy.float32).reshape(4, 4, 4)
+    decoded = zfpy.decompress_numpy(zfpy.compress_numpy(sample))
+    if not numpy.array_equal(sample, decoded):
+        raise g.InputError('Bundled ZFP compression round-trip failed')
     for path in sys.path:
         if path and not Path(path).resolve().is_relative_to(ROOT):
             raise g.InputError('Python search path escaped package: ' + path)
     return {'status':'ready', 'version':manifest['version'], 'python':sys.version.split()[0],
             'files_verified':len(manifest['files']), 'dependencies':modules,
             'runtime':str(Path(sys.executable)), 'external_python_used':False,
-            'petrel_required':False, 'internet_required':False}
+            'petrel_required':False, 'internet_required':False,
+            'zfp_round_trip':'passed',
+            'optional_capabilities':{'seismicstore_cloud':{
+                'status':'not_configured','required_for_local_files':False,
+                'reason':'Cloud SeismicStore requires its separate vendor client and authentication.'}}}
 
 
 def main():
@@ -55,6 +73,8 @@ def main():
     try:
         print('Checking bundled runtime and file hashes...', flush=True)
         doctor = preflight()
+        print('Dependencies ready. ZFP compression check passed.', flush=True)
+        print('Optional cloud SeismicStore: not configured (not needed for local files).', flush=True)
         if args.check:
             print(json.dumps(doctor, indent=2)); return 0
         source = g.path_arg({'project_file':args.project_file}, 'project_file')
