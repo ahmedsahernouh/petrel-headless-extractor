@@ -1,3 +1,8 @@
+# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# Website: https://saherlabs.dev/
+# GitHub: https://github.com/ahmedsahernouh
+# Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 param(
     [string]$PythonPath = "",
     [string]$JsonOutput = ""
@@ -60,7 +65,7 @@ $degraded = @($checks | Where-Object { $_.status -eq "degraded" }).Count
 $overall = if ($blocked -gt 0) { "blocked" } elseif ($degraded -gt 0) { "degraded" } else { "ready" }
 $report = [ordered]@{
     toolkit = "portable-petrel-project-extractor"
-    version = if (Test-Path -LiteralPath (Join-Path $toolkitRoot "toolkit.json")) { (Get-Content -LiteralPath (Join-Path $toolkitRoot "toolkit.json") -Raw | ConvertFrom-Json).version } else { "0.2.3" }
+    version = if (Test-Path -LiteralPath (Join-Path $toolkitRoot "toolkit.json")) { (Get-Content -LiteralPath (Join-Path $toolkitRoot "toolkit.json") -Raw | ConvertFrom-Json).version } else { "0.2.4" }
     checked_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     status = $overall
     petrel_required = $false

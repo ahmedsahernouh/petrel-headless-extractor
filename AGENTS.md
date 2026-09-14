@@ -1,5 +1,7 @@
 # Portable Petrel Extractor Agent Instructions
 
+By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
+
 This toolkit is read-only with respect to source Petrel projects.
 
 1. Run `scripts\doctor_portable_petrel_toolkit.ps1` before extraction.

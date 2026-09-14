@@ -1,5 +1,15 @@
 @echo off
+rem Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+rem Website: https://saherlabs.dev/
+rem GitHub: https://github.com/ahmedsahernouh
+rem Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 setlocal EnableExtensions DisableDelayedExpansion
+echo Ahmed Saher Nouh - SaherLabs
+echo Website: https://saherlabs.dev/
+echo GitHub: https://github.com/ahmedsahernouh
+echo Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
+echo.
 if exist "%~dp0STANDALONE.txt" goto standalone
 
 rem Universal, portable, read-only, no-Ocean Petrel extraction entry point.

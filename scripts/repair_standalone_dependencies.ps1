@@ -1,3 +1,8 @@
+# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# Website: https://saherlabs.dev/
+# GitHub: https://github.com/ahmedsahernouh
+# Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 # Install or repair only the release's managed runtime, from its verified cache.
 # Runs in Windows PowerShell without Python, pip, network access or admin rights.
 Set-StrictMode -Version Latest

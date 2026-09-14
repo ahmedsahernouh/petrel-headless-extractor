@@ -5,6 +5,8 @@ description: Inspect and extract a Petrel project with the portable read-only, z
 
 # Petrel Portable Extractor
 
+By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
+
 Read `README.md` and `AGENTS.md` before running tools. Run the doctor first. Require the exact `.pet` path, matching `.ptd` directory, and an output root outside the source project.
 
 Use `scripts/invoke_portable_petrel_extract.ps1` with `CompanionMode=inventory`, `copy`, or `convert`. Keep source projects read-only and never launch Petrel. Prefer `convert` only when the user wants preserved companion copies and supported open-format derivatives.

@@ -1,3 +1,8 @@
+# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# Website: https://saherlabs.dev/
+# GitHub: https://github.com/ahmedsahernouh
+# Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 """Regressions for bounded probes and the companion copy/conversion size gate."""
 from __future__ import annotations
 

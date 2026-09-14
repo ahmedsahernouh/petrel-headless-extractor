@@ -1,3 +1,8 @@
+# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# Website: https://saherlabs.dev/
+# GitHub: https://github.com/ahmedsahernouh
+# Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 param(
     [Parameter(Mandatory = $true)][string]$ProjectFile,
     [Parameter(Mandatory = $true)][string]$OutputRoot,
@@ -186,7 +191,7 @@ $manifestRows = @(Import-Csv -LiteralPath $manifestPath)
 $summaryRoot = Join-Path $exportPackage "07_workflows_reports\portable_extractor"
 New-Item -ItemType Directory -Path $summaryRoot -Force | Out-Null
 $summaryPath = Join-Path $summaryRoot "portable_extraction_run_summary.json"
-$toolkitVersion = "0.2.3"
+$toolkitVersion = "0.2.4"
 $toolkitMetadataPath = Join-Path $toolkitRoot "toolkit.json"
 if (Test-Path -LiteralPath $toolkitMetadataPath -PathType Leaf) {
     $toolkitVersion = (Get-Content -Raw -LiteralPath $toolkitMetadataPath | ConvertFrom-Json).version

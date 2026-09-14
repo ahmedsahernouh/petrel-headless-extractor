@@ -1,3 +1,8 @@
+# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# Website: https://saherlabs.dev/
+# GitHub: https://github.com/ahmedsahernouh
+# Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 """Maintained file-only Petrel operations with source and artifact receipts.
 
 CLI: python scripts/petrel_geoscience_tools.py OPERATION < request.json

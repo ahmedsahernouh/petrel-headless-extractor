@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# Website: https://saherlabs.dev/
+# GitHub: https://github.com/ahmedsahernouh
+# Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
+
 """Inventory, preserve, and convert open companion files beside a Petrel project.
 
 The source project is read-only. Native .pet/.ptd stores are deliberately
