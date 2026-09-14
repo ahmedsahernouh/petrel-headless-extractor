@@ -1,13 +1,15 @@
-# Petrel Headless Extractor 0.2.5 — standalone Windows x64
+# Petrel Headless Extractor 0.3.0 — standalone Windows x64
 
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
+
+For binary seismic conversion, use `convert_zgy_to_segy.bat` and read `ZGY_TO_SEGY.md`. The core objective and remaining native-data gaps are in `BINARY_EXTRACTION_PURPOSE.md`.
 
 1. Extract the **whole ZIP** into a normal writable folder, separate from your project data.
 2. Drag your `.pet` file onto **run_portable_petrel_extract.bat**, or double-click the BAT and enter the project path.
 3. On first launch, the BAT installs bundled Python and dependencies into its own `runtime` folder. Each later launch checks them and automatically repairs missing or damaged runtime files.
 4. When it finishes, open the `PROJECT_REPORT.html` path printed in the window. The output also includes package QC, checksums, source-preservation receipts and a run log.
 
-The release ZIP is `PetrelExtractor-0.2.5-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
+The release ZIP is `PetrelExtractor-0.3.0-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
 
 Keep the matching, complete `ProjectName.ptd` directory beside `ProjectName.pet`. Close the test project in Petrel before extraction so another program cannot change its files during the read. The extractor itself never opens Petrel or edits its stores.
 

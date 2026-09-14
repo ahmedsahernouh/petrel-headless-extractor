@@ -1,6 +1,6 @@
 {
   "name": "portable-petrel-project-extractor",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -25,5 +25,15 @@
   "author": "Ahmed Saher Nouh",
   "homepage": "https://saherlabs.dev/",
   "author_github": "https://github.com/ahmedsahernouh",
-  "repository": "https://github.com/ahmedsahernouh/petrel-headless-extractor"
+  "repository": "https://github.com/ahmedsahernouh/petrel-headless-extractor",
+  "purpose": "Recover supported Petrel binary/native payloads into open formats; companion reformatting is secondary",
+  "binary_file_conversions": [
+    {
+      "input": "ZGY",
+      "output": "SEG-Y",
+      "entrypoint": "convert_zgy_to_segy.bat",
+      "status": "beta_time_domain_profile",
+      "whole_project_integration": false
+    }
+  ]
 }

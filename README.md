@@ -6,6 +6,8 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
+**Purpose:** recover Petrel binary data into open formats. See the [native-data coverage and priorities](docs/BINARY_EXTRACTION_PURPOSE.md). Version 0.3.0 adds a [beta ZGY-to-SEG-Y BAT](docs/ZGY_TO_SEGY.md); native log, fault and grid payload decoding remains incomplete.
+
 The release ZIP includes Python and all pinned runtime dependencies. No Python installation, Petrel, Ocean SDK, administrator access, or internet connection is needed to run it. Windows 10/11 x64 with built-in Windows PowerShell is the target.
 
 ## Run on your project
@@ -34,10 +36,13 @@ The BAT shows an overall stage bar and elapsed timer automatically. Large-file h
 
 ## What you get
 
+- A separate beta BAT for **binary ZGY to SEG-Y**, with amplitude/geometry checks, progress and timing; see [supported profile](docs/ZGY_TO_SEGY.md).
 - Native `.pet`/`.ptd` copies and source/artifact SHA-256 hashes.
 - Supported native metadata, well heads, and structurally validated point, polygon, and trajectory layouts.
 - Supported LAS, modern Excel, shapefile, and Petrel Well Tops ASCII conversions.
 - An HTML project report, searchable file inventory, extraction manifest, QC findings, unsupported-format inventory, and run receipts.
+
+Existing open-format companion handling is secondary. It does not count as decoding native well logs, faults, grids or property arrays. Those gaps and the next binary parsers are listed in the [native coverage roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 
 `convert` is the standalone default: preserve sources and attempt supported conversions. `copy` preserves companions without converting them. `inventory` inventories companions without copying them. **All three modes copy the selected native `.pet`/`.ptd` files.** Neighboring Petrel projects are excluded from companion ingestion.
 

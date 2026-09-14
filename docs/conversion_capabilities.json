@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-09-14",
+  "release_audited": "0.2.5",
+  "release_commit": "fb81df5beb728a345654eb992b5a703a30a7f4e2",
+  "inventory_kind": "research_reference_not_runtime_feature_manifest",
+  "capabilities": [
+    {
+      "id": "C01",
+      "source": "ZGY seismic cube",
+      "targets": "SEG-Y",
+      "status": "prototype_tested",
+      "available_in_bat": false,
+      "priority": "P1",
+      "implementation": "pyzgy/OpenZGY + segyio (bundled)",
+      "source_ids": [
+        "S01",
+        "S02",
+        "S03"
+      ],
+      "limitations": "Resolve domain, units, CRS and header precision; blockwise export; real receiving-application validation outstanding.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C02",
+      "source": "ZGY seismic cube",
+      "targets": "NPY slices/full array + geometry JSON",
+      "status": "development_only",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "Development MCP ZGY exporter",
+      "source_ids": [
+        "S01"
+      ],
+      "limitations": "Existing full-volume path stacks all inlines in memory; replace for large volumes; sidecar must fully define axes.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C03",
+      "source": "SEG-Y",
+      "targets": "Header/navigation CSV + text/JSON headers",
+      "status": "upstream_documented",
+      "available_in_bat": false,
+      "priority": "P1",
+      "implementation": "segyio (bundled)",
+      "source_ids": [
+        "S02"
+      ],
+      "limitations": "Header bytes, coordinate scalar, trace count, units and geometry interpretation must be explicit.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C04",
+      "source": "SEG-Y seismic cube",
+      "targets": "NetCDF/Zarr/NPY + metadata",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "segyio + Xarray/backend",
+      "source_ids": [
+        "S02",
+        "S22"
+      ],
+      "limitations": "Preserve irregular/prestack dimensions and headers; array serialization alone is not a seismic adapter.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C05",
+      "source": "VDS seismic volume",
+      "targets": "SEG-Y",
+      "status": "upstream_conditional",
+      "available_in_bat": false,
+      "priority": "P3",
+      "implementation": "OpenVDS SEGYExport",
+      "source_ids": [
+        "S04"
+      ],
+      "limitations": "Documented exporter requires SEG-Y headers stored in VDS; API/CLI bundling and local Windows runtime remain untested.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C06",
+      "source": "SGZ seismic volume",
+      "targets": "SEG-Y",
+      "status": "upstream_documented",
+      "available_in_bat": false,
+      "priority": "P3",
+      "implementation": "seismic-zfp",
+      "source_ids": [
+        "S05"
+      ],
+      "limitations": "Preserve available headers; prior lossy compression is irreversible; avoid SGZ intermediate for direct ZGY export.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C07",
+      "source": "Seismic Unix SU / supported SEG-2",
+      "targets": "SEG-Y",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P3",
+      "implementation": "ObsPy or segyio SU reader",
+      "source_ids": [
+        "S24",
+        "S25"
+      ],
+      "limitations": "Generate missing file headers and map acquisition metadata; SEG-2 revision-specific; no SEG-D claim.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C08",
+      "source": "SEG-D acquisition records",
+      "targets": "SEG-Y",
+      "status": "unverified",
+      "available_in_bat": false,
+      "priority": "P4",
+      "implementation": "No selected validated adapter",
+      "source_ids": [
+        "S03"
+      ],
+      "limitations": "Needs supported revision/vendor records, channel sets, geometry, sample scaling and field datasets; do not advertise.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C09",
+      "source": "Well-log LAS 1.2/2.0",
+      "targets": "CSV + curve metadata",
+      "status": "shipped",
+      "available_in_bat": true,
+      "priority": "Maintain",
+      "implementation": "lasio",
+      "source_ids": [
+        "S06",
+        "S07"
+      ],
+      "limitations": "Current CSV uses eight significant digits; preserve source LAS, nulls and units. LAS 3 and LiDAR LAS are not equivalent.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C10",
+      "source": "Schema-mapped CSV/Excel well curves",
+      "targets": "LAS 2.0",
+      "status": "prototype_tested",
+      "available_in_bat": false,
+      "priority": "out_of_scope_user_declined",
+      "implementation": "lasio (bundled)",
+      "source_ids": [
+        "S06",
+        "S08"
+      ],
+      "limitations": "Select depth/time index, units, null sentinel, well identity and sampling policy; no silent resampling.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C11",
+      "source": "DLIS scalar log channels",
+      "targets": "LAS 2.0 / CSV + metadata JSON",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "dlisio + lasio",
+      "source_ids": [
+        "S09",
+        "S06"
+      ],
+      "limitations": "Separate logical files, frames, index types, duplicate mnemonics and sample rates; retain provenance.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C12",
+      "source": "DLIS image/array channels",
+      "targets": "HDF5/NetCDF/Zarr + channel metadata",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "dlisio + array backend",
+      "source_ids": [
+        "S09",
+        "S22"
+      ],
+      "limitations": "Preserve per-sample array axes; flattening to ordinary LAS/CSV is not lossless.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C13",
+      "source": "LIS 79 scalar logs",
+      "targets": "LAS 2.0 / CSV",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "dlisio + lasio",
+      "source_ids": [
+        "S10",
+        "S06"
+      ],
+      "limitations": "Separate sampling groups and indexes; explicitly handle irregular depth and absent channels.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C14",
+      "source": "WITSML logs/trajectories/tops; PRODML time series",
+      "targets": "CSV / LAS where suitable + object JSON",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P3",
+      "implementation": "Version-specific Energistics schema adapter",
+      "source_ids": [
+        "S18"
+      ],
+      "limitations": "Standard availability is not a bundled reader; preserve object relationships, units, dates and references.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C15",
+      "source": "XLSX/XLSM sheets",
+      "targets": "Per-sheet CSV",
+      "status": "shipped",
+      "available_in_bat": true,
+      "priority": "Maintain",
+      "implementation": "openpyxl (bundled)",
+      "source_ids": [],
+      "limitations": "Reads cached values; does not evaluate formulas or preserve workbook formatting/macros; old XLS unsupported.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C16",
+      "source": "Petrel Well Tops ASCII and validated native spatial layouts",
+      "targets": "CSV",
+      "status": "shipped_subset",
+      "available_in_bat": true,
+      "priority": "Maintain",
+      "implementation": "Existing companion/native decoders",
+      "source_ids": [],
+      "limitations": "Only explicit supported layouts; native tops require independent ASCII calibration; not every Petrel object/version.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C17",
+      "source": "ZMAP+ regular grid / regular XYZ table",
+      "targets": "XYZ CSV / ZMAP+ ASCII",
+      "status": "development_only",
+      "available_in_bat": false,
+      "priority": "P1",
+      "implementation": "Development grid converter; zmapio / GDAL",
+      "source_ids": [
+        "S12"
+      ],
+      "limitations": "Existing development writer rounds values; inverse requires complete axis-aligned lattice. Harden precision/null/order tests.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C18",
+      "source": "IRAP/RMS ASCII or binary surface",
+      "targets": "XYZ/IJXYZ CSV / GeoTIFF",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "XTGeo + explicit XYZ/raster writer",
+      "source_ids": [
+        "S11",
+        "S15"
+      ],
+      "limitations": "Preserve rotation, grid origin, node/cell convention, null mask, domain and units; no silent derotation.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C19",
+      "source": "Surfer ASCII/binary grid",
+      "targets": "XYZ CSV / GeoTIFF",
+      "status": "upstream_documented",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "GDAL GSAG/GSBG drivers",
+      "source_ids": [
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "limitations": "Detect specific format signature; retain nodata, georeferencing and numeric precision; bundled Windows GDAL unresolved.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C20",
+      "source": "Shapefile",
+      "targets": "CSV + source-coordinate geometry JSON",
+      "status": "shipped_limited",
+      "available_in_bat": true,
+      "priority": "P0",
+      "implementation": "pyshp (bundled)",
+      "source_ids": [
+        "S16"
+      ],
+      "limitations": "Current .geojson output is not reprojected: projected coordinates do not satisfy RFC 7946. Document and fix CRS handling.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C21",
+      "source": "Shapefile / mapped point-line-polygon tables",
+      "targets": "GeoPackage / WGS84 GeoJSON",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P1",
+      "implementation": "GDAL + CRS transform",
+      "source_ids": [
+        "S16",
+        "S17"
+      ],
+      "limitations": "Require verified source CRS for reprojection; retain parts, holes, feature IDs and Z/M semantics.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C22",
+      "source": "GOCAD TSurf fault/horizon mesh",
+      "targets": "VTP/VTK; optional OBJ; vertices+faces CSV",
+      "status": "upstream_documented",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "GemGIS + PyVista",
+      "source_ids": [
+        "S20",
+        "S21"
+      ],
+      "limitations": "Preserve topology and properties, ATOM/TFACE variants, coordinate and vertical conventions; XYZ alone drops connectivity.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C23",
+      "source": "EGRID / GRDECL / ROFF grid and properties",
+      "targets": "GRDECL / property CSV; optional VTK adapter",
+      "status": "upstream_documented",
+      "available_in_bat": false,
+      "priority": "P3",
+      "implementation": "XTGeo; explicit topology adapter for VTK",
+      "source_ids": [
+        "S11"
+      ],
+      "limitations": "CSV cell centers lose corner geometry. Preserve ACTNUM, faults, property coding, IJK order and timestep; no generic GRID support.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C24",
+      "source": "RESQML EPC + linked HDF5",
+      "targets": "Object/property tables; model-aware open derivatives",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P3",
+      "implementation": "resqpy with schema-specific mapping",
+      "source_ids": [
+        "S19",
+        "S18"
+      ],
+      "limitations": "Resolve all HDF5 references; preserve UUIDs, topology and CRS. RESQML 2.2 standard does not prove resqpy 2.2 support.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C25",
+      "source": "Known HDF5 / NetCDF / Zarr schema",
+      "targets": "NetCDF/Zarr / selected CSV arrays",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P2",
+      "implementation": "Xarray / h5py with domain adapter",
+      "source_ids": [
+        "S22"
+      ],
+      "limitations": "A container signature does not specify dimensions or meaning; preserve coordinates, units, masks and calendar.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C26",
+      "source": "LiDAR LAS/LAZ point cloud",
+      "targets": "XYZ/attribute CSV or point-cloud derivative",
+      "status": "upstream_documented",
+      "available_in_bat": false,
+      "priority": "P4",
+      "implementation": "laspy / LAZ backend",
+      "source_ids": [
+        "S23"
+      ],
+      "limitations": "Detect LASF binary signature; distinct from well-log LAS; preserve scale/offset, CRS, return/classification attributes.",
+      "new_core_feature_candidate": false
+    },
+    {
+      "id": "C27",
+      "source": "Unknown native Petrel fault/grid/log/property stores",
+      "targets": "Universal model export",
+      "status": "unsupported",
+      "available_in_bat": false,
+      "priority": "P4",
+      "implementation": "No generally validated decoder",
+      "source_ids": [],
+      "limitations": "Inventory/preserve originals; require object/version-specific parser evidence or a separately authorized application export.",
+      "new_core_feature_candidate": true
+    },
+    {
+      "id": "C28",
+      "source": "Generic ASCII/DAT/CSV tables",
+      "targets": "Typed CSV/XYZ tables",
+      "status": "adapter_required",
+      "available_in_bat": false,
+      "priority": "P1",
+      "implementation": "Explicit schema mapping and parser",
+      "source_ids": [],
+      "limitations": "ASCII is an encoding family, not a geological schema. Detect delimiter/encoding/nulls and map IDs, units, CRS and columns.",
+      "new_core_feature_candidate": false
+    }
+  ],
+  "implementation_priorities_superseded_by": "BINARY_EXTRACTION_PURPOSE.md",
+  "scope_correction": "Only Petrel binary/native payload recovery is a core addition; historical upstream possibilities are not an implementation plan"
+}

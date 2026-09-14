@@ -331,6 +331,10 @@ def gather_native_inventory(package: Path) -> dict:
 
     spatial_path = package / "07_workflows_reports" / "native_spatial_zero_gui" / "native_spatial_decode_report.json"
     spatial = load_json_file(spatial_path) or {}
+    decoded_ids: dict[str, set[str]] = {}
+    for item in spatial.get("objects", []):
+        if item.get("status") == "decoded" and item.get("object_id") and item.get("blob_type"):
+            decoded_ids.setdefault(item["blob_type"], set()).add(item["object_id"])
     return {
         "available": bool(type_rows or spatial),
         "registry_path": str(type_path) if type_path.is_file() else "",
@@ -339,7 +343,8 @@ def gather_native_inventory(package: Path) -> dict:
         "registry_unique_objects": sum(row["unique_object_ids"] for row in type_rows),
         "spatial_report_path": str(spatial_path) if spatial else "",
         "spatial_tool_version": spatial.get("tool_version", ""),
-        "decoded_object_type_counts": spatial.get("object_type_counts", {}),
+        "inspected_object_type_counts": spatial.get("object_type_counts", {}),
+        "decoded_object_type_counts": {kind: len(ids) for kind, ids in sorted(decoded_ids.items())},
         "object_status_counts": spatial.get("object_status_counts", {}),
         "polygon_vertex_rows": to_int(spatial.get("polygon_vertex_rows")),
         "point_vertex_rows": to_int(spatial.get("point_vertex_rows")),
@@ -1011,7 +1016,7 @@ def render_html(audit: dict, title: str) -> str:
         ("Native well heads", wells.get("native_well_head_count", 0), "decoded XY rows"),
         ("Polygons", polygons_decoded, f"decoded live objects · {polygons_registered} registry IDs"),
         ("Polygon vertices", native.get("polygon_vertex_rows", 0), "native XYZ rows"),
-        ("Seismic", seismic_registered, f"registry IDs · {seismic.get('cube_count', 0) if seismic.get('available') else 0} converted"),
+        ("Seismic", seismic_registered, "registry IDs · project-linked SEG-Y conversion not integrated"),
         ("Faults", faults_registered, "registry IDs · geometry not decoded"),
         ("Package files", files.get("file_count", 0), human_size(files.get("total_bytes", 0))),
         ("Manifest validation", f"{manifest_validated}/{manifest.get('row_count', 0)}", "validated rows"),
@@ -1048,11 +1053,11 @@ def render_html(audit: dict, title: str) -> str:
         ["Trajectories", trajectory_registered, trajectory_decoded_objects, f'{native.get("trajectory_rows", 0):,} CSV records', "Only validated provider layouts"],
         ["Polygons", polygons_registered, polygons_decoded, f'{native.get("polygon_vertex_rows", 0):,} XYZ vertices', "Decoded live supported objects; registry can include other versions"],
         ["Point sets", points_registered, points_decoded, f'{native.get("point_vertex_rows", 0):,} XYZ vertices', "Object identity/attributes may remain unresolved"],
-        ["Seismic", seismic_registered, seismic.get("cube_count", 0) if seismic.get("available") else 0, "ZGY when available", "Registry evidence is not converted seismic"],
+        ["Seismic", seismic_registered, 0, "Use the separate ZGY-to-SEG-Y BAT", "Legacy ZGY reports do not establish project-linked open-format recovery"],
         ["Fault interpretations", faults_registered, 0, "Metadata only", "Native fault geometry decoder not validated"],
-        ["Regular-value grids", grids_registered, surfaces.get("summary", {}).get("exported", 0) if surfaces.get("available") else 0, "Surface arrays when validated", "Grid values/masks remain fail-closed without proof"],
-        ["Well logs", logs_registered, wells.get("las_well_count", 0), "LAS/CSV companions", "Native binary log arrays not decoded here"],
-        ["Well tops", 0, tops.get("pick_count", 0) if tops.get("available") else native.get("validated_native_well_top_rows", 0), "Validated CSV only", "Native labels require independent calibration"],
+        ["Regular-value grids", grids_registered, 0, "Native payload not decoded", "Separate surface files do not establish registry-object recovery without identity linkage"],
+        ["Well logs", logs_registered, 0, "Native payload not decoded", "Existing LAS/CSV companions are not native binary log recovery"],
+        ["Well tops (rows)", "not enumerated", native.get("validated_native_well_top_rows", 0), "Validated native CSV rows only", "Native labels require independent calibration; companion tops excluded"],
     ]
     coverage_html = html_table(
         ["Domain", "Registry IDs", "Decoded/exported", "Open result", "Evidence boundary"],

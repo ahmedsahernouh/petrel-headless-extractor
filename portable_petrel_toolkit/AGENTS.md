@@ -4,6 +4,8 @@ By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://
 
 This toolkit is read-only with respect to source Petrel projects.
 
+The core purpose is Petrel binary/native payload recovery into open formats. Read `BINARY_EXTRACTION_PURPOSE.md`. Do not count companion reformatting, inventory or preservation as native decoding; CSV-to-LAS is outside new core features. ZGY conversion uses its exact file path and `ZGY_TO_SEGY.md`; project extraction uses the paired `.pet/.ptd` inputs below.
+
 1. Run `scripts\doctor_portable_petrel_toolkit.ps1` before extraction.
 2. Require an exact `.pet` path and matching `<stem>.ptd` directory.
 3. Require the output root to be outside the source project.

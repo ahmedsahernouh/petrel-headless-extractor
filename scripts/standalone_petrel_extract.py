@@ -22,7 +22,7 @@ import petrel_geoscience_tools as g
 import petrel_progress as progress
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy')
+MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy', 'segyio')
 
 
 def preflight():

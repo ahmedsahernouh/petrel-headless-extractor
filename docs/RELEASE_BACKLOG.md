@@ -2,7 +2,7 @@
 
 ## Next update after v0.2.5: website and project repository CLI attribution
 
-Registered on 2026-09-14. Status: deferred until the next release; do not change or republish v0.2.5 for this request.
+Registered on 2026-09-14. Status: implemented for v0.3.0 and checked through actual BAT startup output. v0.2.5 remains unchanged.
 
 Original request: "remove my name (first line in the cli) keep only the website, not now, in the next update (register)".
 
@@ -17,4 +17,21 @@ Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
 
 Keep the normal product/version heading, progress, timer and operational messages. This request concerns displayed CLI attribution only; documentation, source comments and license attribution are outside its scope.
 
-When implementing the next update, check the actual BAT startup output and update banner-specific tests and documentation as needed. Mark this entry completed with the release version after validation.
+Both launchers retain the website and project repository lines. The relocated acceptance test checks the original launcher's first two lines; the ZGY launcher is exercised separately. Version/progress/timer messages remain.
+
+## Conversion expansion and capability accuracy — registered 2026-09-14
+
+Status: priorities superseded by the user clarification: native/binary recovery only. See BINARY_EXTRACTION_PURPOSE.md. Historical broad research and bounded tests retained below; open-to-open additions are not planned. See the [28-route matrix](CONVERSION_CAPABILITIES.md), [applicability review](CONVERSION_REVIEW_2026-09-14.md) and [probe results](conversion_probe_results.json). These entries do not claim functionality in v0.2.5.
+
+- P0: make feature availability explicit in CLI/report/docs from a shared registry. Distinguish conversion, preservation, inventory, unavailable dependency and unresolved metadata. Fix projected shapefile coordinates being emitted under a `.geojson` extension without WGS84 reprojection.
+- P1: direct-file ZGY-to-SEG-Y with metadata preflight, bounded blocks, size estimate, progress/timer, failure receipts and receiving-application validation. Dependencies and synthetic float/int8/ZFP probes passed; real demo metadata remains unresolved. Do not silently infer time/depth or CRS.
+- Superseded, out of scope: schema-mapped scalar CSV/Excel-to-LAS 2.0; synthetic value/unit/null/step test passed. Add SEG-Y header/navigation CSV and harden/promote the development ZMAP/XYZ converter.
+- P2: DLIS/LIS scalar logs; separate multidimensional log-array export; IRAP/Surfer surfaces; GeoPackage; TSurf/VTK; typed ASCII and labelled array adapters. Validate pinned Windows packages and representative input variants.
+- P3/P4: VDS/SGZ, reservoir models and Energistics object adapters; keep SEG-D and unknown native layouts unadvertised until specific evidence exists.
+- Performance: offer conversion of one selected file without whole-project preservation; estimate uncompressed output size; separate raw file hashes from numerical QC; clearly label any future fast-inventory evidence as weaker than full SHA-256.
+
+Acceptance requires source preservation, geometry/domain/units/null/precision checks, representative failure tests, bounded memory, relocated/offline runtime validation and accurate partial/unsupported states. A successful import or writer call alone is insufficient. The attribution request above is included in v0.3.0.
+
+## Corrected binary-first update
+
+CSV-to-LAS and new generic ASCII/SEG-Y table reformatting were removed from the implementation. v0.3.0 adds a beta ZGY-to-SEG-Y entry point and corrects native coverage counts: companion logs/tops, unlinked surfaces and legacy ZGY reports are excluded; spatial counts use successful object statuses and unique IDs. Native FloatWellLog/IntWellLog and surface payload decoders take priority next; faults/grids/properties follow with validated geometry and identity. See [purpose](BINARY_EXTRACTION_PURPOSE.md).

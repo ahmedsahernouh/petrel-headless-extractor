@@ -1,0 +1,243 @@
+{
+  "as_of": "2026-09-14",
+  "scope": "Existing local demo export store, opened read-only; not all user projects",
+  "source_identity": "Private evidence retained locally; no raw native data included",
+  "counts_are_decoding_evidence": false,
+  "objects": [
+    {
+      "object_type": "FloatProperty",
+      "version_records": 347,
+      "unique_objects": 347
+    },
+    {
+      "object_type": "FloatWellLog",
+      "version_records": 185,
+      "unique_objects": 185
+    },
+    {
+      "object_type": "LocalInheritedProperty",
+      "version_records": 93,
+      "unique_objects": 93
+    },
+    {
+      "object_type": "ObservedData",
+      "version_records": 88,
+      "unique_objects": 88
+    },
+    {
+      "object_type": "IntWellLog",
+      "version_records": 56,
+      "unique_objects": 56
+    },
+    {
+      "object_type": "Commands",
+      "version_records": 52,
+      "unique_objects": 49
+    },
+    {
+      "object_type": "RegValGrid2",
+      "version_records": 46,
+      "unique_objects": 46
+    },
+    {
+      "object_type": "FaultInterpretation",
+      "version_records": 46,
+      "unique_objects": 46
+    },
+    {
+      "object_type": "Polygons3",
+      "version_records": 40,
+      "unique_objects": 40
+    },
+    {
+      "object_type": "NncData",
+      "version_records": 39,
+      "unique_objects": 39
+    },
+    {
+      "object_type": "IntProperty",
+      "version_records": 32,
+      "unique_objects": 32
+    },
+    {
+      "object_type": "ExplicitTrajectoryProviderData",
+      "version_records": 27,
+      "unique_objects": 27
+    },
+    {
+      "object_type": "DummyWellTraceSubjectShape",
+      "version_records": 27,
+      "unique_objects": 27
+    },
+    {
+      "object_type": "InterpretationAttributeData",
+      "version_records": 23,
+      "unique_objects": 23
+    },
+    {
+      "object_type": "History",
+      "version_records": 19,
+      "unique_objects": 19
+    },
+    {
+      "object_type": "Interpretation3Local",
+      "version_records": 17,
+      "unique_objects": 17
+    },
+    {
+      "object_type": "SimFloatProperty",
+      "version_records": 16,
+      "unique_objects": 16
+    },
+    {
+      "object_type": "velocityModel::Factors::Factor",
+      "version_records": 13,
+      "unique_objects": 13
+    },
+    {
+      "object_type": "ValGrid2",
+      "version_records": 13,
+      "unique_objects": 13
+    },
+    {
+      "object_type": "DevelopmentStrategyMemorySaver",
+      "version_records": 13,
+      "unique_objects": 13
+    },
+    {
+      "object_type": "TimeVector",
+      "version_records": 11,
+      "unique_objects": 11
+    },
+    {
+      "object_type": "LogsInCells",
+      "version_records": 9,
+      "unique_objects": 9
+    },
+    {
+      "object_type": "AutomaticPlanTrajectoryProviderData",
+      "version_records": 9,
+      "unique_objects": 9
+    },
+    {
+      "object_type": "SeismicHorizonShape",
+      "version_records": 8,
+      "unique_objects": 8
+    },
+    {
+      "object_type": "PillarGrid2",
+      "version_records": 7,
+      "unique_objects": 7
+    },
+    {
+      "object_type": "Points3",
+      "version_records": 6,
+      "unique_objects": 6
+    },
+    {
+      "object_type": "VelocityConstant",
+      "version_records": 5,
+      "unique_objects": 5
+    },
+    {
+      "object_type": "PillarGridSimDomainData",
+      "version_records": 5,
+      "unique_objects": 5
+    },
+    {
+      "object_type": "Function2",
+      "version_records": 4,
+      "unique_objects": 4
+    },
+    {
+      "object_type": "",
+      "version_records": 4,
+      "unique_objects": 4
+    },
+    {
+      "object_type": "SimStructUnstrCellQuery",
+      "version_records": 3,
+      "unique_objects": 3
+    },
+    {
+      "object_type": "PetraUnstrPillarGrid",
+      "version_records": 3,
+      "unique_objects": 3
+    },
+    {
+      "object_type": "LocalUnstrGridSimDomainData",
+      "version_records": 3,
+      "unique_objects": 3
+    },
+    {
+      "object_type": "KeyPillars",
+      "version_records": 3,
+      "unique_objects": 3
+    },
+    {
+      "object_type": "velocityModel::ModelLayers",
+      "version_records": 2,
+      "unique_objects": 2
+    },
+    {
+      "object_type": "SeismicBaseAccessGrid",
+      "version_records": 2,
+      "unique_objects": 2
+    },
+    {
+      "object_type": "CrossPlot",
+      "version_records": 2,
+      "unique_objects": 2
+    },
+    {
+      "object_type": "StatisticalFractures",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "ShortcutServiceData",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "OilShape",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "LocalPillarGridSimDomainData",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "LayoutServiceData",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "GasShape",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "FracturePatches",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "FloatFaultsProperty",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "FaultsConnFaces",
+      "version_records": 1,
+      "unique_objects": 1
+    },
+    {
+      "object_type": "ContactGrid",
+      "version_records": 1,
+      "unique_objects": 1
+    }
+  ]
+}

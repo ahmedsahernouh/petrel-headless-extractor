@@ -5,9 +5,7 @@ rem GitHub: https://github.com/ahmedsahernouh
 rem Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
 
 setlocal EnableExtensions DisableDelayedExpansion
-echo Ahmed Saher Nouh - SaherLabs
 echo Website: https://saherlabs.dev/
-echo GitHub: https://github.com/ahmedsahernouh
 echo Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
 echo.
 if exist "%~dp0STANDALONE.txt" goto standalone
@@ -214,6 +212,10 @@ echo The output root must be outside the source-project directory.
 exit /b 0
 
 :standalone
+if /I "%~x1"==".zgy" (
+    call "%~dp0convert_zgy_to_segy.bat" %*
+    exit /b
+)
 if not exist "%~dp0scripts\launch_standalone_petrel.ps1" goto incomplete_standalone
 if not exist "%~dp0scripts\repair_standalone_dependencies.ps1" goto incomplete_standalone
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\launch_standalone_petrel.ps1" %*

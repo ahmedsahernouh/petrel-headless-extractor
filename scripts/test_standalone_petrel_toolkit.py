@@ -66,6 +66,8 @@ def main():
     # The outer ZIP has no Python at all: the actual BAT must bootstrap offline.
     assert not (package/'runtime').exists()
     first=run('bundle_check',['--check','-NoPause'])
+    assert first.startswith('Website: https://saherlabs.dev/\nProject: https://github.com/ahmedsahernouh/petrel-headless-extractor\n')
+    assert 'echo Ahmed' not in bat.read_text() and 'echo GitHub:' not in bat.read_text()
     log=package/'build/dependencies/last_check.json'
     install=json.loads(log.read_text())
     assert install['status']=='repaired' and install['installed_file_count']>1000
@@ -172,12 +174,33 @@ def main():
         ('native_spatial_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_spatial_zero_gui.py')]),
         ('large_companion_controls',[str(py),'-B',str(package/'scripts/test_companion_large_files.py')]),
         ('progress_controls',[str(py),'-B',str(package/'scripts/test_petrel_progress.py')]),
+        ('binary_conversion_controls',[str(py),'-B',str(package/'scripts/test_petrel_binary_conversion.py')]),
         ('portable_doctor',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/doctor_portable_petrel_toolkit.ps1')])]:
         p=subprocess.run(cmd,cwd=relocated,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(p.stdout,encoding='utf-8')
         checks.append({'name':label,'passed':p.returncode==0,'exit_code':p.returncode,'log':label+'.txt'})
         if p.returncode:raise AssertionError(label+'\n'+p.stdout[-4000:])
         print(label,'passed',flush=True)
+    # Test the delivered conversion BAT and the main BAT's ZGY routing.
+    fixture_script=evidence/'make_zgy.py'
+    fixture_script.write_text('import sys\nfrom pathlib import Path\nsys.path.insert(0,sys.argv[1])\nfrom test_petrel_binary_conversion import BinaryConversionTests\nt=BinaryConversionTests();t.setUp()\np=t.fixture()\nprint(str(p))\n',encoding='utf-8')
+    fixture=subprocess.run([str(py),'-B',str(fixture_script),str(package/'scripts')],env=env,capture_output=True,text=True,check=True)
+    zgy=Path(fixture.stdout.strip().splitlines()[-1])
+    native_bat=bat
+    bat=package/'convert_zgy_to_segy.bat'
+    capabilities=run('binary_capabilities',['-Capabilities','-NoPause'])
+    assert 'zgy-to-segy' in capabilities and 'csv-to-las' not in capabilities
+    inspection=run('binary_metadata_inspection',[zgy,'-Inspect','-NoPause'])
+    assert 'zunit_dimension' in inspection
+    conversion=run('binary_conversion_bat',[zgy,relocated/'Binary Results','-NoPause'])
+    assert 'SUCCESS:' in conversion and '5/5 stages complete | Complete' in conversion
+    binary_receipt=json.loads(next((relocated/'Binary Results').rglob('RUN_RESULT.json')).read_text())
+    assert binary_receipt['status']=='passed' and binary_receipt['summary']['all_decoded_samples_exact']
+    prompted_conversion=run('binary_interactive_prompt',[],input_text=str(zgy)+'\nunknown\n'+str(relocated/'Binary Prompt Results')+'\n\n')
+    assert 'SUCCESS:' in prompted_conversion
+    bat=native_bat
+    routed=run('main_bat_zgy_routing',[zgy,relocated/'Routed Binary Results','-NoPause'])
+    assert 'SUCCESS:' in routed
     # A corrupt delivered script must stop before any project output is created.
     target=package/'scripts/portable_petrel_companion_extract.py';saved=target.read_bytes()
     try:

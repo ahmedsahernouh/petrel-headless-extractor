@@ -55,6 +55,13 @@ def phase(number, label):
         _reporter.phase(number, label)
 
 
+def items(label, done, total, started, unit='items'):
+    """Report measurable conversion work without calling it a hash pass."""
+    if _reporter is not None:
+        _reporter.update(dict(kind='items', label=label, done=done, total=total,
+                             started=started, unit=unit, complete=False))
+
+
 @contextmanager
 def hash_batch(label, paths):
     """Count actual read bytes across a known, sequential collection of files."""
@@ -216,6 +223,9 @@ class ConsoleProgress:
         fraction = min(done / total, 0.999) if total else 0
         elapsed = now - metric['started']
         eta = duration((total - done) * elapsed / done) if done > 0 and done < total and elapsed >= 3 else 'calculating'
+        if metric.get('kind') == 'items':
+            return (prefix + f'{bar(fraction)} {100 * fraction:.1f}% | Phase ETA ~{eta}'
+                    f' | {done}/{total} {metric["unit"]} | {metric["label"]}')
         return (prefix + f'{bar(fraction)} {100 * fraction:.1f}% | Hash ETA ~{eta}'
                 f' | {size(done)}/{size(total)} | {metric["files_done"]}/{metric["files_total"]} files | {metric["label"]}')
 
