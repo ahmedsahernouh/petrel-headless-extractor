@@ -34,7 +34,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-TOOL_VERSION = "2.0-interactive-dashboard"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+TOOL_VERSION = "3.0-visual-inventory"
 NOT_AVAILABLE = "not available in this export package"
 
 
@@ -422,6 +424,8 @@ def gather_media(package: Path, max_embed_bytes: int = 12 * 1024 * 1024) -> dict
         if path.suffix.lower() not in image_extensions:
             continue
         relative = path.relative_to(package).as_posix()
+        if relative.startswith("07_workflows_reports/visuals/"):
+            continue  # Generated figures are handled by the visual report, not source-image evidence.
         size = path.stat().st_size
         width, height = png_dimensions(path)
         payload = ""
@@ -537,11 +541,15 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
     display_polylines = []
     if bbox:
         for item in polylines:
-            retained = [
-                point for point in item["points"]
-                if bbox["min_x"] <= point[0] <= bbox["max_x"] and bbox["min_y"] <= point[1] <= bbox["max_y"]
-            ]
-            omitted_polygon_vertices += len(item["points"]) - len(retained)
+            retained = []
+            for point in item["points"]:
+                if bbox["min_x"] <= point[0] <= bbox["max_x"] and bbox["min_y"] <= point[1] <= bbox["max_y"]:
+                    retained.append(point)
+                else:
+                    omitted_polygon_vertices += 1
+                    if len(retained) >= 2:
+                        display_polylines.append({**item, "points": retained})
+                    retained = []  # Do not draw a connecting line across omitted vertices.
             if len(retained) >= 2:
                 display_polylines.append({**item, "points": retained})
     else:
@@ -986,6 +994,7 @@ def render_spatial_svg(overview: dict) -> str:
 
 
 def render_html(audit: dict, title: str) -> str:
+    import petrel_visual_report as visual
     project = audit["project"]
     manifest = audit["manifest"]
     wells = audit["wells"]
@@ -1236,18 +1245,25 @@ def render_html(audit: dict, title: str) -> str:
     })();
     """
 
+    style += visual.STYLE
+    script += visual.SCRIPT
     nav = "".join(
         f'<a href="#{section_id}">{label}</a>'
         for section_id, label in (
-            ("overview", "Overview"), ("crs", "CRS"), ("maps", "Maps & images"), ("coverage", "Coverage"),
+            ("overview", "Overview"), ("data-inventory", "Data tree"), ("visual-report", "Figures"), ("objects", "Objects"), ("crs", "CRS"), ("maps", "Maps & images"), ("coverage", "Coverage"),
             ("wells", "Wells"), ("native", "Native inventory"), ("files", "File tree"), ("qc", "QC & evidence"),
         )
     )
     generated = esc(audit["created_at_utc"])
+    selection = ('Full report + inventory included · Dataset conversion OFF · Temporary previews only'
+                 if audit.get('selection', {}).get('report_only') else
+                 'Full report + inventory included · Dataset conversion '+('ON for supported profiles' if audit.get('selection', {}).get('dataset_conversion_enabled', True) else 'OFF'))
     header = (
         f'<header><h1>{esc(title)}</h1><p>Project: {esc(project.get("project_name") or "unknown")} · '
         f'Petrel version: {esc(project.get("petrel_version") or "unknown")} · Export: {esc(project.get("export_id") or "unknown")}</p>'
-        f'<p>Generated {generated} by report_petrel_project_audit.py v{TOOL_VERSION}. Zero-GUI; Petrel and Ocean were not used.</p></header>'
+        f'<p>{esc(selection)}</p><p>Generated {generated} · Offline data report · '
+        '<a style="color:white" href="https://saherlabs.dev/">saherlabs.dev</a> · '
+        '<a style="color:white" href="https://github.com/ahmedsahernouh/petrel-headless-extractor">Project repository</a></p></header>'
     )
 
     body = f"""
@@ -1256,6 +1272,8 @@ def render_html(audit: dict, title: str) -> str:
       <div><h3>Extraction state</h3><p><strong>{native.get('registry_unique_objects',0):,}</strong> native registry object IDs were inventoried. The dashboard distinguishes registry references, decoded live objects, and open-format rows.</p>
       <p><strong>{files.get('file_count',0):,}</strong> package files occupy {esc(human_size(files.get('total_bytes',0)))}. The dynamic tree below links to every available artifact.</p>
       <div class="boundary">Counts in the native registry are evidence of stored object references. They are not automatically converted geometry, seismic, logs, grids, or interpreted results.</div></div></div></section>
+    {visual.render_inventory(audit, file_href)}
+    {visual.render_section(audit, file_href)}
     <section id="crs"><h2>Coordinate reference system and units</h2><div class="crs-card"><div class="crs-value">{esc(crs_value)}</div>
       <p><strong>Status:</strong> {esc(crs_status)}</p><p>XY units: <strong>{esc(project.get('xy_units') or 'unknown')}</strong> · Depth: <strong>{esc(project.get('depth_units') or 'unknown')}</strong> · Time: <strong>{esc(project.get('time_units') or 'unknown')}</strong> · Velocity: <strong>{esc(project.get('velocity_units') or 'unknown')}</strong></p>
       <div class="boundary">{esc(crs_warning)}</div></div></section>
@@ -1288,9 +1306,10 @@ def main() -> int:
     parser.add_argument("--export-package", required=True, help="Export package root directory")
     parser.add_argument("--output-dir", default="", help="Output directory (default: <package>/07_workflows_reports/project_audit)")
     parser.add_argument("--title", default="", help="Report title (default: 'Petrel Project Audit - <project>')")
+    parser.add_argument("--report-only", action="store_true", help="Prepare disposable native previews without retained dataset conversions")
     args = parser.parse_args()
 
-    package = Path(args.export_package)
+    package = Path(args.export_package).resolve()
     if not package.is_dir():
         print("SummaryJson:" + json.dumps({"status": "failed", "error": f"export package not found: {package}"}))
         return 1
@@ -1312,10 +1331,15 @@ def main() -> int:
         "domain_file_counts": gather_domain_files(package),
     }
     audit["native_inventory"] = gather_native_inventory(package)
-    audit["file_inventory"] = gather_file_inventory(package)
+    audit["selection"] = load_json_file(package / "01_project_metadata" / "extraction_options.json") or {}
+    report_only = args.report_only or audit["selection"].get("report_only", False)
+    audit["selection"]["report_only"] = report_only
     audit["media"] = gather_media(package)
     audit["spatial_overview"] = gather_spatial_overview(package, audit["wells"])
     audit["qc_flags"] = build_qc_flags(audit)
+    import petrel_visual_report as visual
+    audit["visual_report"] = visual.report_only_visuals(package, audit) if report_only else visual.build_visuals(package, audit)
+    audit["file_inventory"] = gather_file_inventory(package)
 
     title = args.title or f"Petrel Project Audit - {audit['project']['project_name'] or package.name}"
     output_dir = Path(args.output_dir) if args.output_dir else package / "07_workflows_reports" / "project_audit"
@@ -1339,6 +1363,9 @@ def main() -> int:
     # The machine-readable report retains inventories and summaries but does not duplicate
     # embedded image bytes or the browser-only decimated geometry payload.
     json_audit = dict(audit)
+    json_audit["visual_report"] = dict(audit["visual_report"], figures=[
+        {key:value for key,value in figure.items() if key != "data_uri"}
+        for figure in audit["visual_report"].get("figures", [])])
     json_audit["media"] = dict(audit["media"])
     json_audit["media"]["images"] = [
         {key: value for key, value in image.items() if key != "data_uri"}

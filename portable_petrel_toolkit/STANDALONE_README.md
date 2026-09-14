@@ -1,4 +1,4 @@
-# Petrel Headless Extractor 0.4.0 — standalone Windows x64
+# Petrel Headless Extractor 0.5.0 — standalone Windows x64
 
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -9,7 +9,7 @@ For binary seismic conversion, use `convert_zgy_to_segy.bat` and read `ZGY_TO_SE
 3. On first launch, the BAT installs bundled Python and dependencies into its own `runtime` folder. Each later launch checks them and automatically repairs missing or damaged runtime files.
 4. When it finishes, open the `PROJECT_REPORT.html` path printed in the window. The output also includes package QC, checksums, source-preservation receipts and a run log.
 
-The release ZIP is `PetrelExtractor-0.4.0-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
+The release ZIP is `PetrelExtractor-0.5.0-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
 
 Keep the matching, complete `ProjectName.ptd` directory beside `ProjectName.pet`. Close the test project in Petrel before extraction so another program cannot change its files during the read. The extractor itself never opens Petrel or edits its stores.
 
@@ -65,3 +65,11 @@ Download and extract the complete new release into its own folder. An already ru
 ## Native logs and surfaces in v0.4.0
 
 The normal `convert` run now recovers supported native well logs to LAS/CSV and surfaces to XYZ/CSV. Open `07_workflows_reports/native_recovery/native_recovery_report.json` inside the extraction package, and the package's `native_data` folder for the files. Each continuous curve has its own LAS, preserving original MD positions. Categorical records stay CSV; `is_null` flags native missing values. Surface `VALUE` preserves its source sign and unit. Unknown units, geometry and layouts are reported per object. See `NATIVE_LOGS_SURFACES.md` for validated profiles and limits. No CSV-to-LAS input converter was added.
+
+## Visual report in v0.5.0
+
+Open `PROJECT_REPORT.html` after extraction. It now includes a complete foldable data-object inventory, data figures, log tracks, surface maps, bounded ZGY previews, statistics, searchable object lists and data links. PNG/SVG figures are downloadable; dependencies work offline. See `VISUAL_REPORT.md` for sampling limits and evidence boundaries.
+
+## Report and conversion options
+
+Full visual report and complete inventory: always included. Convert supported datasets: selected by default; press Enter at the Y/n prompt to keep it enabled, or type n for report-only. Command line: add `-ReportOnly -NoPause`. Report-only retains source snapshots and metadata/inventory tables but discards temporary decoded datasets after plotting. Preview-only objects are labelled separately from converted outputs.

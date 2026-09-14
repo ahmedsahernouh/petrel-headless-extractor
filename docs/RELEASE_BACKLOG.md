@@ -39,3 +39,9 @@ Acceptance requires source preservation, geometry/domain/units/null/precision ch
 ## Corrected binary-first update
 
 CSV-to-LAS and new generic ASCII/SEG-Y table reformatting were removed from the implementation. v0.3.0 adds a beta ZGY-to-SEG-Y entry point and corrects native coverage counts: companion logs/tops, unlinked surfaces and legacy ZGY reports are excluded; spatial counts use successful object statuses and unique IDs. Native FloatWellLog/IntWellLog and surface payload decoders take priority next; faults/grids/properties follow with validated geometry and identity. See [purpose](BINARY_EXTRACTION_PURPOSE.md).
+
+## Visual report before automatic project conversion — 2026-09-14
+
+User priority: strong visual report with figures, maps, plots, statistics, lists, links and visualizations, including a full foldable data inventory tree. Implemented for v0.5.0: see [visual report](VISUAL_REPORT.md). Automatic project-linked ZGY conversion remains the subsequent integration step. Output contract: SEG-Y for seismic; documented ASCII/text for other data.
+
+User clarification: full report/inventory is basic and always included. Dataset conversion is optional, selected by default. v0.5.0 adds Y/n selection and `-ReportOnly`; temporary preview datasets are discarded.

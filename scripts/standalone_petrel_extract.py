@@ -22,7 +22,7 @@ import petrel_geoscience_tools as g
 import petrel_progress as progress
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy', 'segyio')
+MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy', 'segyio', 'matplotlib', 'PIL')
 
 
 def preflight():
@@ -73,9 +73,11 @@ def main():
     parser.add_argument('--project-file')
     parser.add_argument('--output-root')
     parser.add_argument('--mode', choices=['inventory','copy','convert'], default='convert')
+    parser.add_argument('--report-only', action='store_true', help='Full report/inventory and temporary previews; no retained dataset conversion')
     parser.add_argument('--petrel-version', default='unknown')
     parser.add_argument('--label', default='')
     args = parser.parse_args()
+    if args.report_only: args.mode = 'inventory'
     run = None
     display = progress.ConsoleProgress(stages=1 if args.check else 12).start()
     success = False
@@ -101,7 +103,7 @@ def main():
         g.write_json(run/'request.json',vars(args))
         common = {'petrel_version':args.petrel_version,'version_scope':'Standalone external extraction; source release unverified unless independently established'}
         display.message('Extracting supported project evidence; source files stay unchanged.', flush=True)
-        extraction = g.dispatch('extract_portable_project', {**common,'project_file':str(source),'output_dir':str(run/'extraction'),'companion_mode':args.mode})
+        extraction = g.dispatch('extract_portable_project', {**common,'project_file':str(source),'output_dir':str(run/'extraction'),'companion_mode':args.mode,'report_only':args.report_only})
         progress.phase(10, 'Extraction receipt and source hash verification')
         audit = g.verify_receipt(extraction)
         if audit['status'] != 'passed':
@@ -117,6 +119,7 @@ def main():
         result = {'status':'passed','toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
                   'extraction_audit':audit,'qc':qc,'qc_audit':qc_audit,
                   'source_mutated':False,'petrel_process_launched':False,
+                  'report_included':True,'dataset_conversion_enabled':not args.report_only and args.mode=='convert',
                   'scientific_acceptance':'not_established'}
         g.write_json(run/'RUN_RESULT.json',result)
         (run/'RUN_LOG.txt').write_text('Extraction and QC execution passed.\nElapsed: '+progress.duration(display.elapsed)+'\nSource files unchanged.\nPackage: '+package+'\nDashboard: '+extraction['summary']['dashboard']+'\nQC: '+qc['report_path']+'\n',encoding='utf-8')

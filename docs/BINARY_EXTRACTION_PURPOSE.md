@@ -48,3 +48,7 @@ The report must show **what became usable outside Petrel**, what only has metada
 ## Scope boundaries
 
 Preserve read-only source handling, offline Windows operation and no Petrel/Ocean dependency. Never invent undocumented binary layouts, assume geometry from a different survey, infer units from plausible values, or claim every Petrel version is supported. Missing reference metadata is a conversion blocker for the affected object, not a reason to mislabel it as a successful export.
+
+## Report-first product workflow
+
+The full visual report and complete foldable data inventory are the mandatory baseline. Conversion is optional and enabled by default: SEG-Y for supported seismic; documented ASCII/text for other data. Report-only retains previews and inventory metadata, with no retained converted datasets. v0.5.0 implements this selection for the existing extraction pipeline; project-wide linked ZGY-to-SEG-Y automation remains subsequent work.

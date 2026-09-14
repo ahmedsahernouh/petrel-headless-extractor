@@ -18,11 +18,13 @@ param(
     [switch]$SkipNativeSpatialExtraction,
     [switch]$SkipNativeBinaryRecovery,
     [switch]$SkipAudit,
+    [switch]$ReportOnly,
     [switch]$NoValidate
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if ($ReportOnly) { $CompanionMode = 'inventory'; $SkipAudit = $false }
 
 function Test-IsWithinPath {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Parent)
@@ -108,6 +110,8 @@ $packageLine = @($nativeOutput | Where-Object { $_ -match '^Export package:' } |
 if ($packageLine.Count -eq 0) { throw "Native exporter did not report the export package path." }
 $exportPackage = ($packageLine[0] -replace '^Export package:\s*', '').Trim()
 $exportPackage = (Resolve-Path -LiteralPath $exportPackage).Path
+$selection = @{ full_report = $true; full_inventory = $true; dataset_conversion_enabled = (-not $ReportOnly -and $CompanionMode -eq 'convert'); report_only = [bool]$ReportOnly }
+$selection | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $exportPackage '01_project_metadata\extraction_options.json') -Encoding UTF8
 
 if (-not $SkipSemanticExtraction) {
     Write-Output "Stage 2/6: safe native semantic metadata extraction"
@@ -218,6 +222,8 @@ $summary = [ordered]@{
     petrel_process_launched = $false
     source_mutated = $false
     companion_mode = $CompanionMode
+    report_only = [bool]$ReportOnly
+    dataset_conversion_enabled = (-not $ReportOnly -and $CompanionMode -eq 'convert')
     native_spatial_extraction = if ((-not $SkipNativeSpatialExtraction) -and $CompanionMode -eq "convert") { "attempted_evidence_gated" } else { "skipped" }
     native_log_surface_recovery = if ((-not $SkipNativeBinaryRecovery) -and $CompanionMode -eq "convert") { "attempted_validated_profiles" } else { "skipped" }
     manifest_rows = $manifestRows.Count

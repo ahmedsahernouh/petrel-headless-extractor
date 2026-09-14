@@ -6,6 +6,8 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
+**Version 0.5.0:** adds an [offline visual report and complete foldable data inventory](docs/VISUAL_REPORT.md), with maps, log tracks, bounded seismic previews, statistics and data links.
+
 **Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The [beta ZGY-to-SEG-Y BAT](docs/ZGY_TO_SEGY.md) remains available separately. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
 
 The release ZIP includes Python and all pinned runtime dependencies. No Python installation, Petrel, Ocean SDK, administrator access, or internet connection is needed to run it. Windows 10/11 x64 with built-in Windows PowerShell is the target.

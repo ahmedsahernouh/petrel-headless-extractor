@@ -157,6 +157,7 @@ def main():
     assert prompt_payload['status']=='passed' and prompt_payload['source_mutated'] is False
     assert prompt_request['project_file']==str(project)
     assert prompt_request['output_root']==str(relocated/'Prompted Results')
+    assert prompt_request['report_only'] is False
     run('reject_output_inside_source',[project,source/'bad','convert','-NoPause'],expected=1)
     assert not (source/'bad').exists()
     orphan=source/'MissingStore.pet';orphan.write_text('missing matching ptd')
@@ -196,7 +197,20 @@ print(src/'Fixture.pet')
         assert native_report['object_status_counts']=={'decoded':1}
         assert native_report['objects'][0]['blob_type']==expected_type
         assert list(native_results.rglob('curve.las' if fixture_kind=='log' else 'surface.xyz'))
+        visual=json.loads(next(native_results.rglob('visual_report.json')).read_text(encoding='utf-8'))
+        assert visual['figures'] and visual['inventory']['node_count'] > 0
+        html=next(native_results.rglob('PROJECT_REPORT.html')).read_text(encoding='utf-8')
+        assert 'Complete data inventory tree' in html and 'data:image/png;base64,' in html
         assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in original_native.items())
+        if fixture_kind=='log':
+            report_results=relocated/'Report Only Results'
+            run('native_report_only_actual_bat',[native_project,report_results,'-ReportOnly','-NoPause'])
+            report_result=json.loads(next(report_results.rglob('RUN_RESULT.json')).read_text())
+            assert report_result['dataset_conversion_enabled'] is False
+            preview=json.loads(next(report_results.rglob('visual_report.json')).read_text(encoding='utf-8'))
+            assert preview['report_only'] and preview['figures']
+            assert not list(report_results.rglob('curve.las')) and not list(report_results.rglob('samples.csv'))
+            assert all(o['status']!='decoded' for o in preview['objects'])
     for label,cmd in [
         ('synthetic_toolkit_smoke',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/test_portable_petrel_toolkit.ps1'),'-PythonPath',str(py)]),
         ('native_spatial_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_spatial_zero_gui.py')]),
@@ -204,6 +218,7 @@ print(src/'Fixture.pet')
         ('progress_controls',[str(py),'-B',str(package/'scripts/test_petrel_progress.py')]),
         ('binary_conversion_controls',[str(py),'-B',str(package/'scripts/test_petrel_binary_conversion.py')]),
         ('native_log_surface_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_recovery.py')]),
+        ('visual_report_controls',[str(py),'-B',str(package/'scripts/test_petrel_visual_report.py')]),
         ('portable_doctor',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/doctor_portable_petrel_toolkit.ps1')])]:
         p=subprocess.run(cmd,cwd=relocated,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(p.stdout,encoding='utf-8')

@@ -39,6 +39,7 @@ $required = @(
     "register_petrel_file_exports.ps1",
     "validate_export_package.ps1",
     "report_petrel_project_audit.py",
+    "petrel_visual_report.py",
     "new_export_package.ps1",
     "petrel_mcp_dependencies.ps1"
 )
@@ -48,7 +49,7 @@ foreach ($name in $required) {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($pythonExe)) {
-    foreach ($module in @("lasio", "pandas", "openpyxl", "shapefile", "numpy", "zmapio", "pyzgy")) {
+    foreach ($module in @("lasio", "pandas", "openpyxl", "shapefile", "numpy", "zmapio", "pyzgy", "matplotlib")) {
         $previousErrorPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
         & $pythonExe -c "import $module" 2>$null

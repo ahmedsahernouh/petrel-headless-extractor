@@ -486,6 +486,7 @@ def extract_portable_project(args: dict) -> dict:
     if source.suffix.lower()!='.pet' or not store.is_dir():
         raise InputError('Exact .pet file and matching .ptd directory required')
     mode=args.get('companion_mode','convert')
+    if args.get('report_only'): mode='inventory'
     if mode not in ('inventory','copy','convert'):raise InputError('Invalid companion_mode')
     # The existing pipeline may inspect companions; include that entire source lane.
     progress.phase(2, 'Initial source integrity hashes')
@@ -495,6 +496,7 @@ def extract_portable_project(args: dict) -> dict:
     command=['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/invoke_portable_petrel_extract.ps1'),
              '-ProjectFile',str(source),'-OutputRoot',str(run.output/'package'),'-ProjectName',source.stem,
              '-PetrelVersion',run.version['petrel_version'],'-CompanionMode',mode,'-PythonPath',sys.executable]
+    if args.get('report_only'):command.append('-ReportOnly')
     progress.phase(3, 'Native project copy and inventory')
     try:
         code = progress.run_pipeline(command, ROOT, run.output/'extraction.log', args.get('timeout_seconds',1800))
