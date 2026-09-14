@@ -1,11 +1,11 @@
-# Petrel Headless Extractor 0.2.2 — standalone Windows x64
+# Petrel Headless Extractor 0.2.3 — standalone Windows x64
 
 1. Extract the **whole ZIP** into a normal writable folder, separate from your project data.
 2. Drag your `.pet` file onto **run_portable_petrel_extract.bat**, or double-click the BAT and enter the project path.
 3. On first launch, the BAT installs bundled Python and dependencies into its own `runtime` folder. Each later launch checks them and automatically repairs missing or damaged runtime files.
 4. When it finishes, open the `PROJECT_REPORT.html` path printed in the window. The output also includes package QC, checksums, source-preservation receipts and a run log.
 
-The release ZIP is `PetrelExtractor-0.2.2-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
+The release ZIP is `PetrelExtractor-0.2.3-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
 
 Keep the matching, complete `ProjectName.ptd` directory beside `ProjectName.pet`. Close the test project in Petrel before extraction so another program cannot change its files during the read. The extractor itself never opens Petrel or edits its stores.
 
@@ -40,3 +40,5 @@ ZFP support (`zfpy`) is included. Cloud SeismicStore (`sdglue`) is optional and 
  `00_manifest/runtime_provenance.json`, `00_manifest/dependency_inventory.json`, `requirements-standalone-lock.txt` and `THIRD_PARTY_NOTICES.md` record the bundled runtime, exact dependencies and licenses. No project data, local credentials, source corpus or proprietary Petrel binaries are included.
 
 The runtime comes from the [official Python Windows release manifest](https://www.python.org/ftp/python/3.13.15/windows-3.13.15.json). This package uses Python 3.13.15 x64 and verifies the archive against the SHA-256 published there.
+
+Large companion files: text detection reads at most 64 KiB, well-top header detection reads at most 256 KiB, and text profiling samples at most 1 MiB (with a one-byte truncation check). Prefix profiles are labelled and do not claim full-file line counts. The default companion copy/conversion limit is 2,000,000,000 bytes per file. Files above it stay in the inventory with `skipped_size_limit` and are never sent to a converter. SHA-256 still streams across source files, including oversized files, so folders containing very large seismic volumes can take considerable time. This release does not convert SEG-Y volumes.

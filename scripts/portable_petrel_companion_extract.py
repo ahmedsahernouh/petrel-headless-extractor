@@ -25,6 +25,9 @@ from typing import Any
 
 TEXT_SUFFIXES = {".txt", ".prn", ".csv", ".tsv", ".asc", ".ascii", ".dat", ".prj", ".xml", ".json", ".md"}
 PRESERVE_SUFFIXES = TEXT_SUFFIXES | {".las", ".xlsx", ".xlsm", ".xls", ".shp", ".shx", ".dbf", ".sbn", ".sbx", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".sgy", ".segy", ".zgy", ".resqml", ".epc"}
+TEXT_SAMPLE_BYTES = 65536
+HEADER_SAMPLE_BYTES = 262144
+TEXT_PROFILE_BYTES = 1048576
 
 
 def sha256(path: Path) -> str:
@@ -55,7 +58,8 @@ def is_relative_to(path: Path, parent: Path) -> bool:
 
 def looks_text(path: Path) -> bool:
     try:
-        sample = path.read_bytes()[:65536]
+        with path.open("rb") as handle:
+            sample = handle.read(TEXT_SAMPLE_BYTES)
     except OSError:
         return False
     if not sample:
@@ -95,8 +99,15 @@ def classify(path: Path) -> str:
 
 
 def profile_text(path: Path) -> dict[str, Any]:
-    text = path.read_text(encoding="utf-8", errors="replace")
+    # Bound both the read and the temporary line lists, including giant files
+    # with no line breaks. Counts from a prefix must never look like full totals.
+    with path.open("rb") as handle:
+        data = handle.read(TEXT_PROFILE_BYTES + 1)
+    truncated = len(data) > TEXT_PROFILE_BYTES
+    text = data[:TEXT_PROFILE_BYTES].decode("utf-8", errors="replace")
     lines = text.splitlines()
+    if truncated and not text.endswith(("\n", "\r")):
+        lines = lines[:-1]
     nonempty = [line for line in lines if line.strip()]
     sample = nonempty[:50]
     delimiters = {
@@ -106,8 +117,11 @@ def profile_text(path: Path) -> dict[str, Any]:
         "whitespace": sum(bool(re.search(r"\S\s{2,}\S", line)) for line in sample),
     }
     return {
-        "line_count": len(lines),
-        "nonempty_line_count": len(nonempty),
+        "line_count": None if truncated else len(lines),
+        "nonempty_line_count": None if truncated else len(nonempty),
+        "sampled_line_count": len(lines),
+        "sample_bytes": min(len(data), TEXT_PROFILE_BYTES),
+        "scope": "prefix_only" if truncated else "complete_file",
         "likely_delimiter": max(delimiters, key=delimiters.get) if sample and max(delimiters.values()) else "unknown",
         "first_nonempty_line": clean(nonempty[0])[:300] if nonempty else "",
     }
@@ -117,7 +131,8 @@ def is_petrel_well_tops_ascii(path: Path) -> bool:
     if not looks_text(path):
         return False
     try:
-        sample = path.read_text(encoding="utf-8-sig", errors="replace")[:262144]
+        with path.open("rb") as handle:
+            sample = handle.read(HEADER_SAMPLE_BYTES).decode("utf-8-sig", errors="replace")
     except OSError:
         return False
     upper = sample.upper()
@@ -500,6 +515,8 @@ def main() -> int:
     parser.add_argument("--mode", choices=["inventory", "copy", "convert"], default="convert")
     parser.add_argument("--max-file-bytes", type=int, default=2_000_000_000)
     args = parser.parse_args()
+    if args.max_file_bytes < 1:
+        parser.error("--max-file-bytes must be positive")
 
     project_file = Path(args.project_file).resolve()
     project_root = project_file.parent
@@ -591,16 +608,18 @@ def main() -> int:
         if is_relative_to(source, export_package):
             continue
         source_rel = rel(project_root, source)
-        category = classify(source)
-        if category in {"text_ascii", "text_ascii_no_extension", "ambiguous_dat_or_zmap"} and is_petrel_well_tops_ascii(source):
-            category = "petrel_well_tops_ascii"
         size = source.stat().st_size
+        over_size_limit = size > args.max_file_bytes
+        category = classify(source)
+        if not over_size_limit and category in {"text_ascii", "text_ascii_no_extension", "ambiguous_dat_or_zmap"} and is_petrel_well_tops_ascii(source):
+            category = "petrel_well_tops_ascii"
         status = "inventoried"
         preserved_path = ""
         converted_paths: list[str] = []
         error = ""
-        profile: dict[str, Any] = {}
-        if looks_text(source):
+        profile: dict[str, Any] = {"scope": "not_sampled_size_limit" if over_size_limit else "not_text"}
+        text_like = not over_size_limit and looks_text(source)
+        if text_like:
             try:
                 profile = profile_text(source)
             except OSError as exc:
@@ -610,10 +629,10 @@ def main() -> int:
             if size == 0:
                 status = "empty_source_not_copied"
                 skipped += 1
-            elif size > args.max_file_bytes:
+            elif over_size_limit:
                 status = "skipped_size_limit"
                 skipped += 1
-            elif source.suffix.lower() in PRESERVE_SUFFIXES or looks_text(source):
+            elif source.suffix.lower() in PRESERVE_SUFFIXES or text_like:
                 target = source_copy_root / Path(source_rel)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
@@ -624,7 +643,9 @@ def main() -> int:
                 preserved += 1
                 status = "preserved"
 
-        if args.mode == "convert":
+        # A skipped/empty file must never reach a converter or acquire a false
+        # "converted_and_preserved" status without a preserved source copy.
+        if args.mode == "convert" and preserved_path:
             try:
                 generated: list[Path] = []
                 if category == "las_well_data" and optional["lasio"] == "available":
@@ -659,6 +680,9 @@ def main() -> int:
             "sha256": sha256(source),
             "text_line_count": profile.get("line_count", ""),
             "text_nonempty_line_count": profile.get("nonempty_line_count", ""),
+            "text_profile_scope": profile.get("scope", ""),
+            "text_sample_bytes": profile.get("sample_bytes", ""),
+            "text_sample_line_count": profile.get("sampled_line_count", ""),
             "likely_delimiter": profile.get("likely_delimiter", ""),
             "first_nonempty_line": profile.get("first_nonempty_line", ""),
             "status": status,
@@ -674,7 +698,7 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(rows)
 
-    unsupported = [row for row in rows if row["category"] in {"unsupported_or_unknown", "legacy_excel_workbook", "ambiguous_dat_or_zmap", "segy_seismic", "zgy_seismic", "resqml_data", "resqml_epc_package"} or "failed" in row["status"] or "unavailable" in row["status"]]
+    unsupported = [row for row in rows if row["category"] in {"unsupported_or_unknown", "legacy_excel_workbook", "ambiguous_dat_or_zmap", "segy_seismic", "zgy_seismic", "resqml_data", "resqml_epc_package"} or "failed" in row["status"] or "unavailable" in row["status"] or row["status"] == "skipped_size_limit"]
     unsupported_path = export_package / "99_unexported_or_manual" / "portable_unsupported_inventory.csv"
     if unsupported:
         unsupported_path.parent.mkdir(parents=True, exist_ok=True)
@@ -697,6 +721,10 @@ def main() -> int:
         "petrel_launched": False,
         "mode": args.mode,
         "optional_dependencies": optional,
+        "limits": {"max_preserved_file_bytes": args.max_file_bytes,
+                   "text_detection_bytes": TEXT_SAMPLE_BYTES,
+                   "text_header_bytes": HEADER_SAMPLE_BYTES,
+                   "text_profile_bytes": TEXT_PROFILE_BYTES},
         "counts": {
             "inventoried": len(rows),
             "preserved": preserved,
@@ -726,6 +754,8 @@ def main() -> int:
             "Native proprietary arrays are not decoded by this companion-file stage.",
             "Preservation and structural conversion do not establish CRS, scientific validity, or semantic completeness.",
             "SEG-Y, ZGY, ZMAP, RESQML, and ambiguous DAT files require their specialist validators.",
+            "Files above the size limit are inventoried and hashed in chunks, without copying or conversion.",
+            "Text profiles marked prefix_only contain sample counts, not full-file line counts.",
         ],
     }
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")

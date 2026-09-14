@@ -387,7 +387,8 @@ def gather_file_inventory(package: Path) -> dict:
 
 def png_dimensions(path: Path) -> tuple[int | None, int | None]:
     try:
-        header = path.read_bytes()[:24]
+        with path.open("rb") as handle:
+            header = handle.read(24)
         if header[:8] == b"\x89PNG\r\n\x1a\n" and len(header) >= 24:
             return struct.unpack(">II", header[16:24])
     except OSError:
