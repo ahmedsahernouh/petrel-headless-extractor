@@ -9,6 +9,24 @@ Set-StrictMode -Version Latest
 
 function Repair-PetrelStandaloneDependencies {
     param([Parameter(Mandatory = $true)][string]$ToolkitRoot)
+    $dependencyTimer = [Diagnostics.Stopwatch]::StartNew()
+    function Show-DependencyProgress([string]$Activity, [int]$Done, [int]$Total) {
+        $elapsed = $dependencyTimer.Elapsed
+        if (($elapsed.TotalSeconds - $script:lastDependencyProgressTime) -lt 1 -and $Done -ne $Total) { return }
+        $script:lastDependencyProgressTime = $elapsed.TotalSeconds
+        $percent = if ($Total -gt 0) { [int][Math]::Floor(100.0 * $Done / $Total) } else { 0 }
+        $filled = [int][Math]::Floor($percent / 5)
+        $bar = '[' + ('#' * $filled) + ('-' * (20 - $filled)) + ']'
+        $time = '{0:00}:{1:00}:{2:00}' -f [int][Math]::Floor($elapsed.TotalHours), $elapsed.Minutes, $elapsed.Seconds
+        $status = "$bar $Done/$Total files | Dependency time $time"
+        Write-Progress -Id 25 -Activity $Activity -Status $status -PercentComplete $percent
+        if (($elapsed.TotalSeconds - $script:lastDependencyLogTime) -ge 10 -or $Done -eq $Total) {
+            Write-Host "$Activity $status"
+            $script:lastDependencyLogTime = $elapsed.TotalSeconds
+        }
+    }
+    $script:lastDependencyProgressTime = -10.0
+    $script:lastDependencyLogTime = -10.0
     $root = [System.IO.Path]::GetFullPath($ToolkitRoot).TrimEnd('\')
     $rootPrefix = $root + '\'
     function Get-ManagedPath([string]$Relative) {
@@ -54,7 +72,9 @@ function Repair-PetrelStandaloneDependencies {
         $runtimeRows = @{}
         $missing = New-Object System.Collections.Generic.List[object]
         $known = @{}
+        $checked = 0
         foreach ($row in $manifest.files) {
+            Show-DependencyProgress 'Checking managed files' $checked $manifest.files.Count
             $relative = ([string]$row.path).Replace('\', '/')
             if ($known.ContainsKey($relative)) { throw "Duplicate managed path: $relative" }
             $known[$relative] = $true
@@ -66,7 +86,9 @@ function Repair-PetrelStandaloneDependencies {
             } elseif (-not (Test-ManagedFile $row $path)) {
                 throw "Application integrity failed: $relative. Re-extract the release; only runtime dependencies are auto-repaired."
             }
+            $checked++
         }
+        Show-DependencyProgress 'Checking managed files' $checked $manifest.files.Count
         if ($runtimeRows.Count -eq 0) { throw 'The release has no managed runtime inventory.' }
         $logPath = Get-ManagedPath 'build/dependencies/last_check.json'
         [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($logPath)) | Out-Null
@@ -110,7 +132,7 @@ function Repair-PetrelStandaloneDependencies {
                         if (-not (Test-ManagedFile $row $temporary)) { throw "Dependency hash verification failed: $key" }
                         Move-Item -LiteralPath $temporary -Destination $target -Force
                         $installed.Add($key)
-                        if (($installed.Count % 500) -eq 0) { Write-Host ("Installed {0}/{1} files..." -f $installed.Count, $missing.Count) }
+                        Show-DependencyProgress 'Installing managed runtime' $installed.Count $missing.Count
                     } finally {
                         # The temporary path was checked inside this exact toolkit.
                         if ([System.IO.File]::Exists($temporary)) { Remove-Item -LiteralPath $temporary }
@@ -120,9 +142,13 @@ function Repair-PetrelStandaloneDependencies {
                 $report['status'] = 'repaired'
             } finally { $archive.Dispose() }
         } else { $report['status'] = 'ready' }
+        $checked = 0
         foreach ($key in $runtimeRows.Keys) {
             if (-not (Test-ManagedFile $runtimeRows[$key] (Get-ManagedPath $key))) { throw "Dependency remains invalid after repair: $key" }
+            $checked++
+            Show-DependencyProgress 'Verifying managed runtime' $checked $runtimeRows.Count
         }
+        $report['elapsed_seconds'] = [Math]::Round($dependencyTimer.Elapsed.TotalSeconds, 3)
         $report['installed_file_count'] = @($report['installed_files']).Count
         [System.IO.File]::WriteAllText($logPath, ($report | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
         Write-Host 'Managed runtime files ready. Checking Python imports next...'
@@ -133,6 +159,8 @@ function Repair-PetrelStandaloneDependencies {
         if ($logPath) { [System.IO.File]::WriteAllText($logPath, ($report | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false))) }
         throw
     } finally {
+        Write-Progress -Id 25 -Activity 'Managed dependencies' -Completed
+        $dependencyTimer.Stop()
         if ($ownsMutex) { $mutex.ReleaseMutex() }
         $mutex.Dispose()
     }

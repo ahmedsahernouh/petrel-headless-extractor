@@ -135,10 +135,15 @@ def main():
         db.executescript('CREATE TABLE data (data_pk INTEGER, droid TEXT, name TEXT, version INTEGER, blob_type TEXT, time_stamp TEXT); CREATE TABLE blob_parts (data_fk INTEGER, part INTEGER, blob_data BLOB);')
     (source/'checkshots.txt').write_text('Well\tMD\tTWT\nTEST\t100\t25\n')
     output=relocated/'Extracted Results';original={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
-    run('bat_convert_spaces',[project,output,'convert','-NoPause'])
+    progress_output=run('bat_convert_spaces',[project,output,'convert','-NoPause'])
+    assert '12/12 stages complete | Complete | Elapsed' in progress_output
+    assert progress_output.index('SUCCESS:') < progress_output.index('12/12 stages complete')
+    assert all('Stage '+str(n)+'/12:' in progress_output for n in range(1,13))
     result=next(output.rglob('RUN_RESULT.json'));payload=json.loads(result.read_text())
     assert payload['status']=='passed' and payload['source_mutated'] is False
     assert payload['extraction_audit']['status']=='passed' and payload['qc_audit']['status']=='passed'
+    assert payload['elapsed_seconds'] > 0
+    assert 'Elapsed:' in (result.parent/'RUN_LOG.txt').read_text()
     assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha for p,sha in original.items())
     prompted=run('interactive_project_prompt',[],input_text=str(project)+'\n'+str(relocated/'Prompted Results')+'\n\n')
     # ConsoleHost omits Read-Host labels when redirected; verify the inputs were
@@ -156,7 +161,9 @@ def main():
     run('reject_missing_store',[orphan,output,'convert','-NoPause'],expected=1)
     unsupported=source/'Unsupported.pet';unsupported.write_text('unsupported native layout fixture')
     (source/'Unsupported.ptd').mkdir();(source/'Unsupported.ptd/Data.ptd').write_bytes(b'not a validated SQLite store')
-    run('reject_unvalidated_native_layout',[unsupported,output,'convert','-NoPause'],expected=1)
+    failed_output=run('reject_unvalidated_native_layout',[unsupported,output,'convert','-NoPause'],expected=1)
+    assert 'Stopped before completion' in failed_output
+    assert '12/12 stages complete' not in failed_output
     for index,real in enumerate(args.project,1):
         run('real_project_'+str(index),[real.resolve(),relocated/('Real Results '+str(index)),'convert','-NoPause'])
     py=package/'runtime/python.exe';ps=win/'System32/WindowsPowerShell/v1.0/powershell.exe'
@@ -164,6 +171,7 @@ def main():
         ('synthetic_toolkit_smoke',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/test_portable_petrel_toolkit.ps1'),'-PythonPath',str(py)]),
         ('native_spatial_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_spatial_zero_gui.py')]),
         ('large_companion_controls',[str(py),'-B',str(package/'scripts/test_companion_large_files.py')]),
+        ('progress_controls',[str(py),'-B',str(package/'scripts/test_petrel_progress.py')]),
         ('portable_doctor',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/doctor_portable_petrel_toolkit.ps1')])]:
         p=subprocess.run(cmd,cwd=relocated,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(p.stdout,encoding='utf-8')

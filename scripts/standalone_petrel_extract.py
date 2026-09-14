@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 
 import petrel_geoscience_tools as g
+import petrel_progress as progress
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy')
@@ -28,10 +29,11 @@ def preflight():
     if not Path(sys.executable).resolve().is_relative_to(ROOT / 'runtime'):
         raise g.InputError('Use the bundled runtime through run_portable_petrel_extract.bat')
     manifest = g.read_json(ROOT / '00_manifest/toolkit_files.json')
-    for row in manifest['files']:
-        path = g.contained_file(ROOT, row['path'])
-        if path.stat().st_size != row['size_bytes'] or g.sha256(path) != row['sha256']:
-            raise g.InputError('Bundle integrity failed: ' + row['path'])
+    with progress.hash_batch('Checking bundled files', [g.contained_file(ROOT, r['path']) for r in manifest['files']]):
+        for row in manifest['files']:
+            path = g.contained_file(ROOT, row['path'])
+            if path.stat().st_size != row['size_bytes'] or g.sha256(path) != row['sha256']:
+                raise g.InputError('Bundle integrity failed: ' + row['path'])
     modules = {}
     for name in MODULES:
         with warnings.catch_warnings():
@@ -75,13 +77,15 @@ def main():
     parser.add_argument('--label', default='')
     args = parser.parse_args()
     run = None
+    display = progress.ConsoleProgress(stages=1 if args.check else 12).start()
+    success = False
     try:
-        print('Checking bundled runtime and file hashes...', flush=True)
+        display.message('Checking bundled runtime and file hashes...', flush=True)
         doctor = preflight()
-        print('Dependencies ready. ZFP compression check passed.', flush=True)
-        print('Optional cloud SeismicStore: not configured (not needed for local files).', flush=True)
+        display.message('Dependencies ready. ZFP compression check passed.', flush=True)
+        display.message('Optional cloud SeismicStore: not configured (not needed for local files).', flush=True)
         if args.check:
-            print(json.dumps(doctor, indent=2)); return 0
+            display.message(json.dumps(doctor, indent=2)); success = True; return 0
         source = g.path_arg({'project_file':args.project_file}, 'project_file')
         if source.suffix.lower() != '.pet' or not source.with_suffix('.ptd').is_dir():
             raise g.InputError('Exact .pet file and matching .ptd directory required')
@@ -96,37 +100,43 @@ def main():
         g.write_json(run/'preflight.json',doctor)
         g.write_json(run/'request.json',vars(args))
         common = {'petrel_version':args.petrel_version,'version_scope':'Standalone external extraction; source release unverified unless independently established'}
-        print('Extracting supported project evidence; source files stay unchanged.', flush=True)
+        display.message('Extracting supported project evidence; source files stay unchanged.', flush=True)
         extraction = g.dispatch('extract_portable_project', {**common,'project_file':str(source),'output_dir':str(run/'extraction'),'companion_mode':args.mode})
+        progress.phase(10, 'Extraction receipt and source hash verification')
         audit = g.verify_receipt(extraction)
         if audit['status'] != 'passed':
             raise RuntimeError('Extraction receipt failed: ' + repr(audit))
         package = extraction['summary']['export_package']
-        print('Checking package hashes, well names, logs and trajectory evidence...', flush=True)
+        display.message('Checking package hashes, well names, logs and trajectory evidence...', flush=True)
+        progress.phase(11, 'Package quality control')
         qc = g.dispatch('qc_data_package', {**common,'export_package':package,'output_dir':str(run/'qc')})
+        progress.phase(12, 'Final QC receipt verification')
         qc_audit = g.verify_receipt(qc)
         if qc_audit['status'] != 'passed':
             raise RuntimeError('QC receipt failed: ' + repr(qc_audit))
-        result = {'status':'passed','toolkit_version':doctor['version'],'extraction':extraction,
+        result = {'status':'passed','toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
                   'extraction_audit':audit,'qc':qc,'qc_audit':qc_audit,
                   'source_mutated':False,'petrel_process_launched':False,
                   'scientific_acceptance':'not_established'}
         g.write_json(run/'RUN_RESULT.json',result)
-        (run/'RUN_LOG.txt').write_text('Extraction and QC execution passed.\nSource files unchanged.\nPackage: '+package+'\nDashboard: '+extraction['summary']['dashboard']+'\nQC: '+qc['report_path']+'\n',encoding='utf-8')
-        print('SUCCESS: extraction, source preservation and package QC execution passed.')
-        print('Run folder: ' + str(run))
-        print('HTML report: ' + extraction['summary']['dashboard'])
-        print('QC report: ' + qc['report_path'])
-        print('Read QC findings and unresolved CRS/units before using the data.')
+        (run/'RUN_LOG.txt').write_text('Extraction and QC execution passed.\nElapsed: '+progress.duration(display.elapsed)+'\nSource files unchanged.\nPackage: '+package+'\nDashboard: '+extraction['summary']['dashboard']+'\nQC: '+qc['report_path']+'\n',encoding='utf-8')
+        success = True
+        display.message('SUCCESS: extraction, source preservation and package QC execution passed.', flush=True)
+        display.message('Run folder: ' + str(run))
+        display.message('HTML report: ' + extraction['summary']['dashboard'])
+        display.message('QC report: ' + qc['report_path'])
+        display.message('Read QC findings and unresolved CRS/units before using the data.')
         return 0
     except Exception as exc:
-        failure = {'status':'failed','error':str(exc),'traceback':traceback.format_exc()}
+        failure = {'status':'failed','error':str(exc),'elapsed_seconds':round(display.elapsed, 3),'traceback':traceback.format_exc()}
         if run is not None and run.exists():
             g.write_json(run/'RUN_RESULT.json',failure)
             (run/'RUN_LOG.txt').write_text(failure['traceback'],encoding='utf-8')
-            print('Failure evidence: ' + str(run/'RUN_RESULT.json'))
-        print('ERROR: ' + str(exc),file=sys.stderr)
+            display.message('Failure evidence: ' + str(run/'RUN_RESULT.json'))
+        display.message('ERROR: ' + str(exc),file=sys.stderr)
         return 1
+    finally:
+        display.close(success=success)
 
 
 if __name__ == '__main__':

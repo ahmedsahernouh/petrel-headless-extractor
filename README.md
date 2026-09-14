@@ -30,6 +30,8 @@ Append `-NoPause` for unattended runs. Check and repair dependencies without ope
 run_portable_petrel_extract.bat --check -NoPause
 ```
 
+The BAT shows an overall stage bar and elapsed timer automatically. Large-file hashing also shows byte progress and an estimated time remaining for that hash pass. Stages take different amounts of time; the bar reaches completion only after extraction and QC pass. See [progress and timer details](docs/USAGE.md#progress-and-timer).
+
 ## What you get
 
 - Native `.pet`/`.ptd` copies and source/artifact SHA-256 hashes.

@@ -12,7 +12,7 @@ Optional scientific dependencies are imported only by the operation using them.
 from __future__ import annotations
 
 import csv
-import hashlib
+import petrel_progress as progress
 import json
 import math
 import os
@@ -35,11 +35,7 @@ class InputError(ValueError):
 
 
 def sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1048576), b""):
-            h.update(block)
-    return h.hexdigest()
+    return progress.hash_file(path)
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -142,7 +138,8 @@ class Run:
         if any(p.is_relative_to(self.output) for p in self.inputs):
             raise InputError("Output would contain a source input")
         self.version = version_context(args)
-        self.before = [{"path":str(p),"sha256":sha256(p),"bytes":p.stat().st_size} for p in self.inputs]
+        with progress.hash_batch("Hashing source files", self.inputs):
+            self.before = [{"path":str(p),"sha256":sha256(p),"bytes":p.stat().st_size} for p in self.inputs]
         for record in self.before:
             expected = (expected_hashes or {}).get(record["path"])
             if expected is not None and expected != record["sha256"]:
@@ -157,12 +154,15 @@ class Run:
                 "validation_scope":"input/dependency/geometry preflight only; no output created","plan":details}
 
     def finish(self, result: dict, summary: dict, *, status: str = "passed") -> dict:
-        changed = [r["path"] for r in self.before if not Path(r["path"]).is_file() or sha256(Path(r["path"])) != r["sha256"]]
+        with progress.hash_batch("Rechecking source files", [Path(r["path"]) for r in self.before if Path(r["path"]).is_file()]):
+            changed = [r["path"] for r in self.before if not Path(r["path"]).is_file() or sha256(Path(r["path"])) != r["sha256"]]
         if changed:
             raise RuntimeError("Source changed during processing: " + repr(changed))
         write_json(self.output / "result.json", result)
-        artifacts = [{"path":p.relative_to(self.output).as_posix(),"sha256":sha256(p),"bytes":p.stat().st_size}
-                     for p in safe_files(self.output)]
+        files = safe_files(self.output)
+        with progress.hash_batch("Hashing output artifacts", files):
+            artifacts = [{"path":p.relative_to(self.output).as_posix(),"sha256":sha256(p),"bytes":p.stat().st_size}
+                         for p in files]
         write_json(self.output / "artifact_manifest.json", artifacts)
         receipt = {"contract_version":CONTRACT,"operation":self.operation,"status":status,
                    "version_context":self.version,"parameters":self.args,"inputs":self.before,
@@ -201,13 +201,15 @@ def verify_receipt(payload: dict) -> dict:
         artifacts = read_json(manifest)
         if not artifacts or "result.json" not in {r["path"] for r in artifacts}:
             raise InputError("Result artifact missing")
-        for item in artifacts:
-            p = contained_file(out, item["path"])
-            if sha256(p) != item["sha256"] or p.stat().st_size != item["bytes"]:
-                raise InputError("Artifact integrity failed: " + item["path"])
-        for item in receipt["inputs"]:
-            if sha256(Path(item["path"])) != item["sha256"]:
-                raise InputError("Input has changed: " + item["path"])
+        with progress.hash_batch("Verifying artifact receipt", [contained_file(out, r["path"]) for r in artifacts]):
+            for item in artifacts:
+                p = contained_file(out, item["path"])
+                if sha256(p) != item["sha256"] or p.stat().st_size != item["bytes"]:
+                    raise InputError("Artifact integrity failed: " + item["path"])
+        with progress.hash_batch("Verifying input receipt", [Path(r["path"]) for r in receipt["inputs"]]):
+            for item in receipt["inputs"]:
+                if sha256(Path(item["path"])) != item["sha256"]:
+                    raise InputError("Input has changed: " + item["path"])
         return {"status":"passed","artifacts_checked":len(artifacts),"inputs_checked":len(receipt["inputs"]),
                 "scope":"execution receipt and file integrity; not scientific acceptance"}
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -486,29 +488,27 @@ def extract_portable_project(args: dict) -> dict:
     mode=args.get('companion_mode','convert')
     if mode not in ('inventory','copy','convert'):raise InputError('Invalid companion_mode')
     # The existing pipeline may inspect companions; include that entire source lane.
+    progress.phase(2, 'Initial source integrity hashes')
     inputs=safe_files(source.parent)
     run=Run('extract_portable_project',args,inputs,[source.parent])
     if run.dry_run:return run.plan({'source':str(source),'matching_store':str(store),'companion_mode':mode})
     command=['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/invoke_portable_petrel_extract.ps1'),
              '-ProjectFile',str(source),'-OutputRoot',str(run.output/'package'),'-ProjectName',source.stem,
              '-PetrelVersion',run.version['petrel_version'],'-CompanionMode',mode,'-PythonPath',sys.executable]
-    proc=subprocess.Popen(command,cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    progress.phase(3, 'Native project copy and inventory')
     try:
-        stdout,stderr=proc.communicate(timeout=args.get('timeout_seconds',1800))
+        code = progress.run_pipeline(command, ROOT, run.output/'extraction.log', args.get('timeout_seconds',1800))
     except subprocess.TimeoutExpired:
-        # Terminate only this owned process tree; do not leave its writers running.
-        subprocess.run(['taskkill.exe','/PID',str(proc.pid),'/T','/F'],capture_output=True)
-        stdout,stderr=proc.communicate()
-        (run.output/'extraction.log').write_text(stdout+'\n'+stderr,encoding='utf-8')
         raise RuntimeError('Extraction timed out; partial output retained, process tree stopped')
-    (run.output/'extraction.log').write_text(stdout+'\n'+stderr,encoding='utf-8')
-    if proc.returncode:raise RuntimeError(f'Portable pipeline failed ({proc.returncode}); see {run.output / "extraction.log"}')
+    if code:raise RuntimeError(f'Portable pipeline failed ({code}); see {run.output / "extraction.log"}')
+    progress.phase(9, 'Package validation and final source integrity hashes')
     packages=list((run.output/'package').iterdir())
     if len(packages)!=1:raise RuntimeError('Expected exactly one extraction package')
     pkg=packages[0];summary=read_json(pkg/'07_workflows_reports/portable_extractor/portable_extraction_run_summary.json')
     if summary.get('validation_status')!='passed':raise RuntimeError('Extraction validation did not pass')
     records=manifest_records(pkg)
-    bad=[r['export_file'] for r in records if sha256(contained_file(pkg,r['export_file'])).lower()!=r['sha256'].lower()]
+    with progress.hash_batch('Verifying package files', [contained_file(pkg,r['export_file']) for r in records]):
+        bad=[r['export_file'] for r in records if sha256(contained_file(pkg,r['export_file'])).lower()!=r['sha256'].lower()]
     if bad:raise RuntimeError('Extracted package hash mismatch: '+repr(bad))
     spatial_path=pkg/'07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json'
     spatial=read_json(spatial_path) if spatial_path.is_file() else {}

@@ -18,6 +18,7 @@ import argparse
 import csv
 import datetime as dt
 import hashlib
+import petrel_progress as progress
 import json
 import os
 import re
@@ -36,11 +37,7 @@ TEXT_PROFILE_BYTES = 1048576
 
 
 def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return progress.hash_file(path)
 
 
 def clean(value: Any) -> str:
@@ -512,6 +509,7 @@ def upsert_manifest(path: Path, additions: list[dict[str, str]]) -> None:
 
 
 def main() -> int:
+    progress.enable_child_events()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-file", required=True)
     parser.add_argument("--export-package", required=True)

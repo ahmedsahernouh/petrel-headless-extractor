@@ -33,6 +33,7 @@ $required = @(
     "export_petrel_native_semantic_zero_gui.py",
     "export_petrel_native_spatial_zero_gui.py",
     "portable_petrel_companion_extract.py",
+    "petrel_progress.py",
     "register_petrel_file_exports.ps1",
     "validate_export_package.ps1",
     "report_petrel_project_audit.py",
@@ -65,7 +66,7 @@ $degraded = @($checks | Where-Object { $_.status -eq "degraded" }).Count
 $overall = if ($blocked -gt 0) { "blocked" } elseif ($degraded -gt 0) { "degraded" } else { "ready" }
 $report = [ordered]@{
     toolkit = "portable-petrel-project-extractor"
-    version = if (Test-Path -LiteralPath (Join-Path $toolkitRoot "toolkit.json")) { (Get-Content -LiteralPath (Join-Path $toolkitRoot "toolkit.json") -Raw | ConvertFrom-Json).version } else { "0.2.4" }
+    version = if (Test-Path -LiteralPath (Join-Path $toolkitRoot "toolkit.json")) { (Get-Content -LiteralPath (Join-Path $toolkitRoot "toolkit.json") -Raw | ConvertFrom-Json).version } else { "0.2.5" }
     checked_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     status = $overall
     petrel_required = $false

@@ -1,4 +1,4 @@
-# Petrel Headless Extractor 0.2.4 — standalone Windows x64
+# Petrel Headless Extractor 0.2.5 — standalone Windows x64
 
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -7,7 +7,7 @@ By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://
 3. On first launch, the BAT installs bundled Python and dependencies into its own `runtime` folder. Each later launch checks them and automatically repairs missing or damaged runtime files.
 4. When it finishes, open the `PROJECT_REPORT.html` path printed in the window. The output also includes package QC, checksums, source-preservation receipts and a run log.
 
-The release ZIP is `PetrelExtractor-0.2.4-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
+The release ZIP is `PetrelExtractor-0.2.5-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
 
 Keep the matching, complete `ProjectName.ptd` directory beside `ProjectName.pet`. Close the test project in Petrel before extraction so another program cannot change its files during the read. The extractor itself never opens Petrel or edits its stores.
 
@@ -44,3 +44,18 @@ ZFP support (`zfpy`) is included. Cloud SeismicStore (`sdglue`) is optional and 
 The runtime comes from the [official Python Windows release manifest](https://www.python.org/ftp/python/3.13.15/windows-3.13.15.json). This package uses Python 3.13.15 x64 and verifies the archive against the SHA-256 published there.
 
 Large companion files: text detection reads at most 64 KiB, well-top header detection reads at most 256 KiB, and text profiling samples at most 1 MiB (with a one-byte truncation check). Prefix profiles are labelled and do not claim full-file line counts. The default companion copy/conversion limit is 2,000,000,000 bytes per file. Files above it stay in the inventory with `skipped_size_limit` and are never sent to a converter. SHA-256 still streams across source files, including oversized files, so folders containing very large seismic volumes can take considerable time. This release does not convert SEG-Y volumes.
+
+## Progress and timer
+
+Progress starts automatically when you run the BAT. Dependency checking and offline installation show file counts and their own timer. After you enter the project and output paths, the extraction timer starts; it includes bundled-runtime verification, extraction and final QC, and excludes time spent at prompts.
+
+- The overall bar counts **12 completed workflow stages**. Stages take different amounts of time, so this is not a percentage of total processing time.
+- Hashing shows a byte-based percentage, bytes read, file counts and an approximate **Hash ETA** for the current hash pass or file. Large filenames are printed when hashing starts.
+- Stages without measurable remaining work show elapsed time and the active stage. The timer refreshes every second in a console; redirected logs receive updates every 10 seconds.
+- The overall bar reaches completion only after extraction and QC receipts pass and the run result is saved. Errors retain the partial stage count and elapsed time.
+
+Large seismic files can take a long time to hash even when they exceed the copy/conversion size limit. Integrity checks read files again at later stages, so the hash percentage may restart for a new pass. The ETA is an estimate from observed read speed, not a guarantee or a whole-run estimate.
+
+`RUN_RESULT.json` records `elapsed_seconds`; successful `RUN_LOG.txt` files include the elapsed time. Dependency time is also recorded in `build/dependencies/last_check.json`. The extraction pipeline log is written as it runs at `extraction/extraction.log`.
+
+Download and extract the complete new release into its own folder. An already running older BAT does not gain the display until you launch the new version.
