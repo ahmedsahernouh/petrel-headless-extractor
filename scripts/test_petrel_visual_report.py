@@ -41,6 +41,21 @@ class VisualTests(unittest.TestCase):
         self.assertEqual(v.sha(self.path),self.item['artifacts'][0]['sha256'])
         self.assertTrue((self.root/result['figures'][0]['svg']).is_file())
 
+    def test_model_metadata_failures_remain_visible_in_report(self):
+        path=self.root/'07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json'
+        path.parent.mkdir(parents=True)
+        failure=dict(status='failed_closed',error='LZ4 envelope length mismatch <unvalidated>')
+        path.write_text(json.dumps(dict(model_well_head_decode=failure,trajectory_name_linkage=dict(candidate_fallback_report=failure),objects=[])))
+        with patch.object(sys,'argv',['report','--export-package',str(self.root)]),redirect_stdout(io.StringIO()):
+            self.assertEqual(audit.main(),0)
+        text=(self.root/'PROJECT_REPORT.html').read_text(encoding='utf-8')
+        self.assertIn('Data and preview limitations',text)
+        self.assertIn('Native well-head metadata',text)
+        self.assertIn('Trajectory name candidates',text)
+        self.assertIn('LZ4 envelope length mismatch &lt;unvalidated&gt;',text)
+        self.assertNotIn('<unvalidated>',text)
+        self.assertIn('Complete data inventory tree',text)
+
     def test_tampered_csv_never_plotted(self):
         self.path.write_text(self.path.read_text().replace('30','300'))
         result=self.build();self.assertEqual(result['figures'],[])

@@ -49,3 +49,5 @@ User clarification: full report/inventory is basic and always included. Dataset 
 ## Unified entry point, optional seismic hashing and report delivery — 2026-09-14
 
 Implemented for v0.6.0: one root BAT beside the support folder; selected-project/store ZGY conversion in the same run; full seismic hashing optional and off by default. Report and full inventory remain mandatory, conversions on by default. Full `*_REPORT.html` is directly beside its matching `*_data` directory and updates after each seismic dataset. No raw seismic duplication. Unlinked companions and unresolved metadata are explicitly listed. Historical notes above describe earlier releases.
+
+Also fixes a v0.5.0 whole-run abort when optional trajectory-name enrichment encounters an unsupported `Model.ptd` LZ4 envelope. The strict decoder remains unchanged; unavailable metadata is recorded in the report and independent spatial outputs are retained. Synthetic regression coverage verifies source preservation and visible, escaped report findings.

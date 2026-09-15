@@ -10,8 +10,13 @@ from __future__ import annotations
 
 import importlib.util
 import math
+import json
+import hashlib
+import sqlite3
 import struct
 import sys
+import tempfile
+import argparse
 import unittest
 import uuid
 from pathlib import Path
@@ -78,6 +83,34 @@ def points_payload(points: list[tuple[float, float, float]], checkpoint: tuple[i
 
 
 class NativeSpatialDecoderTests(unittest.TestCase):
+    def test_optional_model_linkage_failure_preserves_independent_points(self):
+        with tempfile.TemporaryDirectory() as folder:
+            package = Path(folder)
+            native = package/'08_native_project/ptd_store'; native.mkdir(parents=True)
+            # Two envelopes are outside this decoder's validated single-block profile.
+            model = native/'Model.ptd'
+            model.write_bytes(literal_lz4_envelope(b'first') + literal_lz4_envelope(b'second'))
+            names = package/'02_wells/well_headers/native_borehole_references.csv'
+            names.parent.mkdir(parents=True); names.write_text('name\nSynthetic well\n')
+            mappings, evidence = decoder.trajectory_name_candidates(package, [str(uuid.uuid4())])
+            self.assertEqual(mappings, {})
+            self.assertEqual(evidence['status'], 'failed_closed')
+            self.assertIn('LZ4 envelope length mismatch', evidence['error'])
+            self.assertEqual(decoder.trajectory_name_candidates(package, [])[1]['status'], 'not_needed')
+            data = native/'Data.ptd'
+            with sqlite3.connect(data) as db:
+                db.executescript('CREATE TABLE data (data_pk INTEGER, droid TEXT, name TEXT, version INTEGER, blob_type TEXT, time_stamp TEXT); CREATE TABLE blob_parts (data_fk INTEGER, part INTEGER, blob_data BLOB);')
+                db.execute('INSERT INTO data VALUES (1,?,"points",1,"Points3","")', (str(uuid.uuid4()),))
+                db.execute('INSERT INTO blob_parts VALUES (1,0,?)', (literal_lz4_envelope(points_payload([(1.,2.,3.),(4.,5.,6.)])),))
+            db.close()
+            before = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (data,model)}
+            args = argparse.Namespace(export_package=str(package),data_file=None,well_tops_validation_csv=None,validation_tolerance=.02)
+            self.assertEqual(decoder.run(args), 0)
+            report = json.loads((package/'07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json').read_text())
+            self.assertEqual(report['point_vertex_rows'], 2)
+            self.assertEqual(report['model_well_head_decode']['status'], 'failed_closed')
+            self.assertEqual(before, {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (data,model)})
+
     def test_lz4_literal_envelope(self) -> None:
         payload = b"BXML\x01 synthetic payload"
         decoded, evidence = decoder.decompress_lz4_block(literal_lz4_envelope(payload))

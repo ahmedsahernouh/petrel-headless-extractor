@@ -300,6 +300,14 @@ def build_visuals(package, audit, output_package=None, report_only=False):
             record.update(preview_status='unavailable',reason=str(error))
             issues.append(dict(object_id=item.get('object_id'),reason=str(error)))
     spatial = load_json(package/'07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json')
+    model_findings = (
+        ('Native well-head metadata', spatial.get('model_well_head_decode', {})),
+        ('Trajectory name candidates', spatial.get('trajectory_name_linkage', {}).get('candidate_fallback_report', {})),
+    )
+    for label, finding in model_findings:
+        if finding.get('status') == 'failed_closed':
+            issues.append(dict(object_id='Model.ptd', category=label,
+                               reason=finding.get('error', 'Unsupported model metadata layout')))
     for item in spatial.get('objects',[]):
         kind=item.get('blob_type','')
         relative = ('05_spatial/polygons/native_polygons_vertices.csv' if kind=='Polygons3' else
@@ -308,7 +316,7 @@ def build_visuals(package, audit, output_package=None, report_only=False):
         links=[dict(label='Native CSV',path=relative)] if (package/relative).is_file() else []
         records.append(dict(name=item.get('object_name') or item.get('blob_type','Spatial object'),
                             object_id=item.get('object_id',''), category='Spatial objects',
-                            status=item.get('status','unknown'),reason=item.get('reason',''),
+                            status=item.get('status','unknown'),reason=item.get('reason') or item.get('error',''),
                             preview_status='see_spatial_map',links=links))
     seismic_previews(destination,figures,records,issues)
     if report_only:
@@ -550,13 +558,16 @@ def render_section(audit, href):
     statuses=''.join(f'<option value="{esc(s)}">{esc(s)}</option>' for s in sorted({o.get('status','unknown') for o in objects}))
     omitted=sum(o.get('preview_status')=='not_selected_budget' for o in objects)
     temporary_findings=''.join(f'<p class="visual-empty">Preview stage: {esc(reason)}</p>' for reason in visual.get('temporary_preview_failures',[]))
+    issue_details = ('<details class="visual-empty"><summary>Data and preview limitations</summary><ul>'
+                     + ''.join(f'<li><strong>{esc(item.get("category") or item.get("object_id", "Data"))}</strong>: {esc(item.get("reason", ""))}</li>' for item in visual.get('issues', []))
+                     + '</ul></details>') if visual.get('issues') else ''
     recovered_count=sum(o.get('status')==('preview_only' if visual.get('report_only') else 'decoded') for o in objects)
     recovered_label='Objects decoded for previews only' if visual.get('report_only') else 'Decoded catalogue objects'
     return f'''<section id="visual-report"><div class="visual-intro"><div><h2>Explore the recovered data</h2>
     <p>Maps, log tracks and distributions derived from the files in this extraction.</p></div><button id="print-report" type="button">Print / save PDF</button></div>
     <div class="visual-kpis"><div><b>{len(figures):,}</b><span>Data figures</span></div><div><b>{len(objects):,}</b><span>Objects in decoder/file catalogue</span></div>
     <div><b id="decoded-catalogue-count" data-base-count="{recovered_count}">{recovered_count:,}</b><span>{recovered_label}</span></div><div><b>{len(visual.get('issues',[])):,}</b><span>Preview issues</span></div></div>
-    {temporary_findings}<p class="note">Preview sampling never changes data. {omitted} objects exceed the figure budget; they remain inventoried. Missing plots do not mean missing project data. ZGY preview statistics describe only the labelled patch. Dataset exports are absent when report-only is selected.</p>
+    {temporary_findings}{issue_details}<p class="note">Preview sampling never changes data. {omitted} objects exceed the figure budget; they remain inventoried. Missing plots do not mean missing project data. ZGY preview statistics describe only the labelled patch. Dataset exports are absent when report-only is selected.</p>
     <div class="figure-toolbar"><select id="figure-group" aria-label="Figure category"><option value="">All figures</option>{options}</select><input id="figure-search" type="search" aria-label="Search figures" placeholder="Search figures by well, object, name or unit"><span id="figure-count" role="status"></span></div>
     <div class="visual-gallery">{''.join(cards) or '<p class="visual-empty">No numeric payloads are available for plotting in this package. See the coverage and object inventory.</p>'}</div></section>
     <section id="objects"><h2>Object catalogue and data links</h2><p>Decoder outcomes and preserved ZGY files; the complete native registry is listed separately below.</p>

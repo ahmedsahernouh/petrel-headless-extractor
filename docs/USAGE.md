@@ -44,6 +44,8 @@ With hashing off, no whole ZGY/SEG-Y SHA-256 passes or raw seismic copies are ad
 
 `-FullHash` adds full source SHA-256 before/after conversion and a SEG-Y checksum. Report-only full hashing calculates source inventory checksums. Ordinary application/runtime and non-seismic package integrity checks remain enabled. Full hashes detect byte changes and identify files; they do not prove CRS or geological correctness.
 
+An unsupported `Model.ptd` layout can leave well-head metadata or trajectory names unresolved. The report lists these limitations while retaining independently decoded geometry and continuing the remaining workflow. No name or geometry is inferred to bypass a failed native-layout check.
+
 ## Dependencies and failures
 
 Windows 10/11 x64 with Windows PowerShell is the target. The BAT installs/repairs bundled Python, plotting and conversion dependencies inside `PetrelExtractor/runtime` from its verified offline cache. No system Python, pip, administrator access, Petrel, Ocean or network download is required. Cloud SeismicStore is not configured and is unnecessary for local files.

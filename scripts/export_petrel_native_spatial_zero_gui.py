@@ -1367,11 +1367,23 @@ def trajectory_name_candidates(
 
     model_path = export_package / "08_native_project" / "ptd_store" / "Model.ptd"
     borehole_path = export_package / "02_wells" / "well_headers" / "native_borehole_references.csv"
+    if not object_ids:
+        return {}, {"status": "not_needed", "reason": "no_unmapped_trajectory_providers"}
     if not model_path.is_file() or not borehole_path.is_file():
         return {}, {"status": "not_available", "reason": "Model.ptd_or_borehole_reference_csv_missing"}
-    model_payload, envelope = decompress_lz4_block(model_path.read_bytes())
-    with borehole_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        names = sorted({str(row.get("name", "")).strip() for row in csv.DictReader(handle) if str(row.get("name", "")).strip()})
+    # Name enrichment is optional: an unvalidated Model.ptd envelope must not
+    # discard independently decoded Data.ptd geometry or stop the full report.
+    try:
+        model_payload, envelope = decompress_lz4_block(model_path.read_bytes())
+        with borehole_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            names = sorted({str(row.get("name", "")).strip() for row in csv.DictReader(handle) if str(row.get("name", "")).strip()})
+    except (DecodeError, OSError, UnicodeError, csv.Error) as exc:
+        return {}, {
+            "status": "failed_closed", "model_path": str(model_path),
+            "error": f"{type(exc).__name__}: {exc}",
+            "provider_objects_requested": len(object_ids), "provider_objects_mapped": 0,
+            "identity_boundary": "unresolved_names; independently_decoded_provider_geometry_retained",
+        }
     name_positions: list[tuple[int, str]] = []
     for name in names:
         raw = name.encode("utf-8")
@@ -1574,6 +1586,10 @@ def run(args: argparse.Namespace) -> int:
     trajectory_ids = sorted({str(row["object_id"]) for row in trajectory_rows})
     fallback_ids = [object_id for object_id in trajectory_ids if object_id not in direct_name_mappings]
     fallback_name_mappings, fallback_name_linkage = trajectory_name_candidates(export_package, fallback_ids)
+    for label, evidence in (("Native well-head metadata", model_well_head_decode),
+                            ("Trajectory name candidates", fallback_name_linkage)):
+        if evidence.get("status") == "failed_closed":
+            print(f"WARNING: {label} unavailable: {evidence.get('error', 'unsupported Model.ptd layout')}; continuing with independent data", file=sys.stderr)
     name_mappings = {**fallback_name_mappings, **direct_name_mappings}
     trajectory_name_linkage = {
         "status": "native_exact_then_candidate_fallback",

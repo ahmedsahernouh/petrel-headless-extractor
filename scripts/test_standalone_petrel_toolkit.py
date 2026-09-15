@@ -236,6 +236,9 @@ print(src/'Fixture.pet')
     import shutil
     shutil.copyfile(zgy,store/'linked.zgy')
     (store/'unsupported.zgy').write_bytes(b'Unsupported seismic file retained in inventory')
+    # Unvalidated model metadata must remain visible without aborting independent
+    # geometry, the full report, or the later project-linked ZGY conversion.
+    (store/'Model.ptd').write_bytes(b'LZ4\x01\x06\x00\x00\x00TEST\x50first' * 2)
     shutil.copyfile(zgy,source/'unlinked.zgy')
     before_seismic={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*.zgy')}
     for report_only in (False,True):
@@ -254,6 +257,7 @@ print(src/'Fixture.pet')
         text=top[0].read_text(encoding='utf-8')
         assert 'Not calculated — full hashing disabled' in text and 'data:image/png;base64,' in text
         assert 'Complete data inventory tree' in text and 'linked.zgy' in text
+        assert 'Native well-head metadata' in text and 'LZ4 envelope length mismatch' in text
         assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in before_seismic.items())
         # This explicitly proves no whole-seismic input hashes are hidden in the project wrapper.
         receipt=json.loads(Path(payload['extraction']['receipt_path']).read_text())
