@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.6.1'
+VERSION = '0.6.2'
 PACKAGE_FOLDER = 'PetrelExtractor'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -103,6 +103,7 @@ def main():
     shutil.copy2(ROOT/'docs/ZGY_TO_SEGY.md',package/'ZGY_TO_SEGY.md')
     shutil.copy2(ROOT/'docs/NATIVE_LOGS_SURFACES.md',package/'NATIVE_LOGS_SURFACES.md')
     shutil.copy2(ROOT/'docs/VISUAL_REPORT.md',package/'VISUAL_REPORT.md')
+    shutil.copy2(ROOT/'docs/NATIVE_POLYGONS.md',package/'NATIVE_POLYGONS.md')
     shutil.copy2(ROOT/'portable_petrel_toolkit/STANDALONE_README.md',package/'README.md')
     skill=package/'.agents/skills/petrel-portable-extractor';skill.mkdir(parents=True)
     shutil.copy2(ROOT/'portable_petrel_toolkit/.agents/skills/petrel-portable-extractor/SKILL.md',skill/'SKILL.md')

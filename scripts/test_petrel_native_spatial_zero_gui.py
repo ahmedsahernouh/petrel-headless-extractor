@@ -139,30 +139,68 @@ class NativeSpatialDecoderTests(unittest.TestCase):
         self.assertEqual(len(evidence["dictionary_frames_skipped"]), 1)
 
     def test_polygons3_declared_counts(self) -> None:
-        names = BASE_NAMES + [
-            "Polygons3",
-            "user_data",
-            "array",
-            "item",
-            "Polygon3",
-            "vertices",
-            "double",
-            "has_attr",
-            "has_object_ids",
-            "is_closed",
-        ]
+        from test_petrel_native_recovery import frame, polygon_doc
         points = [(100.0, 200.0, -10.0), (110.0, 200.0, -11.0), (100.0, 200.0, -10.0)]
-        raw = b"".join(struct.pack("<3d", *point) for point in points)
-        payload = (
-            dictionary(names)
-            + b"\x42\x18\x06\x08\x82"
-            + b"\x42\x1E\x06\x08\x88\x03\x03"
-            + b"\x42\x20\x01\x93\x09"
-            + raw
-        )
+        payload = frame(polygon_doc([points],[True]),split=True)
         polygons, evidence = decoder.decode_polygons3(payload)
         self.assertEqual(polygons, [points])
         self.assertEqual(evidence["outer_item_count"], 1)
+
+    def test_polygon_native_order_empty_segments_and_null_gaps(self):
+        from test_petrel_native_recovery import frame, polygon_doc
+        parts=[[(8.,1.,2.),(2.,9.,3.)],[],[(1.,1.,1.),(decoder.NATIVE_FLOAT_MAX_SENTINEL,2.,2.),(3.,3.,3.)]]
+        polygons,meta=decoder.decode_polygons3(frame(polygon_doc(parts,[True,False,False]),split=True))
+        self.assertEqual(polygons,[parts[0],[],[parts[2][0],None,parts[2][2]]])
+        self.assertEqual([row['segment_id'] for row in meta['segments']],[0,1,2])
+        self.assertEqual([row['native_serialization_id'] for row in meta['segments']],[2,3,4])
+        self.assertTrue(meta['segments'][0]['is_closed_native'])
+        self.assertEqual(meta['segments'][2]['missing_vertex_slots'],1)
+
+    def test_polygon_length_frames_inside_double_do_not_change_values(self):
+        from test_petrel_native_recovery import polygon_doc,vint
+        points=[(420000.,2810000.,-100.),(421000.,2810100.,-100.),(420500.,2810300.,-100.)]
+        doc=polygon_doc([points]);start=doc.index(struct.pack('<d',points[0][0]))
+        for cut in range(start+1,start+24):
+            payload=b'BXML\x01'+b'\xa0'+vint(cut)+doc[:cut]+b'\xa0'+vint(len(doc)-cut)+doc[cut:]+b'\xa2'
+            with self.subTest(cut=cut):self.assertEqual(decoder.decode_polygons3(payload)[0],[points])
+
+    def test_polygon_rejects_wrong_version_count_and_truncated_document(self):
+        from test_petrel_native_recovery import frame,polygon_doc
+        parts=[[(0.,0.,0.),(1.,1.,1.)]]
+        for doc in [polygon_doc(parts,outer_count=2),polygon_doc(parts,inner_version=[99]),polygon_doc(parts)[:-1]]:
+            with self.assertRaises(decoder.DecodeError):decoder.decode_polygons3(frame(doc))
+
+    def test_polygon_large_jumps_and_binary_marker_bytes_are_not_reordered(self):
+        from test_petrel_native_recovery import frame,polygon_doc
+        tiny=struct.unpack('<d',b'\xa0\x42\x20\x01\x93\0\0\0')[0]
+        parts=[[(0.,tiny,0.),(1e6,2e6,3.),(2.,1.,4.)]]
+        self.assertEqual(decoder.decode_polygons3(frame(polygon_doc(parts)))[0],parts)
+
+    def test_polygon_attribute_scope_is_explicit(self):
+        from test_petrel_native_recovery import frame,polygon_doc
+        parts=[[(1.,2.,3.),(4.,5.,6.)]]
+        polygons,metadata=decoder.decode_polygons3(frame(polygon_doc(parts,attributes=True)))
+        self.assertEqual(polygons,parts);self.assertEqual(metadata['attributes_status'],'not_exported')
+
+    def test_polygon_export_retains_segment_and_vertex_indices(self):
+        from test_petrel_native_recovery import frame,polygon_doc,envelope
+        import csv
+        with tempfile.TemporaryDirectory() as folder:
+            package=Path(folder);store=package/'08_native_project/ptd_store';store.mkdir(parents=True)
+            parts=[[(1.,1.,1.),(3.,2.,1.)],[],[(5.,5.,5.),(decoder.NATIVE_FLOAT_MAX_SENTINEL,0.,0.),(6.,6.,6.)]]
+            data=store/'Data.ptd'
+            with sqlite3.connect(data) as db:
+                db.executescript('CREATE TABLE data(data_pk INTEGER,droid TEXT,name TEXT,version INTEGER,blob_type TEXT,time_stamp TEXT);CREATE TABLE blob_parts(data_fk INTEGER,part INTEGER,blob_data BLOB);')
+                db.execute('INSERT INTO data VALUES(1,?,"Segments",1,"Polygons3","")',(str(uuid.uuid4()),))
+                db.execute('INSERT INTO blob_parts VALUES(1,0,?)',(envelope(frame(polygon_doc(parts,[True,False,False]),split=True)),))
+            db.close();before=hashlib.sha256(data.read_bytes()).hexdigest()
+            args=argparse.Namespace(export_package=str(package),data_file=None,well_tops_validation_csv=None,validation_tolerance=.02)
+            self.assertEqual(decoder.run(args),0)
+            with (package/'05_spatial/polygons/native_polygons_vertices.csv').open(newline='') as stream:rows=list(csv.DictReader(stream))
+            self.assertEqual([(row['segment_id'],row['vertex_index']) for row in rows],[('0','0'),('0','1'),('2','0'),('2','2')])
+            self.assertEqual(rows[0]['is_closed_native'],'yes')
+            self.assertEqual(rows[0]['is_closed_by_repeated_xyz'],'no')
+            self.assertEqual(before,hashlib.sha256(data.read_bytes()).hexdigest())
 
     def test_explicit_trajectory_checkpoint_inside_marker(self) -> None:
         names = BASE_NAMES + [

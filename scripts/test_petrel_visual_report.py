@@ -171,5 +171,31 @@ class VisualTests(unittest.TestCase):
             self.assertIn('Dataset conversion OFF',(package/'PROJECT_REPORT.html').read_text(encoding='utf-8'))
         finally:fixture.tearDown()
 
+    def test_native_closure_and_missing_slot_break(self):
+        path=self.root/'05_spatial/polygons/native_polygons_vertices.csv';path.parent.mkdir(parents=True)
+        path.write_text('object_id,part_index,vertex_index,part_vertex_count,is_closed_native,x,y\n'
+                        'p,0,0,3,yes,0,0\np,0,1,3,yes,1,0\np,0,2,3,yes,1,1\n'
+                        'p,1,0,4,yes,0,0\np,1,1,4,yes,1,0\np,1,3,4,yes,1,1\n'
+                        'p,2,1,3,yes,0,0\np,2,2,3,yes,1,0\np,2,3,3,yes,1,1\n')
+        lines=audit.gather_spatial_overview(self.root,{})['polylines']
+        self.assertEqual(lines[0]['points'],[(0.,0.),(1.,0.),(1.,1.),(0.,0.)])
+        self.assertEqual(lines[1]['points'],[(0.,0.),(1.,0.)])
+        self.assertEqual(len(lines[2]['points']),3)  # A shifted range is not complete.
+
+    def test_preview_budget_keeps_later_segments_and_typed_extent(self):
+        path=self.root/'05_spatial/polygons/native_polygons_vertices.csv';path.parent.mkdir(parents=True)
+        with path.open('w',newline='') as stream:
+            writer=csv.writer(stream);writer.writerow(['object_id','part_index','vertex_index','x','y','decode_status'])
+            for part in range(150):
+                for vertex in range(250):
+                    writer.writerow([f'object-{part}',part,vertex,part*1000+vertex,vertex,'native_Polygons3_typed_NBFX_segments_decoded'])
+        overview=audit.gather_spatial_overview(self.root,dict(native_well_heads=[dict(well_name='A',x=0,y=0),dict(well_name='B',x=3,y=3)]))
+        self.assertEqual(len(overview['polylines']),150)
+        self.assertEqual(overview['polylines'][-1]['object_id'],'object-149')
+        self.assertLessEqual(overview['display_polygon_vertices'],12000)
+        self.assertEqual(overview['omitted_preview_polygon_vertices'],0)
+        svg=audit.render_spatial_svg(overview)
+        self.assertIn('data-polygon-object="object-149"',svg)
+
 
 if __name__=='__main__':unittest.main()

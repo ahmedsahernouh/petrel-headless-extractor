@@ -54,6 +54,8 @@ Also fixes a v0.5.0 whole-run abort when optional trajectory-name enrichment enc
 
 ## v0.6.1: polygon segments and well-log visibility
 
+Follow-up in v0.6.2: the supplied report showed that sorting alone did not fix the native geometry. Replaced polygon marker scanning with typed, length-framed decoding; preserved segment ordinals, vertex gaps and native closure; added a per-object map selector. See [validation and limits](NATIVE_POLYGONS.md).
+
 Polygon previews group by object/part/explicit segment ID, order by vertex index, split at missing or invalid vertices, and clip before display decimation. Existing native `part_index` remains the segment grouping when no separate `segment_id` is provided. Never connect separate segments or infer topology from XY proximity.
 
 The size-mismatch issue was traced to an observed multi-block `Model.ptd` stream. v0.6.1 supports its length framing with independent block dictionaries, bounded expansion and strict BXML validation. A local project now yields 1,008 numeric log CSVs and report tracks; units remain unresolved, so LAS stays blocked. Unsupported surface object versions remain visible. See [profile and evidence](NATIVE_LOGS_SURFACES.md). Further unit, object-version and geometry work still requires independent validation.

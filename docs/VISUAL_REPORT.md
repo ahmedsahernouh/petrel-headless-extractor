@@ -10,6 +10,8 @@ For unattended report-only runs, use `run_portable_petrel_extract.bat "C:\Projec
 
 ## Included
 
+Native polygon maps now read the original segment and vertex order, preserve native closure and breaks, and offer a named **Polygon object** selector. See [the v0.6.2 polygon decoding profile](NATIVE_POLYGONS.md). Re-extract old marker-decoded polygon CSVs to recover missing geometry.
+
 - **Complete foldable data inventory:** all discovered subject UUIDs from the preserved `.pet`, native registry IDs and decoder/file records. Expand/collapse all and search names, folders, UUIDs, types or statuses. Explicit native parent UUIDs preserve the hierarchy. Unresolved placement, missing parents and cyclic relationships are retained and labelled. This is the full discovered inventory, not a claim that every native payload is decoded.
 - **File inventory tree:** the package's files, folders, sizes, validation states and links, separately from the geological object tree.
 - **Coverage charts:** decoded object counts against registry IDs, plus log/surface decoder outcomes. These are not a whole-project completion percentage.

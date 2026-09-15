@@ -94,6 +94,20 @@ def log_doc(kind='FloatWellLog', md=None, values=None, char=False, intervals=Fal
                    attrs={'xmlns': r.NAMESPACE, 'Type': kind, 'Version': version or r.PROFILES[kind]})
 
 
+def polygon_doc(parts, closed=None, *, outer_count=None, inner_version=None, attributes=False):
+    closed = closed or [False]*len(parts)
+    items=[]
+    for index,points in enumerate(parts):
+        items.append(element('item',children=[element('user_data',attrs={'Size':0}),
+            element('vertices',children=[array('double',np.ravel(points),'<f8')] if points else [],attrs={'Size':len(points)}),
+            element('has_attr',False),element('has_object_ids',False),element('is_closed',closed[index])],
+            attrs={'Id':index+2,'Type':'Polygon3','Version':inner_version or [0,1,2,0,1,1]}))
+    children=[element('user_data',attrs={'Size':0}),element('array',children=items,
+        attrs={'Size':len(parts) if outer_count is None else outer_count}),element('has_attr',attributes)]
+    if attributes:children.append(element('attributes',children=[element('unresolved_property',42.)]))
+    return element('data',children=children,attrs={'xmlns':r.NAMESPACE,'Id':1,'Type':'Polygons3','Version':[1,2,0,1,1]})
+
+
 def surface_doc(kind='RegValGrid2', rotation=0, context=True, dims=(3, 2), mask=b'\x1f', connections=False):
     n = dims[0]*dims[1]
     vals = list(range(1, n+1))

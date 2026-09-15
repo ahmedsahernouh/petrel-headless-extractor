@@ -36,7 +36,7 @@ from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-TOOL_VERSION = "3.0-visual-inventory"
+TOOL_VERSION = "3.1-native-polygon-segments"
 NOT_AVAILABLE = "not available in this export package"
 
 
@@ -474,7 +474,9 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
     polygon_path = package / "05_spatial" / "polygons" / "native_polygons_vertices.csv"
     point_path = package / "05_spatial" / "points" / "native_points_vertices.csv"
     polygon_groups: dict[tuple[str, str, str], list[dict]] = {}
-    for row in read_csv_rows(polygon_path):
+    polygon_rows = read_csv_rows(polygon_path)
+    typed_polygons = bool(polygon_rows) and all(row.get('decode_status') == 'native_Polygons3_typed_NBFX_segments_decoded' for row in polygon_rows)
+    for row in polygon_rows:
         part = row.get("part_index") or "0"
         segment = row.get("segment_id") or part
         key = (row.get("object_id", ""), part, segment)
@@ -505,8 +507,16 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
         previous = None
         def retain_segment():
             if len(retained) >= 2:
+                plotted = list(retained)
+                # Closure is native metadata, not a guess from point proximity.
+                complete = (has_order and [index for index, _ in ordered] == list(range(len(rows)))
+                            and len(retained) == len(rows) and all(row.get('is_closed_native') == 'yes' for row in rows)
+                            and all(to_int(row.get('part_vertex_count')) == len(rows) for row in rows))
+                if complete and plotted[0] != plotted[-1]:
+                    plotted.append(plotted[0])
                 polylines.append(dict(object_id=object_id, part_index=part_index,
-                                      segment_id=segment_id, points=list(retained),
+                                      segment_id=segment_id, object_name=rows[0].get('object_name') or object_id,
+                                      points=plotted,
                                       source_vertex_count=len(rows)))
         for index, row in ordered:
             point = coordinate(row)
@@ -548,7 +558,7 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
     anchor_xy = raw_points + [(float(row["x"]), float(row["y"])) for row in head_rows]
     bbox = {}
     display_extent_basis = "all decoded display coordinates"
-    if len(anchor_xy) >= 2:
+    if len(anchor_xy) >= 2 and not typed_polygons:
         xs = [point[0] for point in anchor_xy]
         ys = [point[1] for point in anchor_xy]
         dx = max(max(xs) - min(xs), 1.0)
@@ -580,9 +590,15 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
         display_polylines = polylines
     # Clip and split before decimation so a skipped out-of-view vertex cannot
     # join disconnected sections. Sampling changes only the display density.
-    display_polylines = [{**item, "points": decimate_xy(item["points"], 220)} for item in display_polylines]
-    if sum(len(item["points"]) for item in display_polylines) > 12_000:
-        display_polylines = display_polylines[: max(1, math.floor(len(display_polylines) * 12_000 / sum(len(item["points"]) for item in display_polylines)))]
+    # Spread the preview budget across segments instead of dropping later objects.
+    budget_omitted_segments = max(0, len(display_polylines)-6000)
+    display_polylines = display_polylines[:6000]
+    per_segment = max(2, min(220, 12_000 // max(1, len(display_polylines))))
+    def preview_vertices(points):
+        if len(points) <= per_segment:
+            return points
+        return [points[index*(len(points)-1)//(per_segment-1)] for index in range(per_segment)]
+    display_polylines = [{**item, "points": preview_vertices(item['points'])} for item in display_polylines]
 
     return {
         "available": bool(all_xy),
@@ -595,6 +611,7 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
         "source_polygon_vertices": source_polygon_vertices,
         "polygon_segment_count": len(polygon_groups),
         "ambiguous_polygon_segments": ambiguous_polygon_segments,
+        "budget_omitted_polygon_segments": budget_omitted_segments,
         "display_polygon_vertices": sum(len(item["points"]) for item in display_polylines),
         "omitted_preview_polygon_vertices": omitted_polygon_vertices,
         "source_point_vertices": len(raw_points),
@@ -992,7 +1009,7 @@ def render_spatial_svg(overview: dict) -> str:
     for item in overview.get("polylines", []):
         coords = " ".join(f"{px:.2f},{py:.2f}" for px, py in (project(float(x), float(y)) for x, y in item["points"]))
         polygons.append(
-            f'<polyline points="{coords}"><title>Polygon {esc(item["object_id"][:8])}, part {esc(item["part_index"])}, segment {esc(item.get("segment_id", item["part_index"]))}, '
+            f'<polyline data-polygon-object="{esc(item["object_id"])}" data-segment-id="{esc(item.get("segment_id", item["part_index"]))}" points="{coords}"><title>Polygon {esc(item.get("object_name") or item["object_id"][:8])}, part {esc(item["part_index"])}, segment {esc(item.get("segment_id", item["part_index"]))}, '
             f'{item["source_vertex_count"]} source vertices</title></polyline>'
         )
     points = []
@@ -1034,7 +1051,12 @@ def render_html(audit: dict, title: str) -> str:
     seismic = audit["seismic"]
     semantic = audit["native_semantic"]
     native = audit["native_inventory"]
-    overview = audit["spatial_overview"]
+    overview = dict(audit["spatial_overview"])
+    object_names = {item['object_id']: item.get('name') for item in
+                    audit.get('visual_report', {}).get('inventory', {}).get('nodes', [])}
+    overview['polylines'] = [{**item, 'object_name': object_names.get(item['object_id']) or
+                             item.get('object_name') or item['object_id']}
+                            for item in overview.get('polylines', [])]
     media = audit["media"]
     files = audit["file_inventory"]
     registry = native.get("registry_by_type", {})
@@ -1120,20 +1142,24 @@ def render_html(audit: dict, title: str) -> str:
     for item in media.get("images", []):
         dimensions = f'{item["width"]} × {item["height"]}' if item.get("width") and item.get("height") else "dimensions unavailable"
         if item.get("data_uri"):
-            visual = f'<img loading="lazy" src="{item["data_uri"]}" alt="{esc(item["role"])}: {esc(item["path"])}">'
+            image_visual = f'<img loading="lazy" src="{item["data_uri"]}" alt="{esc(item["role"])}: {esc(item["path"])}">'
         else:
-            visual = f'<a class="image-placeholder" href="{file_href(audit, item["path"])}">Open image</a>'
+            image_visual = f'<a class="image-placeholder" href="{file_href(audit, item["path"])}">Open image</a>'
         image_cards.append(
-            f'<figure>{visual}<figcaption><strong>{esc(item["role"])}</strong><br>{esc(item["path"])}<br>'
+            f'<figure>{image_visual}<figcaption><strong>{esc(item["role"])}</strong><br>{esc(item["path"])}<br>'
             f'{esc(dimensions)} · {esc(human_size(item["size_bytes"]))}</figcaption></figure>'
         )
     gallery_html = "".join(image_cards) if image_cards else f'<p class="note">{NOT_AVAILABLE}</p>'
 
+    polygon_choices = {item['object_id']: item.get('object_name') or item['object_id'] for item in overview.get('polylines', [])}
+    polygon_select = '<label>Polygon object <select id="polygon-object-filter"><option value="">All objects</option>'+''.join(
+        f'<option value="{esc(key)}">{esc(value)}</option>' for key,value in sorted(polygon_choices.items(),key=lambda pair:pair[1]))+'</select></label>'
     map_controls = (
         '<div class="map-controls">'
         '<label><input type="checkbox" data-layer="layer-polygons" checked> Polygons</label>'
         '<label><input type="checkbox" data-layer="layer-points" checked> Points</label>'
         '<label><input type="checkbox" data-layer="layer-wells" checked> Well heads</label>'
+        + polygon_select +
         '<button type="button" data-map-action="zoom-in">＋</button><button type="button" data-map-action="zoom-out">−</button>'
         '<button type="button" data-map-action="reset">Reset view</button></div>'
     )
@@ -1146,6 +1172,7 @@ def render_html(audit: dict, title: str) -> str:
         f'points from {overview.get("source_point_vertices", 0):,}. '
         f'Lines preserve separate object/segment IDs (decoded part IDs when no segment ID is supplied) and vertex order. '
         f'{overview.get("ambiguous_polygon_segments", 0):,} segments with ambiguous vertex order are omitted. '
+        f'{overview.get("budget_omitted_polygon_segments", 0):,} additional segments exceed the display budget. '
         f'{overview.get("omitted_preview_polygon_vertices", 0):,} polygon vertices outside the display extent are omitted from the preview only and remain in CSV. '
         f'This is a native-coordinate overview, not a georeferenced web basemap.'
         if bbox else overview.get("coordinate_boundary", "")
@@ -1266,6 +1293,24 @@ def render_html(audit: dict, title: str) -> str:
       if (svg) {
         let box = [0,0,1000,620], drag = null;
         const apply = () => svg.setAttribute('viewBox', box.join(' '));
+        const polygonFilter = document.getElementById('polygon-object-filter');
+        if (polygonFilter) polygonFilter.addEventListener('change', () => {
+          const selected = [];
+          svg.querySelectorAll('[data-polygon-object]').forEach(line => {
+            const visible = !polygonFilter.value || line.dataset.polygonObject === polygonFilter.value;
+            line.style.display = visible ? '' : 'none';
+            if (visible) selected.push(line);
+          });
+          box = [0,0,1000,620];
+          if (polygonFilter.value && selected.length) {
+            const bounds = selected.map(line => line.getBBox());
+            const x = Math.min(...bounds.map(b => b.x)), y = Math.min(...bounds.map(b => b.y));
+            const w = Math.max(1, Math.max(...bounds.map(b => b.x+b.width))-x);
+            const h = Math.max(1, Math.max(...bounds.map(b => b.y+b.height))-y);
+            box = [x-w*.08,y-h*.08,w*1.16,h*1.16];
+          }
+          apply();
+        });
         const zoom = factor => { const nw=box[2]*factor, nh=box[3]*factor; box=[box[0]+(box[2]-nw)/2,box[1]+(box[3]-nh)/2,nw,nh]; apply(); };
         document.querySelectorAll('[data-map-action]').forEach(button => button.addEventListener('click', () => {
           const action=button.dataset.mapAction; if(action==='zoom-in') zoom(.8); else if(action==='zoom-out') zoom(1.25); else {box=[0,0,1000,620];apply();}

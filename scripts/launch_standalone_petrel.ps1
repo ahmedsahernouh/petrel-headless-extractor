@@ -44,7 +44,7 @@ try {
         Write-Output 'Or: run_portable_petrel_extract.bat --check -NoPause'
         exit 0
     }
-    Write-Output "Petrel Headless Extractor 0.6.1 - standalone, read-only"
+    Write-Output "Petrel Headless Extractor 0.6.2 - standalone, read-only"
     if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy' -or $Inspect -or $Capabilities) {
         $pauseAtEnd=$false
         Invoke-ZgyInput

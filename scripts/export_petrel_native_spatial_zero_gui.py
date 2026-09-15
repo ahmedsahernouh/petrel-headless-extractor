@@ -557,70 +557,87 @@ def decode_points3(payload: bytes) -> tuple[list[tuple[float, float, float] | No
     }
 
 
-def decode_polygons3(payload: bytes) -> tuple[list[list[tuple[float, float, float]]], dict[str, Any]]:
-    dictionary, dictionary_end = parse_initial_dictionary(payload)
-    if "Polygons3" not in dictionary:
-        raise DecodeError("Payload dictionary is not a Polygons3 layout")
-    if "vertices" not in dictionary:
-        return [], {"dictionary_entries": len(dictionary), "reason": "empty_polygon_collection"}
-    # Validated Polygons3: outer collection is field 0x18 and Polygon3 vertex
-    # arrays are field 0x20.  Limiting by the declared outer item count prevents
-    # an IEEE-754 byte coincidence or later attribute scope from adding parts.
-    outer_count = find_collection_count(payload, b"\x42\x18", dictionary_end)
-    if outer_count is None:
-        raise DecodeError("Polygons3 outer collection count was not found")
-    inner_prefix = b"\x42\x1e\x06\x08"
-    vector_marker = b"\x42\x20\x01\x93"
-    arrays: list[PrimitiveArray] = []
-    invalid_parts: list[dict[str, Any]] = []
-    cursor = dictionary_end
-    while cursor < len(payload) and len(arrays) + len(invalid_parts) < outer_count:
-        collection_position = payload.find(inner_prefix, cursor)
-        if collection_position < 0:
-            break
-        try:
-            vertex_count, after_count = decode_count_scalar(payload, collection_position + len(inner_prefix))
-            if vertex_count == 0:
-                cursor = after_count
-                continue
-            if (
-                after_count >= len(payload)
-                or payload[after_count] != 0x03
-                or payload[after_count + 1 : after_count + 1 + len(vector_marker)] != vector_marker
-            ):
-                cursor = collection_position + 1
-                continue
-            marker_offset = after_count + 1
-            array = decode_xyz_vector(payload, marker_offset, vector_marker, vertex_count)
-            if not valid_numeric_payload(array.values):
-                raise DecodeError("coordinate bytes are not a valid numeric payload")
-            arrays.append(array)
-            cursor = array.end_offset
-        except DecodeError as exc:
-            invalid_parts.append({"collection_offset": collection_position, "error": str(exc)})
-            cursor = collection_position + 1
-    polygons: list[list[tuple[float, float, float]]] = []
-    missing_parts = 0
-    for array in arrays:
-        polygon = [tuple(array.values[index : index + 3]) for index in range(0, len(array.values), 3)]
-        if any(any(is_native_missing_float(value) for value in point) for point in polygon):
-            missing_parts += 1
-            continue
-        polygons.append(polygon)
-    if not polygons and invalid_parts:
-        raise DecodeError(f"No polygon part passed structural validation; first failure: {invalid_parts[0]['error']}")
-    return polygons, {
-        "dictionary_entries": len(dictionary),
-        "outer_item_count": outer_count,
-        "decoded_nonempty_parts": len(polygons),
-        "parts_with_missing_xyz_omitted": missing_parts,
-        "invalid_parts_failed_closed": invalid_parts,
-        "empty_or_undecoded_parts": max(0, outer_count - len(polygons)),
-        "vertices_scalar_count": sum(len(array.values) for array in arrays),
-        "dictionary_frames_skipped": [
-            frame for array in arrays for frame in array.dictionary_frames_skipped
-        ],
-    }
+def decode_polygons3(payload: bytes) -> tuple[list[list[tuple[float, float, float] | None]], dict[str, Any]]:
+    """Decode complete typed Polygon3 items, preserving native collection order.
+
+    BXML block boundaries may occur inside doubles. The bounded framing reader
+    removes only declared frames before NBFX array parsing; no marker scanning,
+    coordinate-based sorting or guessed checkpoint repair is used here.
+    Collection indices are segment keys; serialization Id values are kept
+    separately and are not advertised as user-authored polygon segment IDs.
+    """
+    try:
+        nodes = list(native_binary.read_documents(payload))
+        if len(nodes) != 1:
+            raise DecodeError('Expected one Polygons3 document')
+        node = nodes[0]
+        if (node.name != 'data' or node.attrs.get('Type') != 'Polygons3'
+                or node.attrs.get('Version') != [1, 2, 0, 1, 1]
+                or node.attrs.get('xmlns') != 'http://www.slb.com/Petrel/2011/03/Serialization'):
+            raise DecodeError('Polygons3 type/version/namespace is outside the validated profile')
+
+        def fields(item, expected, allow_attributes=False):
+            if allow_attributes and item.get('has_attr') is True:
+                expected = [*expected, 'attributes']
+            if item.content or sorted(c.name for c in item.children) != sorted(expected):
+                raise DecodeError(f'{item.name}: unexpected or duplicate polygon fields')
+            user = item.child('user_data')
+            if user.attrs.get('Size') != 0 or user.children or user.content:
+                raise DecodeError('Polygon user-data attributes are outside the validated profile')
+            if item.get('has_attr') is not False and not (allow_attributes and item.get('has_attr') is True):
+                raise DecodeError('Polygon property attributes are outside the validated profile')
+
+        fields(node, ['user_data', 'array', 'has_attr'], allow_attributes=True)
+        collection = node.child('array')
+        outer_count = collection.attrs.get('Size')
+        if (type(outer_count) is not int or not 0 <= outer_count <= 2_000_000
+                or len(collection.children) != outer_count or collection.content):
+            raise DecodeError('Polygons3 declared segment count disagrees with its items')
+        polygons = []; segments = []; total_vertices = 0
+        for part_index, item in enumerate(collection.children):
+            if (item.name != 'item' or item.attrs.get('Type') != 'Polygon3'
+                    or item.attrs.get('Version') != [0, 1, 2, 0, 1, 1] or 'Ref' in item.attrs):
+                raise DecodeError(f'Polygon segment {part_index}: unsupported item type/version/reference')
+            fields(item, ['user_data', 'vertices', 'has_attr', 'has_object_ids', 'is_closed'])
+            if item.get('has_object_ids') is not False or type(item.get('is_closed')) is not bool:
+                raise DecodeError(f'Polygon segment {part_index}: unsupported object IDs or closure flag')
+            vertices = item.child('vertices'); count = vertices.attrs.get('Size')
+            if type(count) is not int or not 0 <= count <= 2_000_000 or vertices.content:
+                raise DecodeError(f'Polygon segment {part_index}: invalid vertex count')
+            total_vertices += count
+            if total_vertices > 2_000_000:
+                raise DecodeError('Polygon object exceeds vertex bound')
+            polygon = []
+            if count:
+                values = vertices.array('double')
+                if (values.ndim != 1 or values.dtype.kind != 'f' or values.dtype.itemsize != 8
+                        or len(values) != 3*count or any(c.name != 'double' for c in vertices.children)):
+                    raise DecodeError(f'Polygon segment {part_index}: XYZ array shape/type/count mismatch')
+                for row in values.reshape((-1, 3)):
+                    point = tuple(float(value) for value in row)
+                    if any(is_native_missing_float(value) for value in point):
+                        polygon.append(None)  # Retain the slot; never renumber or bridge a gap.
+                    elif not xyz_intrinsically_valid(point):
+                        raise DecodeError(f'Polygon segment {part_index}: invalid coordinate')
+                    else:
+                        polygon.append(point)
+            elif vertices.children:
+                raise DecodeError(f'Polygon segment {part_index}: data inside an empty vertex array')
+            polygons.append(polygon)
+            segments.append(dict(part_index=part_index, segment_id=part_index,
+                segment_id_source='native_collection_index_zero_based',
+                native_serialization_id=item.attrs.get('Id'),
+                is_closed_native=item.get('is_closed'), declared_vertex_count=count,
+                missing_vertex_slots=sum(point is None for point in polygon)))
+        return polygons, dict(decoder='length_framed_typed_NBFX', outer_item_count=outer_count,
+            decoded_nonempty_parts=sum(any(p is not None for p in part) for part in polygons),
+            empty_or_undecoded_parts=sum(not any(p is not None for p in part) for part in polygons),
+            vertices_scalar_count=3*total_vertices, segments=segments,
+            attributes_status='not_exported' if node.get('has_attr') else 'not_present',
+            reason='Polygon geometry decoded; attached properties remain in the native source' if node.get('has_attr') else '',
+            segment_order='native collection order', vertex_order='native vertex array order')
+    except native_binary.NativeError as exc:
+        raise DecodeError(str(exc)) from exc
 
 
 def decode_scalar(payload: bytes, offset: int) -> tuple[float, int, str]:
@@ -1451,9 +1468,12 @@ def run(args: argparse.Namespace) -> int:
                 blob = object_blob(connection, native_object)
                 payload, envelope = decompress_lz4_block(blob)
                 report["envelope"] = envelope
-                _, initial_dictionary_end = parse_initial_dictionary(payload)
-                payload, embedded_frames = strip_dictionary_extensions(payload, initial_dictionary_end)
-                report["embedded_dictionary_frames_removed"] = embedded_frames
+                # The typed polygon reader consumes declared frames itself. Removing
+                # marker-like bytes beforehand can corrupt a float inside an array.
+                if native_object.blob_type != "Polygons3":
+                    _, initial_dictionary_end = parse_initial_dictionary(payload)
+                    payload, embedded_frames = strip_dictionary_extensions(payload, initial_dictionary_end)
+                    report["embedded_dictionary_frames_removed"] = embedded_frames
                 if native_object.blob_type == "Points3":
                     points, metadata = decode_points3(payload)
                     report.update(metadata)
@@ -1485,11 +1505,15 @@ def run(args: argparse.Namespace) -> int:
                 elif native_object.blob_type == "Polygons3":
                     polygons, metadata = decode_polygons3(payload)
                     report.update(metadata)
-                    report["bbox"] = bbox(point for polygon in polygons for point in polygon)
-                    report["status"] = "decoded" if polygons else "empty_supported_object"
+                    report["bbox"] = bbox(point for polygon in polygons for point in polygon if point is not None)
+                    report["status"] = "decoded" if metadata['decoded_nonempty_parts'] else "empty_supported_object"
                     for part_index, polygon in enumerate(polygons):
-                        is_closed = len(polygon) > 1 and polygon[0] == polygon[-1]
-                        for vertex_index, (x, y, z) in enumerate(polygon):
+                        segment = metadata['segments'][part_index]
+                        is_closed = len(polygon) > 1 and polygon[0] is not None and polygon[0] == polygon[-1]
+                        for vertex_index, point in enumerate(polygon):
+                            if point is None:
+                                continue
+                            x, y, z = point
                             polygon_rows.append(
                                 {
                                     "object_id": native_object.object_id,
@@ -1497,14 +1521,18 @@ def run(args: argparse.Namespace) -> int:
                                     "object_name": native_object.name,
                                     "version": native_object.version,
                                     "part_index": part_index,
+                                    "segment_id": segment['segment_id'],
+                                    "segment_id_source": segment['segment_id_source'],
+                                    "native_serialization_id": segment['native_serialization_id'],
                                     "vertex_index": vertex_index,
                                     "part_vertex_count": len(polygon),
+                                    "is_closed_native": "yes" if segment['is_closed_native'] else "no",
                                     "is_closed_by_repeated_xyz": "yes" if is_closed else "no",
                                     "x": x,
                                     "y": y,
                                     "z": z,
                                     "crs_status": "not_resolved_from_native_geometry_payload",
-                                    "decode_status": "native_Polygons3_LZ4_BXML_xyz_decoded",
+                                    "decode_status": "native_Polygons3_typed_NBFX_segments_decoded",
                                 }
                             )
                 else:
@@ -1584,7 +1612,7 @@ def run(args: argparse.Namespace) -> int:
     if write_csv_if_rows(
         polygon_path,
         polygon_rows,
-        ("object_id", "data_pk", "object_name", "version", "part_index", "vertex_index", "part_vertex_count", "is_closed_by_repeated_xyz", "x", "y", "z", "crs_status", "decode_status"),
+        ("object_id", "data_pk", "object_name", "version", "part_index", "segment_id", "segment_id_source", "native_serialization_id", "vertex_index", "part_vertex_count", "is_closed_native", "is_closed_by_repeated_xyz", "x", "y", "z", "crs_status", "decode_status"),
     ):
         outputs.append(str(polygon_path))
     point_path = export_package / "05_spatial" / "points" / "native_points_vertices.csv"
@@ -1626,7 +1654,7 @@ def run(args: argparse.Namespace) -> int:
     report_path = report_root / "native_spatial_decode_report.json"
     summary = {
         "tool": "export_petrel_native_spatial_zero_gui.py",
-        "tool_version": "0.2.0-evidence-gated-well-heads",
+        "tool_version": "0.3.0-typed-polygon-segments",
         "completed_at_utc": utc_now(),
         "source_data_file": str(data_file),
         "source_open_mode": "sqlite_uri_mode_ro",
