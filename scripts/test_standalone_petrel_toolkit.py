@@ -202,7 +202,7 @@ print(src/'Fixture.pet')
         assert native_report['status']=='completed' and native_report['source_unchanged']
         assert native_report['object_status_counts']=={'decoded':1}
         assert native_report['objects'][0]['blob_type']==expected_type
-        assert list(native_results.rglob('curve.las' if fixture_kind=='log' else 'surface.xyz'))
+        assert list(native_results.rglob('curve.las' if expected_type=='FloatWellLog' else 'surface.xyz'))
         visual=json.loads(next(native_results.rglob('visual_report.json')).read_text(encoding='utf-8'))
         assert visual['figures'] and visual['inventory']['node_count'] > 0
         html=next(native_results.rglob('PROJECT_REPORT.html')).read_text(encoding='utf-8')
@@ -262,7 +262,7 @@ print(src/'Fixture.pet')
         text=top[0].read_text(encoding='utf-8')
         assert 'Not calculated — full hashing disabled' in text and 'data:image/png;base64,' in text
         assert 'Complete data inventory tree' in text and 'linked.zgy' in text
-        assert 'Native well-head metadata' in text and 'LZ4 envelope length mismatch' in text
+        assert 'Native well-head metadata' in text and 'LZ4 envelope size mismatch' in text
         assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in before_seismic.items())
         # This explicitly proves no whole-seismic input hashes are hidden in the project wrapper.
         receipt=json.loads(Path(payload['extraction']['receipt_path']).read_text())
