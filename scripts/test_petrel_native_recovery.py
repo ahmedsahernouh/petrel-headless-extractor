@@ -108,25 +108,26 @@ def polygon_doc(parts, closed=None, *, outer_count=None, inner_version=None, att
     return element('data',children=children,attrs={'xmlns':r.NAMESPACE,'Id':1,'Type':'Polygons3','Version':[1,2,0,1,1]})
 
 
-def surface_doc(kind='RegValGrid2', rotation=0, context=True, dims=(3, 2), mask=b'\x1f', connections=False):
+def surface_doc(kind='RegValGrid2', rotation=0, context=True, dims=(3, 2), mask=b'\x1f', connections=False, packed=False, legacy=False):
     n = dims[0]*dims[1]
     vals = list(range(1, n+1))
     children = [element('user_data', attrs={'Size': 0}), element('node_size', children=[array('int', dims, '<i4')]),
                 element('has_node_defs', True), element('has_cell_defs', False),
                 element('has_connections', connections), element('has_segments', False),
-                element('node_defs', children=[element('bool_count', n), element('bitmask', mask)])]
+                (element('node_defs', children=[element('bools',mask)]+([element('ignore',b'\x00')] if n%8==0 else []), attrs={'Size':n})
+                 if packed else element('node_defs', children=[element('bool_count', n), element('bitmask', mask)]))]
     if kind == 'RegValGrid2':
         for field, val in [('original_inc', [20., 30.]), ('original_min', [100., 200.]),
                            ('original_max', [100.+20*(dims[0]-1), 200.+30*(dims[1]-1)])]:
             children.append(element(field, children=[array('double', val, '<f8')]))
-        children += [element('has_coordinate_context', context), element('axis_flip_state', 0),
+        children += [element('has_coordinate_context', context)]+([] if legacy else [element('axis_flip_state', 0)])+[
                      element('original_rotation', children=[element('radians', rotation)]),
                      element('dip', children=[element('radians', 0)])]
         children.append(element('grid', children=[array('node', vals, '<f4')], attrs={'Size': -1}))
     else:
         xyz = [[100.+i*20, 200.+j*30, vals[j*dims[0]+i]] for j in range(dims[1]) for i in range(dims[0])]
         children.append(element('grid', children=[array('node', np.ravel(xyz), '<f8')], attrs={'Size': -1}))
-    return element('data', children=children, attrs={'xmlns': r.NAMESPACE, 'Type': kind, 'Version': r.PROFILES[kind]})
+    return element('data', children=children, attrs={'xmlns': r.NAMESPACE, 'Type': kind, 'Version': r.REGULAR_GRID_V0 if legacy else r.PROFILES[kind]})
 
 
 class RecoveryTests(unittest.TestCase):
@@ -136,11 +137,11 @@ class RecoveryTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.ids = {key: str(uuid.uuid4()) for key in ('well', 'log', 'surface', 'template')}
 
-    def fixture(self, *, kind='FloatWellLog', doc=None, metric=True, surface=False):
+    def fixture(self, *, kind='FloatWellLog', doc=None, metric=True, surface=False, limits=None, limit_profile=False, surface_subject='SurfaceSubject'):
         package = self.root/'package'; native = package/'08_native_project'
         (native/'project_file').mkdir(parents=True); (native/'ptd_store').mkdir()
         tag = self.ids['surface' if surface else 'log']
-        subject = 'SurfaceSubject' if surface else 'WellLogSubject'
+        subject = surface_subject if surface else 'WellLogSubject'
         stub = element('item', children=[element('uniqueTag', tag), element('parentTag', '' if surface else self.ids['well']), element('visualName', 'Surface' if surface else 'Gamma')], attrs={'Type': 'SubjectStub'})
         wellstub = element('item', children=[element('uniqueTag', self.ids['well']), element('parentTag', ''), element('visualName', 'Synthetic Well')], attrs={'Type': 'SubjectStub'})
         def entry(key, child): return element('entry', children=[element('key', key), element('value', children=[child])])
@@ -149,8 +150,9 @@ class RecoveryTests(unittest.TestCase):
         attrs = {'xmlns': r.NAMESPACE}
         meta = [element('unique_tag', tag), element('template', self.ids['template']), element('name', 'Gamma')]
         if surface:
-            meta.append(element('cached_limit', children=[element('min', children=[array('double', [100., 200., 1.], '<f8')]), element('max', children=[array('double', [140., 230., 5.], '<f8')])]))
-        model = element(subject, children=meta, attrs=attrs)
+            lo,hi=limits or ([100.,200.,1.],[140.,230.,5.])
+            meta.append(element('limit' if limit_profile else 'cached_limit', children=[element('min', children=[array('double',lo,'<f8')]), element('max', children=[array('double',hi,'<f8')])]))
+        model = element(subject, children=meta, attrs=dict(attrs,**({'Version':[9,2,13,1,0,1,18,0,0,1]} if limit_profile else {})))
         template = element('ContTemplateSubject', children=[element('unique_tag', self.ids['template']), element('is_predefined', True), element('initial_unit', 'm' if surface else 'gAPI'), element('standard_measurement', 'Length' if surface else 'API_Gamma_Ray')], attrs=attrs)
         units = [element('temp_'+key+'_unit', val) for key,val in [('xy','m'), ('z','m' if metric else 'ft'), ('time','ms')]]
         units += [element(key+'_unit_customized', False) for key in ('xy','z','time')]

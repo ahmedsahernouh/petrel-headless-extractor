@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.6.2'
+VERSION = '0.7.0'
 PACKAGE_FOLDER = 'PetrelExtractor'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -42,6 +42,7 @@ SCRIPTS = [
     'test_companion_large_files.py', 'petrel_progress.py', 'test_petrel_progress.py',
     'petrel_file_convert.py', 'launch_zgy_conversion.ps1', 'test_petrel_binary_conversion.py',
     'petrel_native_binary.py', 'petrel_native_recovery.py', 'test_petrel_native_recovery.py',
+    'petrel_surface_export.py', 'test_petrel_surface_export.py',
     'petrel_visual_report.py', 'test_petrel_visual_report.py',
     'petrel_project_seismic.py', 'petrel_seismic_integrity.py', 'test_project_seismic.py',
 ]

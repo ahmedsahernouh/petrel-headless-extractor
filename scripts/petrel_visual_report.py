@@ -30,7 +30,7 @@ import numpy as np
 MAX_CSV_BYTES = 128 * 1024 * 1024
 MAX_ROWS = 2_000_000
 MAX_LOG_FIGURES = 64
-MAX_SURFACE_FIGURES = 36
+MAX_SURFACE_FIGURES = 256
 MAX_SEISMIC_FIGURES = 3
 MAX_PLOT_POINTS = 6000
 
@@ -127,23 +127,27 @@ class Figures:
 def recovery_charts(audit, figures):
     native = audit['native_inventory']
     counts = native.get('decoded_object_type_counts', {})
+    grids = native.get('native_surface_written_by_type', {})
     inventory = native.get('registry_by_type', {})
     kinds = ['Polygons3', 'Points3', 'FloatWellLog', 'IntWellLog', 'RegValGrid2',
              'ValGrid2', 'FaultInterpretation', 'PillarGrid2', 'FloatProperty', 'IntProperty']
-    kinds = [k for k in kinds if k in inventory or counts.get(k)]
+    kinds = [k for k in kinds if k in inventory or counts.get(k) or grids.get(k)]
     if kinds:
         decoded = [counts.get(k, 0) for k in kinds]
-        remaining = [max(0, inventory.get(k, {}).get('unique_object_ids', 0)-n) for k,n in zip(kinds, decoded)]
+        numeric = [max(0, grids.get(k,0)-n) for k,n in zip(kinds,decoded)]
+        recovered = [a+b for a,b in zip(decoded,numeric)]
+        remaining = [max(0, inventory.get(k, {}).get('unique_object_ids', 0)-n) for k,n in zip(kinds, recovered)]
         fig, ax = figures.plt.subplots(figsize=(10, max(3.5, len(kinds)*.42)), layout='constrained')
         ax.barh(kinds, decoded, color='#087f8c', label='Decoded objects')
-        ax.barh(kinds, remaining, left=decoded, color='#dce5eb', label='Other registry IDs')
-        for i, (a,b) in enumerate(zip(decoded, remaining)):
+        ax.barh(kinds, numeric, left=decoded, color='#d4973b', label='Grid numbers exported; units unresolved')
+        ax.barh(kinds, remaining, left=recovered, color='#dce5eb', label='Other registry IDs')
+        for i, (a,b) in enumerate(zip(recovered, remaining)):
             denominator = f'{inventory[kinds[i]]["unique_object_ids"]:,}' if kinds[i] in inventory else '?'
-            ax.text(a+b+max(decoded+remaining+[1])*.012, i, f'{a:,} / {denominator}', va='center', fontsize=8)
+            ax.text(a+b+max(recovered+remaining+[1])*.012, i, f'{a:,} / {denominator}', va='center', fontsize=8)
         ax.invert_yaxis(); ax.set_xlabel('Object IDs'); ax.set_title('Native recovery by category', loc='left', weight='bold')
         ax.margins(x=.18); ax.legend(loc='lower right', fontsize=8)
         figures.save(fig, 'Native recovery', 'Overview',
-                     'Selected categories: decoded / registry IDs; ? means no registry denominator. Other IDs can be unsupported, empty, unresolved or unattempted. Counts do not establish scientific acceptance.')
+                     'Selected categories: decoded plus numeric grid exports / registry IDs; amber grids retain unresolved units. ? means no registry denominator. Other IDs can be unsupported, empty, unresolved or unattempted. Counts do not establish scientific acceptance.')
     states = native.get('native_recovery_status_counts', {})
     if states:
         fig, ax = figures.plt.subplots(figsize=(8, 3.6), layout='constrained')
@@ -168,6 +172,8 @@ def read_artifacts(package, item):
 def plot_native(package, item, record, figures):
     kind = item.get('blob_type', '')
     is_log = kind.endswith('WellLog')
+    if not is_log and any(a['label']=='grid_preview.npz' for a in record['links']):
+        return plot_surface_grid(package,item,record,figures)
     target = 'samples.csv' if is_log else 'nodes.csv'
     artifact = next(a for a in record['links'] if a['label']==target)
     path = contained(package, artifact['path'])
@@ -220,6 +226,48 @@ def plot_native(package, item, record, figures):
         raise ValueError('CSV changed while preparing its figure')
     record['figure'] = figures.save(fig, name, group, caption, artifact['path'], item['object_id'])
     record['preview_status'] = 'plotted'
+
+
+def plot_surface_grid(package, item, record, figures):
+    artifact=next(a for a in record['links'] if a['label']=='grid_preview.npz')
+    path=contained(package,artifact['path']);before=sha(path)
+    if not artifact.get('sha256') or before!=artifact['sha256']:
+        raise ValueError('Grid preview hash differs from decoder receipt')
+    if path.stat().st_size>16*1024*1024:raise ValueError('Grid preview exceeds size bound')
+    with np.load(path,allow_pickle=False) as data:
+        x,y,z,cell_valid=[data[key] for key in ('x','y','value','cell_valid')]
+        if x.ndim!=2 or x.size>256*256 or y.shape!=x.shape or z.shape!=x.shape or cell_valid.shape!=(x.shape[0]-1,x.shape[1]-1):
+            raise ValueError('Unexpected grid preview shape')
+        if not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)) or not np.all(np.isfinite(z)):
+            raise ValueError('Non-finite grid preview coordinates or values')
+        colors=np.ma.array((z[:-1,:-1]+z[1:,:-1]+z[:-1,1:]+z[1:,1:])/4,mask=~cell_valid.astype(bool))
+        if not cell_valid.any():raise ValueError('No contiguous defined grid cells at preview resolution')
+        stats=item['full_grid_stats'];name=item.get('name') or item['object_id'];unit=item.get('unit') or 'unresolved unit'
+        fig,(ax,hist)=figures.plt.subplots(1,2,figsize=(11,5.2),width_ratios=[1.5,1],layout='constrained')
+        cloud=ax.pcolormesh(x,y,colors,shading='flat',cmap='viridis',rasterized=True,
+                           vmin=stats['minimum'],vmax=stats['maximum'])
+        # Undefined boundary nodes can have zero coordinates; frame only cells
+        # actually displayed, without changing the source coordinates.
+        active=np.zeros(x.shape,dtype=bool)
+        for dj,di in ((0,0),(0,1),(1,0),(1,1)):
+            active[dj:dj+cell_valid.shape[0],di:di+cell_valid.shape[1]] |= cell_valid.astype(bool)
+        ax.set_xlim(float(x[active].min()),float(x[active].max()));ax.set_ylim(float(y[active].min()),float(y[active].max()))
+        ax.set_aspect('equal',adjustable='box');xyunit=item.get('horizontal_unit') or 'unresolved unit'
+        ax.set_xlabel('Native X ['+xyunit+']');ax.set_ylabel('Native Y ['+xyunit+']')
+        ax.ticklabel_format(style='plain',useOffset=False);ax.tick_params(axis='x',rotation=20)
+        cb=figures.plt.colorbar(cloud,ax=ax,shrink=.8,label='Native value ['+unit+']');cb.formatter.set_useOffset(False);cb.update_ticks()
+        hist.stairs(stats['histogram_counts'],stats['histogram_edges'],fill=True,color='#087f8c')
+        hist.set_xlabel('Native value ['+unit+']');hist.set_ylabel('Defined native nodes');hist.ticklabel_format(style='plain',useOffset=False)
+        fig.suptitle(name,weight='bold');nx,ny=item['node_size']
+        caption=(f'Native grid {nx:,} × {ny:,}; {stats["valid_count"]:,} defined nodes. Map: {x.shape[1]} × {x.shape[0]} selected native nodes; cell colors average the four displayed corner values. '
+                 'Cells spanning any undefined native node/cell are masked; narrow features can be omitted by preview sampling. Statistics/histogram use every defined node. '
+                 +('Full-resolution ASCII exports retain native values and signs. ' if item.get('dataset_exported') else 'Report-only preview; no grid dataset exported. ')
+                 +'Units/CRS remain unresolved where labelled.')
+        record.update({k:v for k,v in stats.items() if not k.startswith('histogram_')})
+        record['node_size']=item['node_size'];record['model_bounds_check']=item.get('model_bounds_check')
+        if sha(path)!=before:figures.plt.close(fig);raise ValueError('Grid preview changed during plotting')
+        source=next((a['path'] for a in record['links'] if a['label']=='surface.xyz'),artifact['path'])
+        record['figure']=figures.save(fig,name,'Surfaces',caption,source,item['object_id']);record['preview_status']='plotted'
 
 
 def seismic_previews(package, figures, records, issues):
@@ -369,7 +417,7 @@ def report_only_visuals(package, audit):
                 shutil.copy2(source,scratch/source.relative_to(package.resolve()))
         log=io.StringIO()
         try:
-            with redirect_stdout(log):preview_receipt=recovery.run(scratch)
+            with redirect_stdout(log):preview_receipt=recovery.run(scratch,preview_only=True)
             if preview_receipt.get('status')=='failed':failures.append(preview_receipt.get('error','Native log/surface preview unavailable'))
         except Exception as error:failures.append(str(error))
         try:

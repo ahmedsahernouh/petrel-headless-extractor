@@ -6,7 +6,7 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-**Version 0.6.2:** fixes lost or corrupted native polygon segments using typed binary decoding. CSVs preserve original segment keys, vertex order, missing slots and closure flags; the report lets you select a polygon object. [Polygon profile and validation](docs/NATIVE_POLYGONS.md). One main BAT handles projects and ZGY files; seismic hashing is off by default. The [visual report and complete foldable inventory](docs/VISUAL_REPORT.md) always remain included; conversion is optional and on by default. [Log/surface recovery scope](docs/NATIVE_LOGS_SURFACES.md).
+**Version 0.7.0:** expands native surface/grid recovery to the validated older binary profile, exports regular grids as **ZMAP + XYZ/CSV**, and displays grid maps with full-data statistics in the report. Explicit XYZ meshes retain XYZ/CSV without assuming regular spacing. Undefined nodes/cells and original indices are preserved; unresolved native units remain labelled. [Grid profile and validation](docs/NATIVE_LOGS_SURFACES.md). One main BAT handles projects and ZGY files; seismic hashing is off by default. The [visual report and complete foldable inventory](docs/VISUAL_REPORT.md) always remain included; conversion is optional and on by default. The [polygon segment correction](docs/NATIVE_POLYGONS.md) is retained.
 
 **Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The main BAT also performs [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic in the selected store or explicitly referenced by the project. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
 
@@ -41,7 +41,7 @@ The BAT shows an overall stage bar and elapsed timer automatically. Large-file h
 - The main BAT converts supported **binary ZGY to SEG-Y**, with full amplitude/geometry checks; see [supported profile](docs/ZGY_TO_SEGY.md). Unlinked nearby seismic stays inventoried until selected by its exact file path.
 - Native `.pet`/`.ptd` copies with SHA-256 verification. Raw seismic is referenced at source rather than duplicated. Seismic SHA-256 is optional; metadata, figures and numerical conversion checks do not depend on it.
 - Supported native metadata, well heads, and structurally validated point, polygon, and trajectory layouts.
-- Native continuous logs as LAS/CSV, categorical boundary records as CSV, and validated surface arrays as XYZ/CSV with node/cell masks. Units and geometry must match the supported profiles.
+- Native continuous logs as LAS/CSV, categorical boundary records as CSV, and validated surface arrays as XYZ/CSV, plus ZMAP for regular grids, with node/cell masks. Numeric surface exports retain unknown units where unit semantics are unresolved. LAS still requires resolved units.
 - Supported LAS, modern Excel, shapefile, and Petrel Well Tops ASCII conversions.
 - An HTML project report, searchable file inventory, extraction manifest, QC findings, unsupported-format inventory, and run receipts.
 

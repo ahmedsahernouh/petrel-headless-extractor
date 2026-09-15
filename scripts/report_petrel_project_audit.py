@@ -337,6 +337,10 @@ def gather_native_inventory(package: Path) -> dict:
     recovery = load_json_file(recovery_path) or {}
     recovery_objects = recovery.get("objects", []) if recovery.get("status") in ("completed", "partial") and recovery.get("source_unchanged") is True else []
     decoded_ids: dict[str, set[str]] = {}
+    surface_written = [item for item in recovery_objects if item.get('blob_type') in ('RegValGrid2','ValGrid2')
+                       and item.get('status') in ('decoded','missing_metadata')
+                       and item.get('numeric_round_trip') == 'exact' and item.get('dataset_exported') is True
+                       and any(a.get('path','').endswith('/surface.xyz') for a in item.get('artifacts',[]))]
     for item in [*spatial.get("objects", []), *recovery_objects]:
         if item.get("status") == "decoded" and item.get("object_id") and item.get("blob_type"):
             decoded_ids.setdefault(item["blob_type"], set()).add(item["object_id"])
@@ -348,6 +352,10 @@ def gather_native_inventory(package: Path) -> dict:
         "native_las_files": sum(item.get("las_status") == "written_verified" and item.get("status") == "decoded" for item in recovery_objects),
         "native_log_samples": sum(to_int(item.get("sample_count")) for item in recovery_objects if item.get("status") == "decoded"),
         "native_surface_nodes": sum(to_int(item.get("defined_nodes")) for item in recovery_objects if item.get("status") == "decoded"),
+        "native_surface_objects_written": len(surface_written),
+        "native_surface_nodes_written": sum(to_int(item.get('defined_nodes')) for item in surface_written),
+        "native_surface_written_by_type": {kind:sum(item['blob_type']==kind for item in surface_written) for kind in ('RegValGrid2','ValGrid2')},
+        "native_surface_units_unresolved": sum(item.get('unit') is None or item.get('horizontal_unit') is None for item in surface_written),
         "registry_path": str(type_path) if type_path.is_file() else "",
         "registry_types": type_rows,
         "registry_by_type": by_type,
@@ -1089,6 +1097,7 @@ def render_html(audit: dict, title: str) -> str:
         ("Native well heads", wells.get("native_well_head_count", 0), "decoded XY rows"),
         ("Polygons", polygons_decoded, f"decoded live objects · {polygons_registered} registry IDs"),
         ("Polygon vertices", native.get("polygon_vertex_rows", 0), "native XYZ rows"),
+        ("Surface grids exported", native.get("native_surface_objects_written", 0), f'{native.get("native_surface_units_unresolved",0)} with unresolved units · XYZ/CSV; regular grids also ZMAP'),
         ("Seismic", seismic_registered, "registry IDs · project-linked SEG-Y conversion not integrated"),
         ("Faults", faults_registered, "registry IDs · geometry not decoded"),
         ("Package files", files.get("file_count", 0), human_size(files.get("total_bytes", 0))),
@@ -1126,10 +1135,10 @@ def render_html(audit: dict, title: str) -> str:
         ["Trajectories", trajectory_registered, trajectory_decoded_objects, f'{native.get("trajectory_rows", 0):,} CSV records', "Only validated provider layouts"],
         ["Polygons", polygons_registered, polygons_decoded, f'{native.get("polygon_vertex_rows", 0):,} XYZ vertices', "Decoded live supported objects; registry can include other versions"],
         ["Point sets", points_registered, points_decoded, f'{native.get("point_vertex_rows", 0):,} XYZ vertices', "Object identity/attributes may remain unresolved"],
-        ["Seismic", seismic_registered, 0, "Use the separate ZGY-to-SEG-Y BAT", "Legacy ZGY reports do not establish project-linked open-format recovery"],
+        ["Seismic", seismic_registered, 0, "Main BAT: see Project seismic conversion", "Detailed dataset outcomes are tracked separately; legacy ZGY reports do not establish project-linked recovery"],
         ["Fault interpretations", faults_registered, 0, "Metadata only", "Native fault geometry decoder not validated"],
-        ["Regular-value grids", grids_registered, to_int(decoded.get("RegValGrid2")), "Native XYZ/CSV with node and cell masks", "Explicit unrotated metric profile; unknown geometry/units rejected"],
-        ["Explicit XYZ grids", registered("ValGrid2"), to_int(decoded.get("ValGrid2")), "Native XYZ/CSV", "Surface subjects with explicit triples and matching model bounds"],
+        ["Regular-value grids", grids_registered, native.get('native_surface_written_by_type',{}).get('RegValGrid2',to_int(decoded.get('RegValGrid2'))), "Native XYZ/CSV + ZMAP and definition masks", "Validated numeric geometry; unresolved units remain labelled; native enclosing bounds may be broader than defined nodes"],
+        ["Explicit XYZ grids", registered("ValGrid2"), native.get('native_surface_written_by_type',{}).get('ValGrid2',to_int(decoded.get('ValGrid2'))), "Native XYZ/CSV and definition masks", "Direct native XYZ mesh; no regular-grid assumption; unresolved units remain labelled"],
         ["Well logs", logs_registered, to_int(decoded.get("FloatWellLog")) + to_int(decoded.get("IntWellLog")), f'{native.get("native_las_files", 0)} LAS files; native sample CSV', "Original MD positions; interval records stay CSV; unknown units not counted as decoded"],
         ["Well tops (rows)", "not enumerated", native.get("validated_native_well_top_rows", 0), "Validated native CSV rows only", "Native labels require independent calibration; companion tops excluded"],
     ]
@@ -1468,6 +1477,7 @@ def main() -> int:
         "wells": audit["wells"]["well_count"] if audit["wells"]["available"] else 0,
         "well_top_picks": audit["well_tops"]["pick_count"] if audit["well_tops"]["available"] else 0,
         "surfaces_exported": audit["surfaces"]["summary"].get("exported", 0) if audit["surfaces"]["available"] else 0,
+        "native_surface_grids_exported": audit["native_inventory"].get("native_surface_objects_written",0),
         "seismic_cubes": audit["seismic"]["cube_count"] if audit["seismic"]["available"] else 0,
         "qc_warnings": warnings,
         "qc_flags": len(audit["qc_flags"]),

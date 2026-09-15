@@ -1,6 +1,6 @@
 {
   "name": "portable-petrel-project-extractor",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -11,7 +11,7 @@
     "Native well-top rows after Petrel ASCII XYZ calibration",
     "Native FloatWellLog continuous curves to LAS/CSV with original MD, values and nulls",
     "Native IntWellLog categorical/boundary records to CSV with codes and null flags",
-    "Validated native RegValGrid2 and explicit ValGrid2 surface arrays to XYZ/CSV with definition masks"
+    "Validated native RegValGrid2 surface arrays to XYZ/CSV/ZMAP and explicit ValGrid2 meshes to XYZ/CSV with definition masks"
   ],
   "specialist_inventory": [
     "SEG-Y",
@@ -19,7 +19,7 @@
     "ZMAP or ambiguous DAT",
     "RESQML/EPC"
   ],
-  "native_boundary": "Observed LZ4/BXML object versions only; log/surface unit profile is non-customized Metric. Missing metadata and unsupported geometry are explicit; CRS remains unresolved.",
+  "native_boundary": "Observed LZ4/BXML object versions only; unit resolution is limited to non-customized Metric. Validated numeric grids can export with unresolved units; geometry/layout gates remain strict. CRS remains unresolved.",
   "empty_output_policy": "domain folders and zero-row artifacts are omitted",
   "author": "Ahmed Saher Nouh",
   "homepage": "https://saherlabs.dev/",

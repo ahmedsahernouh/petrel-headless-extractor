@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import petrel_native_binary as binary
 from petrel_native_binary import NativeError, Node
 
-VERSION = '0.6.1'
+VERSION = '0.7.0'
 TYPES = ('FloatWellLog', 'IntWellLog', 'RegValGrid2', 'ValGrid2')
 PROFILES = {
     'FloatWellLog': [1, 3, 0, 2, 0, 1],
@@ -31,6 +31,8 @@ PROFILES = {
     'RegValGrid2': [1, 1, 1, 0, 0, 0, 0, 2, 0, 1, 1],
     'ValGrid2': [0, 0, 0, 0, 0, 2, 0, 1, 1],
 }
+REGULAR_GRID_V0 = [0, 1, 1, 0, 0, 0, 0, 2, 0, 1, 1]
+MAX_SURFACE_NODES = 10_000_000
 MODEL_TYPES = {'ContTemplateSubject', 'DiscTemplateSubject', 'WellLogSubject',
                'LogTemplateSubject', 'WellTraceSubject', 'SurfaceSubject', 'SurfaceAttrSubject'}
 FLOAT_NULL = float(np.finfo(np.float32).max)
@@ -165,6 +167,7 @@ class Metadata:
             well=wells[0]['name'] if wells else None,
             well_id=wells[0]['object_id'] if wells else None,
             template_id=template_id, unit=unit, measurement=measurement,
+            declared_template_unit=template.get('initial_unit') if template is not None else None,
             unit_status='validated_metric_profile' if unit is not None else 'unresolved',
             depth_unit='m' if self.metric_profile else None,
             horizontal_unit='m' if self.metric_profile else None,
@@ -215,18 +218,41 @@ def bitmask(node, name, count):
             raise NativeError('Unexpected definition mask')
         return np.ones(count, dtype=bool)
     mask = node.child(name)
-    raw = mask.child('bitmask').scalar()
-    if mask.get('bool_count') != count or not isinstance(raw, bytes) or len(raw) != (count+7)//8:
+    fields = [child.name for child in mask.children]
+    if sorted(fields) == ['bitmask', 'bool_count']:
+        raw = mask.child('bitmask').scalar()
+        declared = mask.get('bool_count')
+    elif sorted(fields) in (['bools'], ['bools', 'ignore']):
+        raw = mask.child('bools').scalar(); declared = mask.attrs.get('Size')
+        # The observed older packed-bool layout writes a zero padding byte
+        # in a separate ignore field exactly when Size is divisible by eight.
+        ignore = mask.child('ignore', required=False)
+        if (count % 8 == 0) != (ignore is not None) or (ignore is not None and ignore.scalar() != b'\x00'):
+            raise NativeError('Unsupported packed-bool padding layout')
+    else:
+        raise NativeError('Unsupported surface definition-mask fields')
+    if declared != count or not isinstance(raw, bytes) or len(raw) != (count+7)//8:
         raise NativeError('Surface definition-mask length mismatch')
     return np.unpackbits(np.frombuffer(raw, dtype=np.uint8), bitorder='little')[:count].astype(bool)
 
 
 def decode_surface(node, kind):
+    legacy = kind == 'RegValGrid2' and node.attrs.get('Version') == REGULAR_GRID_V0
+    fields = ['user_data','node_size','has_node_defs','has_cell_defs','has_connections','has_segments','grid']
+    fields += [name for name in ('node_defs','cell_defs') if node.get('has_'+name) is True]
+    if kind == 'RegValGrid2':
+        fields += ['original_inc','original_min','original_max','has_coordinate_context','original_rotation','dip']
+        if not legacy: fields += ['axis_flip_state']
+    if node.content or sorted(c.name for c in node.children) != sorted(fields):
+        raise NativeError('Surface fields differ from the validated profile')
+    user = node.child('user_data')
+    if user.attrs.get('Size') != 0 or user.children or user.content:
+        raise NativeError('Surface user data is not validated')
     dims = scalar_array(node.child('node_size'), 'int', 2)
     if dims.dtype.kind not in 'iu' or np.any(dims < 2):
         raise NativeError('Surface dimensions must be two positive cell-bearing axes')
     nx, ny = map(int, dims); count = nx*ny
-    if count > 5_000_000:
+    if count > MAX_SURFACE_NODES:
         raise NativeError('Surface node count exceeds validated memory bound')
     if node.get('has_connections') is not False or node.get('has_segments') is not False:
         raise NativeError('Surface connections/segments are not validated')
@@ -240,7 +266,11 @@ def decode_surface(node, kind):
                     mask_encoding='packed bits, least significant bit first; 1=defined',
                     cell_mask_preserved=True)
     if kind == 'RegValGrid2':
-        if (node.get('has_coordinate_context') is not True or node.get('axis_flip_state') != 0
+        if values.dtype.kind != 'f' or values.dtype.itemsize != 4:
+            raise NativeError('Only float32 regular-grid values are validated')
+        if ((not legacy and node.get('has_coordinate_context') is not True)
+                or type(node.get('has_coordinate_context')) is not bool
+                or node.get('axis_flip_state', 0 if legacy else None) != 0
                 or node.child('original_rotation').get('radians') != 0
                 or node.child('dip').get('radians') != 0):
             raise MissingMetadata('Only explicit unrotated, untilted, unflipped regular-grid geometry is validated')
@@ -252,7 +282,8 @@ def decode_surface(node, kind):
         if not np.allclose(origin+(dims-1)*inc, extent, rtol=0, atol=1e-5):
             raise NativeError('Surface extents disagree with dimensions and increments')
         x = origin[0]+i*inc[0]; y = origin[1]+j*inc[1]; z = values.astype(np.float64)
-        geometry.update(origin=origin.tolist(), increments=inc.tolist(), maximum=extent.tolist())
+        geometry.update(origin=origin.tolist(), increments=inc.tolist(), maximum=extent.tolist(),
+                        coordinate_context_declared=node.get('has_coordinate_context'))
     else:
         if values.dtype.kind != 'f' or values.dtype.itemsize != 8:
             raise NativeError('Only float64 XYZ ValGrid2 records are validated')
@@ -326,9 +357,10 @@ def write_las(path, md, values, missing, info):
         raise QCError('LAS sample/unit/null read-back failed')
 
 
-def recover_object(blob, tag, kind, metadata, directory):
+def recover_object(blob, tag, kind, metadata, directory, preview_only=False):
     node = binary.object_document(blob)
-    if node.name != 'data' or node.attrs.get('Type') != kind or node.attrs.get('Version') != PROFILES[kind]:
+    versions = [PROFILES[kind]] + ([REGULAR_GRID_V0] if kind == 'RegValGrid2' else [])
+    if node.name != 'data' or node.attrs.get('Type') != kind or node.attrs.get('Version') not in versions:
         raise NativeError('Native object type/version is outside the validated profile')
     if node.attrs.get('xmlns') != NAMESPACE:
         raise NativeError('Unsupported object serialization namespace')
@@ -353,41 +385,56 @@ def recover_object(blob, tag, kind, metadata, directory):
             info['las_reason'] = 'Requires continuous float curve, resolved units and increasing MD; CSV preserves original records'
         info['category_labels_status'] = 'not_decoded' if kind == 'IntWellLog' else 'not_applicable'
     else:
-        if info['unit'] is None or info['horizontal_unit'] is None:
-            raise MissingMetadata('Surface units are outside the validated metric profile')
         if kind == 'ValGrid2' and info['subject_type'] != 'SurfaceSubject':
             raise MissingMetadata('ValGrid2 attribute geometry inheritance is not validated')
         i, j, x, y, z, valid, cells, details = decode_surface(node, kind)
         info.update(details)
         if not np.any(valid): return dict(info, status='empty_supported_object', artifacts=[])
         if info['subject_type'] == 'SurfaceSubject':
-            limits = model.child('cached_limit')
-            lo = scalar_array(limits.child('min'), 'double', 3)
-            hi = scalar_array(limits.child('max'), 'double', 3)
-            actual_lo = np.array([x[valid].min(), y[valid].min(), z[valid].min()])
-            actual_hi = np.array([x[valid].max(), y[valid].max(), z[valid].max()])
-            if not np.allclose(actual_lo, lo, rtol=0, atol=1e-3) or not np.allclose(actual_hi, hi, rtol=0, atol=1e-3):
-                raise QCError('Surface coordinates/defined values disagree with native model bounds')
-            info['model_bounds_check'] = 'passed'
+            limits = model.child('cached_limit', required=False)
+            enclosing_limit = False
+            if limits is None and model.attrs.get('Version') == [9, 2, 13, 1, 0, 1, 18, 0, 0, 1]:
+                limits = model.child('limit')
+                enclosing_limit = True
+                lo = scalar_array(limits.child('min'), 'double', 3)
+                hi = scalar_array(limits.child('max'), 'double', 3)
+                if np.all(lo == FLOAT_NULL) and np.all(hi == FLOAT_NULL):
+                    info['model_bounds_check'] = 'unavailable_native_cache_undefined'
+                    limits = None
+            elif limits is None:
+                raise MissingMetadata('Surface model bounds layout is not validated')
+            if limits is not None:
+                lo = scalar_array(limits.child('min'), 'double', 3)
+                hi = scalar_array(limits.child('max'), 'double', 3)
+                if not np.all(np.isfinite(np.r_[lo,hi])) or np.any(lo>hi):
+                    raise QCError('Invalid native surface model bounds')
+                actual_lo = np.array([x[valid].min(), y[valid].min(), z[valid].min()])
+                actual_hi = np.array([x[valid].max(), y[valid].max(), z[valid].max()])
+                exact = np.allclose(actual_lo, lo, rtol=0, atol=1e-3) and np.allclose(actual_hi, hi, rtol=0, atol=1e-3)
+                if exact:
+                    info['model_bounds_check'] = 'passed'
+                elif enclosing_limit and np.all(actual_lo >= lo-1e-3) and np.all(actual_hi <= hi+1e-3):
+                    info['model_bounds_check'] = 'within_enclosing_native_limit'
+                else:
+                    raise QCError('Surface coordinates/defined values disagree with native model bounds')
+        if kind == 'RegValGrid2' and info.get('coordinate_context_declared') is False and info.get('model_bounds_check') != 'passed':
+            raise MissingMetadata('Regular grid without coordinate context requires exact independent model bounds')
         final_output, output = object_output(directory, info)
-        expected = np.column_stack([np.arange(len(i)), i, j, x, y, z, valid.astype(int)])
-        csv_path = output/'nodes.csv'
-        csv_write(csv_path, ['node_index', 'i', 'j', 'x', 'y', 'raw_value', 'defined'],
-                  ([int(k), int(a), int(c), number(d), number(e), number(f), int(g)] for k,a,c,d,e,f,g in expected))
-        check_csv(csv_path, expected)
-        xyz = np.column_stack([x[valid], y[valid], z[valid]])
-        np.savetxt(output/'surface.xyz', xyz, fmt='%.17g', header='X Y VALUE; units/domain/CRS and cell definitions in metadata.json')
-        if not np.array_equal(np.loadtxt(output/'surface.xyz', ndmin=2), xyz):
-            raise QCError('XYZ numeric read-back failed')
-        nx = details['node_size'][0]
-        cell_values = np.column_stack([np.arange(len(cells)), np.arange(len(cells)) % (nx-1),
-                                       np.arange(len(cells)) // (nx-1), cells.astype(int)])
-        csv_write(output/'cells.csv', ['cell_index', 'i', 'j', 'defined'], cell_values.tolist())
-        check_csv(output/'cells.csv', cell_values)
-        info['topology_boundary'] = 'Cell definition flags retained; no triangulation or fault-connectivity inference'
+        from petrel_surface_export import write_surface, preview
+        compact = node.child('node_defs', required=False) is not None and node.child('node_defs').child('bools', required=False) is not None
+        try:
+            if preview_only:
+                info.update(preview(output/'grid_preview.npz',x,y,z,valid,cells,info))
+                info['dataset_exported'] = False
+            else:
+                write_surface(output, info, i, j, x, y, z, valid, cells, compact=compact,
+                              native_node_defs=bitmask(node, 'node_defs', len(z)))
+                info['dataset_exported'] = True
+        except ValueError as exc:
+            raise QCError(str(exc)) from exc
     info['status'] = 'decoded' if info['unit'] is not None and info['depth_unit'] is not None else 'missing_metadata'
     if info['status'] != 'decoded':
-        info['reason'] = 'Numeric payload recovered to CSV; units unresolved. Not counted as a complete decoded object.'
+        info['reason'] = 'Numeric payload recovered to open files; units unresolved. Not counted as a unit-resolved decoded object.'
     info['numeric_round_trip'] = 'exact'
     write_json(output/'metadata.json', info)
     output.rename(final_output)
@@ -428,7 +475,7 @@ def read_blob(db, pk):
     return b''.join(bytes(r[0]) for r in db.execute('SELECT blob_data FROM blob_parts WHERE data_fk=? ORDER BY part', (pk,)))
 
 
-def run(package):
+def run(package, *, grids_only=False, preview_only=False):
     package = Path(package).resolve(strict=True)
     native = package/'08_native_project'
     output = package/'07_workflows_reports/native_recovery'
@@ -457,17 +504,21 @@ def run(package):
             db.execute('PRAGMA query_only=ON')
             db.execute('BEGIN')
             objects = select_objects(db)
+            if grids_only: objects = [row for row in objects if row[4] in ('RegValGrid2','ValGrid2')]
             report['object_type_counts'] = dict(collections.Counter(r[4] for r in objects))
             for index, (pk, tag, name, version, kind) in enumerate(objects):
                 record = dict(object_id=tag, blob_type=kind, data_pk=pk, registry_version=version, artifacts=[])
                 try:
                     if metadata_error: raise MissingMetadata(metadata_error)
                     blob = read_blob(db, pk)
-                    record.update(recover_object(blob, tag, kind, metadata, directory))
+                    options = dict(preview_only=True) if preview_only else {}
+                    record.update(recover_object(blob, tag, kind, metadata, directory, **options))
                 except (NativeError, UnicodeError, ValueError, KeyError, TypeError) as exc:
                     state = 'missing_metadata' if isinstance(exc, MissingMetadata) else 'conversion_failed' if isinstance(exc, QCError) else 'unsupported_layout'
                     record.update(status=state, reason=str(exc))
                 report['objects'].append(record)
+                if grids_only:
+                    write_json(report_path, report)
                 if index % 20 == 0 or index+1 == len(objects):
                     print(f'Native logs/surfaces: {index+1}/{len(objects)} objects checked', flush=True)
         report['source_hashes_after'] = {p.relative_to(package).as_posix(): sha(p) for p in sources}
@@ -493,8 +544,9 @@ def run(package):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--export-package', type=Path, required=True)
+    parser.add_argument('--grids-only', action='store_true', help='Recover native surface/grid objects only into a new recovery directory')
     args = parser.parse_args()
-    result = run(args.export_package)
+    result = run(args.export_package, grids_only=args.grids_only)
     # Unsupported metadata/layouts are explicit partial extraction, not fatal
     # to preservation and the other independent project decoders.
     return 1 if result['status'] == 'failed' else 0

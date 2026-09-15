@@ -10,15 +10,15 @@ From the repository root:
 py -3.13 -m venv .venv
 .venv\Scripts\python.exe -m pip install --upgrade pip
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\download_standalone_inputs.ps1 -PythonPath .venv\Scripts\python.exe
-.venv\Scripts\python.exe scripts\build_standalone_petrel_toolkit.py --runtime-archive build\downloads\python-3.13.15-embed-amd64.zip --wheels build\downloads\wheels --output-root build\releases-v0.6.2
+.venv\Scripts\python.exe scripts\build_standalone_petrel_toolkit.py --runtime-archive build\downloads\python-3.13.15-embed-amd64.zip --wheels build\downloads\wheels --output-root build\releases-v0.7.0
 ```
 
-The builder verifies the official runtime SHA-256, installs only binary wheels matching `requirements-standalone-lock.txt` with `--require-hashes --no-index`, checks the embedded runtime, and writes `PetrelExtractor-0.6.2-win64.zip` plus a SHA-256 file. The ZIP contains one root BAT beside a `PetrelExtractor` support folder with `bootstrap/runtime.zip`; expanded `runtime/` files are omitted from the outer ZIP. On launch, Windows PowerShell validates the cache hash and installs only the managed runtime entries from the full installed-file inventory. The build staging folder retains the expanded runtime for validation. `zfpy` is pinned alongside the other dependencies, and preflight tests a numerical ZFP round-trip. A path-length gate models Explorer's additional ZIP-stem directory under Downloads. Use a fresh output directory for each build; existing package folders are not overwritten. Licenses and per-file inventories are included. Build timestamps and ZIP metadata vary; file hashes provide the exact identity of each release.
+The builder verifies the official runtime SHA-256, installs only binary wheels matching `requirements-standalone-lock.txt` with `--require-hashes --no-index`, checks the embedded runtime, and writes `PetrelExtractor-0.7.0-win64.zip` plus a SHA-256 file. The ZIP contains one root BAT beside a `PetrelExtractor` support folder with `bootstrap/runtime.zip`; expanded `runtime/` files are omitted from the outer ZIP. On launch, Windows PowerShell validates the cache hash and installs only the managed runtime entries from the full installed-file inventory. The build staging folder retains the expanded runtime for validation. `zfpy` is pinned alongside the other dependencies, and preflight tests a numerical ZFP round-trip. A path-length gate models Explorer's additional ZIP-stem directory under Downloads. Use a fresh output directory for each build; existing package folders are not overwritten. Licenses and per-file inventories are included. Build timestamps and ZIP metadata vary; file hashes provide the exact identity of each release.
 
 Run acceptance on the ZIP you built:
 
 ```powershell
-.venv\Scripts\python.exe scripts\test_standalone_petrel_toolkit.py --zip "build\releases-v0.6.2\PetrelExtractor-0.6.2-win64.zip" --evidence-dir "build\acceptance-new"
+.venv\Scripts\python.exe scripts\test_standalone_petrel_toolkit.py --zip "build\releases-v0.7.0\PetrelExtractor-0.7.0-win64.zip" --evidence-dir "build\acceptance-new"
 ```
 
 The evidence directory must be new. The harness creates synthetic projects and runs the actual BAT from a separate temporary folder. It leaves logs and receipts for inspection. Optionally add repeated `--project "E:\Your Data\Project.pet"` arguments to test your own closed projects; their data and output remain local.
@@ -33,4 +33,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\invoke_portable_
 
 The direct PowerShell entry point produces extraction validation and the HTML report. The standalone BAT additionally performs full-bundle integrity checks, operation-receipt checks, and automatic package QC.
 
-For the v0.6.2 polygon regression, `scripts/test_polygon_standalone.py --zip <ZIP> --evidence-dir <new-directory>` checks a relocated offline runtime bootstrap, actual main-BAT polygon conversion, report-only previews, empty segments, null gaps, closure, source preservation and the packaged regression suite. It complements the full distribution acceptance above.
+For the v0.7.0 polygon/grid regression, `scripts/test_polygon_standalone.py --zip <ZIP> --evidence-dir <new-directory>` checks a relocated offline runtime bootstrap, actual main-BAT polygon and native grid conversion, independent ZMAP readback, report-only previews without ASCII datasets, empty segments, null gaps, closure, source preservation and the packaged regression suite. It complements the full distribution acceptance above.

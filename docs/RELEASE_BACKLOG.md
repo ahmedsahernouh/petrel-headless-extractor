@@ -1,5 +1,9 @@
 # Deferred release requests
 
+## v0.7.0: native surface grids and report maps
+
+The requested grid retrieval adds the observed older RegValGrid2 profile, packed node/cell definitions, exact numeric XYZ/CSV exports and ZMAP for regular grids. Reports show native grid cells with conservative gap masking, full-grid statistics, downloadable files and a separate count for numeric grids whose units remain unresolved. Report-only mode writes bounded previews without grid ASCII datasets. Explicit XYZ meshes are not forced into regular ZMAP geometry. General 3D reservoir grids and unrecognized layouts remain outside this profile; see [validation and limits](NATIVE_LOGS_SURFACES.md).
+
 ## v0.4.0 native recovery
 
 Implemented native well logs to LAS/CSV and validated native surfaces to XYZ/CSV in the normal `convert` pipeline. The website/repository-only CLI banner is retained. See [profile and validation](NATIVE_LOGS_SURFACES.md). Remaining work is native unit/geometry inheritance, further version fixtures, categories and interval semantics, ZGY project linkage, then faults/grids/properties. Generic open-to-open conversions remain outside the core priority.

@@ -1,4 +1,4 @@
-# Petrel Headless Extractor 0.6.2 usage
+# Petrel Headless Extractor 0.7.0 usage
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -12,6 +12,8 @@ PetrelExtractor/                 application, scripts and offline runtime cache
 Double-click the BAT and enter your exact `.pet` or `.zgy` path, or drag the file onto it. Keep the BAT beside its support folder; it need not be beside the project. For `.pet`, keep the complete same-name `.ptd` folder beside the project. Close the project in Petrel during the read.
 
 The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **off by default**: press Enter at `Calculate full seismic SHA-256? [y/N]`, or type `y` for thorough checksums.
+
+Supported native surface grids are included in the same run: XYZ/CSV, plus ZMAP for regular grids, with maps under the report's **Surfaces** filter. Every discovered grid remains searchable in the inventory. The object catalogue links to its files and metadata. Native unit labels remain unresolved where they cannot be verified; no automatic unit conversion is performed. ASCII output can be much larger than the binary project, so select an output drive with enough free space. See [native grid profiles and ZMAP registration](NATIVE_LOGS_SURFACES.md).
 
 Results appear directly in the selected output root:
 

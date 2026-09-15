@@ -291,7 +291,14 @@ def main():
         from standalone_petrel_extract import preflight
         preflight()
         if args.capabilities:
-            display.message(json.dumps(dict(version=VERSION,conversions=CAPABILITIES),indent=2));success=True;return 0
+            metadata_path=ROOT/'toolkit.json'
+            if not metadata_path.is_file():metadata_path=ROOT/'portable_petrel_toolkit/toolkit.json'
+            toolkit=json.loads(metadata_path.read_text(encoding='utf-8')) if metadata_path.is_file() else {}
+            project=dict(version=toolkit.get('version','unknown'),
+                         input='Use the main BAT with the .pet file and its matching .ptd folder',
+                         conversions=toolkit.get('core_conversions',[]),
+                         limits=toolkit.get('native_boundary','Project capability metadata unavailable'))
+            display.message(json.dumps(dict(version=VERSION,conversions=CAPABILITIES,project_extraction=project),indent=2));success=True;return 0
         if not args.input and args.interactive:args.input=input('Full path to the input file: ').strip().strip('"')
         if not args.input:raise InputError('Input file required')
         source=source_path(args.input);operation=args.operation or SUFFIXES.get(source.suffix.lower())

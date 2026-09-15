@@ -1,4 +1,6 @@
-# Petrel Headless Extractor 0.6.2 usage
+# Petrel Headless Extractor 0.7.0 usage
+
+Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 

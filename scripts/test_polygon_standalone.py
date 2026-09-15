@@ -1,4 +1,4 @@
-"""Relocated offline BAT acceptance for native polygon exports and report-only mode.
+"""Relocated offline BAT acceptance for native polygon/grid exports and report-only mode.
 
 Website: https://saherlabs.dev/
 Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
@@ -43,15 +43,17 @@ def main():
     install=json.loads((package/'build/dependencies/last_check.json').read_text(encoding='utf-8'))
     assert install['network_used'] is False and install['system_python_modified'] is False
     assert install['status']=='repaired' and install['installed_file_count']>1000
+    capabilities=launch('native_capabilities',['-Capabilities','-NoPause'])
+    assert 'RegValGrid2' in capabilities and 'XYZ/CSV/ZMAP' in capabilities and 'matching .ptd folder' in capabilities
     py=package/'runtime/python.exe'
     fixture=out/'make_polygon_fixture.py'
     fixture.write_text('''from pathlib import Path
 import sys,shutil,sqlite3,uuid,json
 sys.path.insert(0,sys.argv[1])
-from test_petrel_native_recovery import RecoveryTests,frame,polygon_doc,envelope
+from test_petrel_native_recovery import RecoveryTests,frame,polygon_doc,surface_doc,envelope
 from export_petrel_native_spatial_zero_gui import NATIVE_FLOAT_MAX_SENTINEL
 t=RecoveryTests();t.setUp();t.root=Path(sys.argv[2]);t.root.mkdir()
-p=t.fixture();src=t.root/'source';src.mkdir()
+p=t.fixture(kind='RegValGrid2',surface=True,metric=False,doc=surface_doc(packed=True,legacy=True));src=t.root/'source';src.mkdir()
 shutil.copyfile(p/'08_native_project/project_file/test.pet',src/'Fixture.pet')
 shutil.copytree(p/'08_native_project/ptd_store',src/'Fixture.ptd')
 parts=[[(10.,10.,1.),(14.,10.,1.),(14.,14.,1.)],[],[(20.,20.,2.),(21.,20.,2.),(NATIVE_FLOAT_MAX_SENTINEL,0.,0.),(23.,20.,2.),(24.,20.,2.)]]
@@ -73,8 +75,12 @@ print(json.dumps(dict(project=str(src/'Fixture.pet'),polygon_id=tag)))
         assert 'polygon-object-filter' in html and f'data-polygon-object="{data["polygon_id"]}"' in html
         assert html.count('data-segment-id="0"')==1 and html.count('data-segment-id="2"')==2
         assert 'Complete data inventory tree' in html
+        assert 'Native grid 3' in html and 'selected native nodes' in html
+        assert 'unresolved unit' in html
         paths=list(result.rglob('native_polygons_vertices.csv'))
-        if report_only:assert not paths
+        if report_only:
+            assert not paths
+            assert not list(result.rglob('surface.xyz'))+list(result.rglob('surface.zmap'))+list(result.rglob('nodes.csv'))
         else:
             assert len(paths)==1
             with paths[0].open(encoding='utf-8-sig',newline='') as stream:rows=list(csv.DictReader(stream))
@@ -83,8 +89,16 @@ print(json.dumps(dict(project=str(src/'Fixture.pet'),polygon_id=tag)))
             item=next(r for r in receipt['objects'] if r['blob_type']=='Polygons3')
             assert item['outer_item_count']==3 and item['segments'][1]['declared_vertex_count']==0
             assert item['segments'][2]['missing_vertex_slots']==1 and item['segments'][0]['is_closed_native']
+            recovery=json.loads(next(result.rglob('native_recovery_report.json')).read_text(encoding='utf-8'))
+            grid=recovery['objects'][0]
+            assert grid['dataset_exported'] and grid['numeric_round_trip']=='exact'
+            assert grid['unit'] is None and grid['defined_nodes']==5
+            assert len(list(result.rglob('surface.zmap')))==1 and len(list(result.rglob('surface.xyz')))==1
+            assert len(list(result.rglob('node_definitions.csv')))==1
+            zmap=next(result.rglob('surface.zmap'))
+            execute('independent_zmap_readback',[str(py),'-B','-c',"import sys,numpy as np;from zmapio import ZMAPGrid;z=ZMAPGrid(sys.argv[1]);np.testing.assert_array_equal(z.z_values,[[4,1],[5,2],[np.nan,3]]);np.testing.assert_array_equal(z.x_values[0],[100,120,140]);np.testing.assert_array_equal(z.y_values[:,0],[230,200])",str(zmap)])
         assert before=={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in project.parent.rglob('*') if p.is_file()}
-    command="import sys,unittest;sys.path.insert(0,sys.argv[1]);r=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromNames(['test_petrel_native_recovery','test_petrel_native_spatial_zero_gui','test_petrel_visual_report','test_project_seismic','test_petrel_binary_conversion','test_companion_large_files','test_petrel_progress']));sys.exit(not r.wasSuccessful())"
+    command="import sys,unittest;sys.path.insert(0,sys.argv[1]);r=unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromNames(['test_petrel_native_recovery','test_petrel_native_spatial_zero_gui','test_petrel_visual_report','test_project_seismic','test_petrel_binary_conversion','test_companion_large_files','test_petrel_progress','test_petrel_surface_export']));sys.exit(not r.wasSuccessful())"
     execute('packaged_regressions',[str(py),'-B','-c',command,str(package/'scripts')])
     receipt=dict(status='passed',zip_sha256=hashlib.sha256(args.zip.read_bytes()).hexdigest(),checks=checks,
                  source_unchanged=True,offline_bootstrap=True,system_python_used=False)

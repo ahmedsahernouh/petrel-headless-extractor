@@ -1,4 +1,4 @@
-# Native well logs and surfaces — v0.6.1 beta
+# Native well logs and surfaces — v0.7.0 beta
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -17,14 +17,22 @@ native_data/
     metadata.json
     samples.csv + curve.las     (continuous log)
     samples.csv                 (categorical/boundary log)
-    nodes.csv + surface.xyz + cells.csv  (surface)
+    nodes.csv + surface.xyz             (surface numeric nodes)
+    surface.zmap                       (regular grid only)
+    node_definitions.csv + cell_definitions.csv (packed-mask profile)
+    cells.csv                          (earlier full-table profile)
+    grid_preview.npz                   (bounded report grid)
 ```
 
 Each continuous curve has its own LAS file. This preserves different original MD positions and avoids combining logs by interpolation. LAS `STEP=0` indicates irregular sampling. Some receiving applications require regular spacing; use the accompanying CSV when they cannot read irregular LAS.
 
 Log CSV columns are `sample_index,md,raw_value,is_null`. Filter `is_null=1` when using values; the raw native sentinel is retained for traceability. LAS converts those sentinels to the declared LAS NULL value. Categorical logs retain integer codes and original boundary positions in CSV. Category labels and interval boundary direction are not decoded, so categorical records are not silently resampled into LAS.
 
-Surface XYZ files contain `X Y VALUE`, with a comment header. The third column retains the native property's sign, unit and domain: it can be time, depth, velocity or another surface attribute. It is not always elevation. `nodes.csv` includes every node's original value, `i/j` indices and definition flag. `cells.csv` preserves cell definition flags separately. These files do not infer triangulation or fault connections.
+Surface XYZ files contain `X Y VALUE`, with a comment header. The third column retains the native numbers and sign: it can represent time, depth, velocity or another surface attribute, not necessarily elevation. Native storage units are not inferred from project display units or template labels. Unresolved units remain null in metadata and explicitly labelled in figures.
+
+For the older packed-mask profile, `nodes.csv` contains only usable defined nodes with their **original** `node_index,i,j` (no renumbering). Complete native masks are run-length ASCII tables with `start_index,length,defined`; expand each run to recover every original node/cell flag. `usable_node_definitions.csv` is also included when numeric nulls exclude a node marked defined in the native mask. The earlier bitmask profile retains its complete `nodes.csv` and `cells.csv` tables. Neither encoding infers triangulation or fault connections.
+
+Regular grids also export `surface.zmap`. Header bounds are native **node coordinates**, data columns increase in X and rows decrease in Y. With GDAL, set `ZMAP_PIXEL_IS_POINT=TRUE` to avoid a half-cell registration shift. The ZMAP null represents undefined/unusable nodes; independent cell exclusions remain in the cell-definition CSV. Explicit `ValGrid2` XYZ meshes are not assumed regular and therefore have no ZMAP export. See the [GDAL ZMAP documentation](https://gdal.org/en/stable/drivers/raster/zmap.html) and its linked [ASCII layout reference](https://lists.osgeo.org/pipermail/gdal-dev/2011-June/029173.html).
 
 Read `metadata.json` for units, measurement, parent object/well IDs, source sign convention and validation. CRS remains explicitly unresolved. Files in a directory ending `.partial` failed before completion and are not valid exports.
 
@@ -41,11 +49,18 @@ The `native_data` folder can be absent even when conversion was selected: if eve
 - `FloatWellLog` and character-encoded `IntWellLog`, object version `1 3 0 2 0 1`, with measured-depth arrays and zero `min_index`. Native float32 maximum and character value 255 are the validated missing-value encodings.
 - LAS requires an increasing continuous float log and resolved units. The unit profile is the observed non-customized Metric project (`m`, `m`, `ms`) with predefined unit templates. Other unit systems are not guessed; recoverable log values can still be written to CSV with `missing_metadata` status.
 - `RegValGrid2`, version `1 1 1 0 0 0 0 2 0 1 1`: explicit coordinate context, positive increments, zero rotation/dip/axis-flip, no connections or segments, matching dimensions/extents and node masks. Values use X/I-fastest ordering. An attribute without its own validated coordinate context is rejected.
+- v0.7.0 adds `RegValGrid2` version `0 1 1 0 0 0 0 2 0 1 1`, which has no axis-flip field. The same positive-increment and zero-rotation/dip gates apply. A false coordinate-context flag is permitted only when independently stored model bounds match the reconstructed defined XYZ range exactly. Node/cell masks support the observed `Size/bools` layout and its checked padding field. The maximum is 10 million node positions per grid; larger or unrecognized layouts remain explicit failures.
 - `ValGrid2`, version `0 0 0 0 0 2 0 1 1`: direct `SurfaceSubject` float64 XYZ triples. Attribute geometry inheritance is not implemented. Direct surface bounds must match the separate native model bounds.
 
-Source files are hashed before and after recovery. Every completed CSV, LAS and XYZ is read back and checked against the decoded values. Outputs use 17 significant digits. Only successful, unit-resolved objects from an unchanged snapshot contribute to the report's decoded count. Empty objects, unresolved units, rejected layouts and failed conversions have separate statuses. A completed overall extraction can contain partial native recovery; inspect its coverage report.
+For `SurfaceSubject` model version `9 2 13 1 0 1 18 0 0 1`, the stored `limit` can enclose a smaller defined grid. Exact equality, containment and an explicitly undefined cache have separate recorded outcomes. The older `cached_limit` profile still requires exact bounds. Undefined caches do not count as independent geometry confirmation. Recoverable grids with unresolved units are exported with `missing_metadata`, plus explicit `dataset_exported=true` and verified artifact records. The report counts these numeric grid exports separately from unit-resolved decoded objects.
+
+Source files are hashed before and after recovery. Every completed CSV, LAS, XYZ and ZMAP is read back and checked against the decoded values. Outputs preserve float64 values with 17 significant digits (ZMAP scientific notation retains at least that precision). Data writing and readback use bounded chunks; large ASCII exports can be much larger than native binaries. Only successful, unit-resolved objects from an unchanged snapshot contribute to the strict decoded count. Numeric grid exports with unresolved units have their own count. Empty objects, rejected layouts and failed conversions remain separate. A completed extraction can contain partial native recovery.
 
 ## Validation and remaining work
+
+For v0.7.0, Microsoft's independent `XmlDictionaryReader` agreed byte for byte with every numeric array and definition-mask byte from **213 supplied-project grids**: 188 regular grids and 25 explicit XYZ meshes. They contain 527,623,365 node positions, of which 253,830,417 are usable defined nodes. This validates binary array reading; it does not resolve native units. The independent `zmapio` reader also reproduced values, nulls and XY registration from five exported regular grids containing 18,461,876 node positions, including two 7,339,605-node grids. Full-run export/report totals and standalone acceptance are recorded in the release's `VALIDATION.json`; private grids and coordinates are not distributed.
+
+The maps use selected original nodes and conservative native gap masks, with statistics from the complete decoded grid. They are previews; the ASCII files retain full resolution. A per-grid space check rejects an insufficient output drive before writing that grid's datasets. Source files remain unchanged and previous extraction packages are not overwritten.
 
 The v0.6.1 fix was checked on a local project whose Model container had two blocks expanding to 8,388,608 and 7,583,786 bytes. The separate C decoder in python-lz4 4.4.5 agreed byte for byte with both blocks and the combined production output; all 12,408 BXML documents parsed. The same bounded reader serves model, native object and spatial extraction.
 
@@ -66,7 +81,7 @@ Independent checks used Microsoft's `XmlDictionaryReader` on all 300 object bodi
 
 Four separate course reference grids support the regular-grid ordering and georeferencing: correlation 0.9953–0.9993, RMS difference 2.63–11.15 ms after comparing observed opposite time signs. They are different grid realizations, not exact-value ground truth. Native source signs are preserved in the delivered outputs. Source-data values remain private; only aggregate evidence and synthetic tests are distributed.
 
-Still unsupported: customized/field unit systems, additional object versions, nonzero log base encodings, categorical label/interval interpretation, inherited/rotated surface geometry, connection/segment topology, general `.zhz` tiles, image logs, faults, pillar grids and property arrays. No Petrel re-import, other receiving-application import, cross-version support or whole-terabyte project completion is claimed. ZMAP/GeoTIFF writers are not included in this update; XYZ and CSV are the open surface outputs.
+Still unresolved or unsupported: native unit semantics outside the validated Metric profile (numeric ASCII may still be exported), additional object versions, nonzero log base encodings, categorical label/interval interpretation, inherited/rotated surface geometry, connection/segment topology, general `.zhz` tiles, image logs, faults, 3D pillar grids and property arrays. No Petrel re-import, cross-version support or whole-terabyte project completion is claimed. GeoTIFF is not included. The surface/grid support here means 2D grids and explicit XYZ meshes, not general reservoir models.
 
 ## Implementation references
 
