@@ -131,6 +131,28 @@ class VisualTests(unittest.TestCase):
         overview=audit.gather_spatial_overview(self.root,dict(native_well_heads=[dict(well_name='A',x=0,y=0),dict(well_name='B',x=3,y=3)]))
         self.assertEqual(len(overview['polylines']),2)
 
+    def test_polygon_segments_and_vertex_order_are_preserved(self):
+        path=self.root/'05_spatial/polygons/native_polygons_vertices.csv';path.parent.mkdir(parents=True)
+        path.write_text('object_id,part_index,segment_id,vertex_index,x,y\np,0,a,1,1,1\np,0,b,1,11,11\np,0,a,0,0,0\np,0,b,0,10,10\n')
+        overview=audit.gather_spatial_overview(self.root,{})
+        segments={item['segment_id']:item['points'] for item in overview['polylines']}
+        self.assertEqual(segments,{'a':[(0.,0.),(1.,1.)],'b':[(10.,10.),(11.,11.)]})
+
+    def test_polygon_missing_vertices_split_lines_and_ambiguous_order_is_rejected(self):
+        path=self.root/'05_spatial/polygons/native_polygons_vertices.csv';path.parent.mkdir(parents=True)
+        path.write_text('object_id,part_index,vertex_index,x,y\np,0,0,0,0\np,0,1,1,1\np,0,4,4,4\np,0,5,5,5\np,0,6,nan,6\np,0,7,7,7\np,0,8,8,8\np,1,0,10,10\np,1,0,11,11\n')
+        overview=audit.gather_spatial_overview(self.root,{})
+        self.assertEqual([p['points'] for p in overview['polylines']], [[(0.,0.),(1.,1.)],[(4.,4.),(5.,5.)],[(7.,7.),(8.,8.)]])
+        self.assertEqual(overview['ambiguous_polygon_segments'],1)
+
+    def test_polygon_clipping_precedes_decimation(self):
+        path=self.root/'05_spatial/polygons/native_polygons_vertices.csv';path.parent.mkdir(parents=True)
+        path.write_text('object_id,part_index,vertex_index,x,y\n'+''.join(f'p,0,{i},{1000000 if i==101 else i},{i}\n' for i in range(300)))
+        overview=audit.gather_spatial_overview(self.root,dict(native_well_heads=[dict(well_name='A',x=0,y=0),dict(well_name='B',x=299,y=299)]))
+        self.assertEqual(len(overview['polylines']),2)
+        self.assertEqual(overview['polylines'][0]['points'][-1],(100.,100.))
+        self.assertEqual(overview['polylines'][1]['points'][0],(102.,102.))
+
     def test_report_only_retains_figures_but_no_dataset_exports(self):
         from test_petrel_native_recovery import RecoveryTests
         fixture=RecoveryTests();fixture.setUp()

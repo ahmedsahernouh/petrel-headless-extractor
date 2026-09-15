@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import petrel_native_binary as binary
 from petrel_native_binary import NativeError, Node
 
-VERSION = '0.4.0'
+VERSION = '0.6.1'
 TYPES = ('FloatWellLog', 'IntWellLog', 'RegValGrid2', 'ValGrid2')
 PROFILES = {
     'FloatWellLog': [1, 3, 0, 2, 0, 1],

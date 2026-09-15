@@ -175,11 +175,16 @@ def main():
     native_fixture_script.write_text('''import sys,shutil,sqlite3
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-from test_petrel_native_recovery import RecoveryTests
+from test_petrel_native_recovery import RecoveryTests, chunked_envelope
+import petrel_native_binary as binary
 root=Path(sys.argv[2]);root.mkdir()
 t=RecoveryTests();t.setUp();t.root=root
 surface=sys.argv[3]=='surface'
 p=t.fixture(kind='RegValGrid2' if surface else 'FloatWellLog',surface=surface)
+if sys.argv[3]=='chunked_log':
+    model=p/'08_native_project/ptd_store/Model.ptd'
+    payload=binary.decompress(model.read_bytes())
+    model.write_bytes(chunked_envelope(payload[:11],payload[11:]))
 src=root/'source';src.mkdir()
 shutil.copyfile(p/'08_native_project/project_file/test.pet',src/'Fixture.pet')
 shutil.copytree(p/'08_native_project/ptd_store',src/'Fixture.ptd')
@@ -187,7 +192,7 @@ db=sqlite3.connect(src/'Fixture.ptd/Data.ptd')
 db.execute('ALTER TABLE data ADD COLUMN time_stamp TEXT');db.commit();db.close()
 print(src/'Fixture.pet')
 ''',encoding='utf-8')
-    for fixture_kind, expected_type in [('log','FloatWellLog'),('surface','RegValGrid2')]:
+    for fixture_kind, expected_type in [('log','FloatWellLog'),('surface','RegValGrid2'),('chunked_log','FloatWellLog')]:
         made=subprocess.run([str(py),'-B',str(native_fixture_script),str(package/'scripts'),str(relocated/('Native '+fixture_kind)),fixture_kind],env=env,capture_output=True,text=True,check=True)
         native_project=Path(made.stdout.strip().splitlines()[-1])
         original_native={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in native_project.parent.rglob('*') if p.is_file()}

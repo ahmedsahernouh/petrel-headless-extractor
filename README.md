@@ -6,7 +6,7 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-**Version 0.6.0:** one main BAT for projects and ZGY files, optional seismic hashing (off by default), and the full HTML report beside its data folder. The [visual report and complete foldable inventory](docs/VISUAL_REPORT.md) always remain included; conversion is optional and on by default.
+**Version 0.6.1:** reads validated multi-block `Model.ptd` streams, fixing the size-mismatch error that blocked native well-log recovery. Polygon previews retain separate segments and vertex ordering. One main BAT handles projects and ZGY files; seismic hashing is off by default. The [visual report and complete foldable inventory](docs/VISUAL_REPORT.md) always remain included; conversion is optional and on by default. [Recovery scope and limits](docs/NATIVE_LOGS_SURFACES.md).
 
 **Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The main BAT also performs [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic in the selected store or explicitly referenced by the project. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
 

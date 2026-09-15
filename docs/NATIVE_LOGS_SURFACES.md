@@ -1,4 +1,4 @@
-# Native well logs and surfaces — v0.4.0 beta
+# Native well logs and surfaces — v0.6.1 beta
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -30,9 +30,14 @@ Read `metadata.json` for units, measurement, parent object/well IDs, source sign
 
 Artifact paths in the recovery report are relative to `native_data`. Short folder names retain all 128 bits of the object UUID. The exporter rejects paths that would exceed its Windows path budget; choose a short output root such as `C:\PetrelOut` if necessary.
 
+In the v0.6.0 layout, the full location is `<output root>/<run>_data/extraction/package/<package>/native_data/<curve folder>/`. The top-level report links to available curve files in the object catalogue. Figure images and their source links are under the **Well logs** figure filter, with a default budget of 64 log figures; every discovered log remains in the inventory. Report-only mode discards temporary LAS/CSV datasets after generating supported previews. If project/model metadata cannot be read, logs may remain `missing_metadata` with no exported samples or plot; changing the plot settings cannot resolve that decoding gap.
+
+The `native_data` folder can be absent even when conversion was selected: if every native log/surface is blocked, no datasets are written and empty-folder cleanup removes it. Inspect `07_workflows_reports/native_recovery/native_recovery_report.json` for the actual per-object outcomes. Successful report/package QC does not mean native logs were exported.
+
 ## Supported profiles
 
 - Exact observed Petrel LZ4-v1 and BXML-v1 containers; BXML data bodies use Microsoft's NBFX binary XML records. A bounded parser follows declared block lengths and rejects unsupported structures. Serialized `Type`/`Ref` values never execute code.
+- v0.6.1 also reads the observed multi-block stream: one `LZ4\x01` magic, followed by independent compressed blocks with eight-byte length/opaque headers. BXML can cross block boundaries. Total output, block count, every length and each block's match offsets are bounded. Truncation, trailing garbage and concatenated complete envelopes remain errors. The opaque header word is not presented as a verified checksum.
 - `FloatWellLog` and character-encoded `IntWellLog`, object version `1 3 0 2 0 1`, with measured-depth arrays and zero `min_index`. Native float32 maximum and character value 255 are the validated missing-value encodings.
 - LAS requires an increasing continuous float log and resolved units. The unit profile is the observed non-customized Metric project (`m`, `m`, `ms`) with predefined unit templates. Other unit systems are not guessed; recoverable log values can still be written to CSV with `missing_metadata` status.
 - `RegValGrid2`, version `1 1 1 0 0 0 0 2 0 1 1`: explicit coordinate context, positive increments, zero rotation/dip/axis-flip, no connections or segments, matching dimensions/extents and node masks. Values use X/I-fastest ordering. An attribute without its own validated coordinate context is rejected.
@@ -41,6 +46,10 @@ Artifact paths in the recovery report are relative to `native_data`. Short folde
 Source files are hashed before and after recovery. Every completed CSV, LAS and XYZ is read back and checked against the decoded values. Outputs use 17 significant digits. Only successful, unit-resolved objects from an unchanged snapshot contribute to the report's decoded count. Empty objects, unresolved units, rejected layouts and failed conversions have separate statuses. A completed overall extraction can contain partial native recovery; inspect its coverage report.
 
 ## Validation and remaining work
+
+The v0.6.1 fix was checked on a local project whose Model container had two blocks expanding to 8,388,608 and 7,583,786 bytes. The separate C decoder in python-lz4 4.4.5 agreed byte for byte with both blocks and the combined production output; all 12,408 BXML documents parsed. The same bounded reader serves model, native object and spatial extraction.
+
+On that project, the fix recovered **1,008 native log CSV files with 14,561,521 sample/boundary records**; two logs were empty. All CSV values passed exact read-back checks and preserved project/model/database hashes were unchanged. The project uses Field-UTM display units, outside the validated native unit profile: the recovered numeric CSVs and up to 64 report tracks explicitly retain unknown units, and no LAS files are claimed. All 161 surface records still failed their object-version gate. These results validate this compression layout, not new unit semantics or all Petrel versions. Source values and project identities stay local.
 
 A private demo saved in Petrel 2018.2, originating from a Petrel 2010 demo, contained 241 log and 59 surface records. The current profile recovered:
 

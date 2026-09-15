@@ -41,6 +41,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+import petrel_native_binary as native_binary
+
 
 SUPPORTED_TYPES = {
     "Points3",
@@ -364,61 +366,28 @@ def decode_xyz_vector(
 
 
 def decompress_lz4_block(blob: bytes) -> tuple[bytes, dict[str, Any]]:
-    if len(blob) < 13 or blob[:4] != b"LZ4\x01":
-        raise DecodeError("Object blob does not use the validated LZ4 version-1 envelope")
-    declared_compressed_size = struct.unpack_from("<I", blob, 4)[0]
-    actual_compressed_size = len(blob) - 12
-    if declared_compressed_size != actual_compressed_size:
-        raise DecodeError(
-            f"LZ4 envelope length mismatch: declared {declared_compressed_size}, actual {actual_compressed_size}"
-        )
-    source = memoryview(blob)[12:]
-    cursor = 0
-    output = bytearray()
-    while cursor < len(source):
-        token = source[cursor]
-        cursor += 1
-        literal_length = token >> 4
-        if literal_length == 15:
-            while True:
-                if cursor >= len(source):
-                    raise DecodeError("Truncated LZ4 literal length")
-                extension = source[cursor]
-                cursor += 1
-                literal_length += extension
-                if extension != 255:
-                    break
-        if cursor + literal_length > len(source):
-            raise DecodeError("LZ4 literal run exceeds the compressed block")
-        output.extend(source[cursor : cursor + literal_length])
-        cursor += literal_length
-        if cursor == len(source):
-            break
-        if cursor + 2 > len(source):
-            raise DecodeError("Truncated LZ4 match offset")
-        match_offset = int(source[cursor]) | (int(source[cursor + 1]) << 8)
-        cursor += 2
-        if match_offset <= 0 or match_offset > len(output):
-            raise DecodeError(f"Invalid LZ4 match offset: {match_offset}")
-        match_length = (token & 0x0F) + 4
-        if (token & 0x0F) == 15:
-            while True:
-                if cursor >= len(source):
-                    raise DecodeError("Truncated LZ4 match length")
-                extension = source[cursor]
-                cursor += 1
-                match_length += extension
-                if extension != 255:
-                    break
-        for _ in range(match_length):
-            output.append(output[-match_offset])
-    payload = bytes(output)
-    return payload, {
-        "envelope": "LZ4_v1_raw_block",
-        "declared_compressed_size": declared_compressed_size,
+    # Use the same bounded stream framing as the native log/model reader.
+    # A stream has one magic followed by independent length-framed blocks.
+    try:
+        payload = native_binary.decompress(blob)
+    except native_binary.NativeError as exc:
+        raise DecodeError(str(exc)) from exc
+    blocks = []; cursor = 4
+    while cursor < len(blob):
+        size = struct.unpack_from('<I', blob, cursor)[0]
+        blocks.append(dict(header_offset=cursor, declared_compressed_size=size,
+                           envelope_metadata_hex=blob[cursor+4:cursor+8].hex()))
+        cursor += 8+size
+    evidence = {
+        "envelope": "LZ4_v1_raw_block" if len(blocks) == 1 else "LZ4_v1_block_stream",
+        "declared_compressed_size": sum(block['declared_compressed_size'] for block in blocks),
         "decompressed_size": len(payload),
-        "envelope_metadata_hex": blob[8:12].hex(),
+        "block_count": len(blocks),
+        "blocks": blocks,
     }
+    if len(blocks) == 1:
+        evidence['envelope_metadata_hex'] = blocks[0]['envelope_metadata_hex']
+    return payload, evidence
 
 
 def open_read_only_sqlite(path: Path) -> sqlite3.Connection:

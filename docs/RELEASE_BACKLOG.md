@@ -51,3 +51,9 @@ User clarification: full report/inventory is basic and always included. Dataset 
 Implemented for v0.6.0: one root BAT beside the support folder; selected-project/store ZGY conversion in the same run; full seismic hashing optional and off by default. Report and full inventory remain mandatory, conversions on by default. Full `*_REPORT.html` is directly beside its matching `*_data` directory and updates after each seismic dataset. No raw seismic duplication. Unlinked companions and unresolved metadata are explicitly listed. Historical notes above describe earlier releases.
 
 Also fixes a v0.5.0 whole-run abort when optional trajectory-name enrichment encounters an unsupported `Model.ptd` LZ4 envelope. The strict decoder remains unchanged; unavailable metadata is recorded in the report and independent spatial outputs are retained. Synthetic regression coverage verifies source preservation and visible, escaped report findings.
+
+## v0.6.1: polygon segments and well-log visibility
+
+Polygon previews group by object/part/explicit segment ID, order by vertex index, split at missing or invalid vertices, and clip before display decimation. Existing native `part_index` remains the segment grouping when no separate `segment_id` is provided. Never connect separate segments or infer topology from XY proximity.
+
+The size-mismatch issue was traced to an observed multi-block `Model.ptd` stream. v0.6.1 supports its length framing with independent block dictionaries, bounded expansion and strict BXML validation. A local project now yields 1,008 numeric log CSVs and report tracks; units remain unresolved, so LAS stays blocked. Unsupported surface object versions remain visible. See [profile and evidence](NATIVE_LOGS_SURFACES.md). Further unit, object-version and geometry work still requires independent validation.

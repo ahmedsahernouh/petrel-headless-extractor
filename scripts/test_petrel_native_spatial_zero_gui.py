@@ -23,6 +23,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).with_name("export_petrel_native_spatial_zero_gui.py")
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("petrel_native_spatial", SCRIPT)
 assert SPEC and SPEC.loader
 decoder = importlib.util.module_from_spec(SPEC)
@@ -87,7 +88,7 @@ class NativeSpatialDecoderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             package = Path(folder)
             native = package/'08_native_project/ptd_store'; native.mkdir(parents=True)
-            # Two envelopes are outside this decoder's validated single-block profile.
+            # Repeated magic is not the observed one-magic, multi-block stream.
             model = native/'Model.ptd'
             model.write_bytes(literal_lz4_envelope(b'first') + literal_lz4_envelope(b'second'))
             names = package/'02_wells/well_headers/native_borehole_references.csv'
@@ -95,7 +96,7 @@ class NativeSpatialDecoderTests(unittest.TestCase):
             mappings, evidence = decoder.trajectory_name_candidates(package, [str(uuid.uuid4())])
             self.assertEqual(mappings, {})
             self.assertEqual(evidence['status'], 'failed_closed')
-            self.assertIn('LZ4 envelope length mismatch', evidence['error'])
+            self.assertIn('LZ4 envelope size mismatch', evidence['error'])
             self.assertEqual(decoder.trajectory_name_candidates(package, [])[1]['status'], 'not_needed')
             data = native/'Data.ptd'
             with sqlite3.connect(data) as db:
@@ -116,6 +117,17 @@ class NativeSpatialDecoderTests(unittest.TestCase):
         decoded, evidence = decoder.decompress_lz4_block(literal_lz4_envelope(payload))
         self.assertEqual(decoded, payload)
         self.assertEqual(evidence["decompressed_size"], len(payload))
+
+    def test_chunked_spatial_payload_and_envelope_evidence(self) -> None:
+        points = [(1., 2., 3.), (4., 5., 6.)]
+        payload = points_payload(points)
+        blob = literal_lz4_envelope(payload[:17])+literal_lz4_envelope(payload[17:])[4:]
+        decoded, evidence = decoder.decompress_lz4_block(blob)
+        self.assertEqual(decoded, payload)
+        self.assertEqual(decoder.decode_points3(decoded)[0], points)
+        self.assertEqual(evidence['block_count'], 2)
+        self.assertEqual(evidence['envelope'], 'LZ4_v1_block_stream')
+        self.assertEqual(evidence['blocks'][1]['header_offset'], len(literal_lz4_envelope(payload[:17])))
 
     def test_points3_checkpoint_inside_double(self) -> None:
         points = [(450_000.0 + i, 2_900_000.0 + i * 2, -1_000.0 - i) for i in range(20)]

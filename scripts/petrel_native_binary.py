@@ -18,6 +18,7 @@ MAX_CONTAINER = 512 * 1024 * 1024
 MAX_DOCUMENT = 128 * 1024 * 1024
 MAX_NAMES = 100_000
 MAX_NODES = 2_000_000
+MAX_LZ4_BLOCKS = 4096
 
 
 class NativeError(ValueError):
@@ -69,13 +70,42 @@ def read_bounded(path, limit=MAX_CONTAINER):
 
 
 def decompress(blob, limit=MAX_CONTAINER):
+    """Read the observed LZ4-v1 stream: one magic, then length-framed blocks.
+
+    Each block has its own eight-byte header and independent match dictionary.
+    Large Model.ptd samples split the BXML stream across these blocks. Declared
+    lengths must consume the entire input; output limits apply to their sum.
+    The second header word remains opaque, not a claimed checksum validation.
+    """
     cur = Cursor(blob)
     if bytes(cur.take(4)) != b'LZ4\x01':
         raise NativeError('Unsupported native compression envelope')
-    size = cur.number('I')
-    cur.take(4)  # Preserved opaque envelope metadata; not claimed to be a checksum.
-    if size != len(blob)-12:
-        raise NativeError('LZ4 envelope size mismatch')
+    output = bytearray()
+    blocks = 0
+    while cur.pos < len(blob):
+        blocks += 1
+        if blocks > MAX_LZ4_BLOCKS:
+            raise NativeError('LZ4 block count exceeds bound')
+        offset = cur.pos
+        if len(blob)-offset < 8:
+            raise NativeError(f'Truncated LZ4 block header at {offset}')
+        size = cur.number('I')
+        cur.take(4)  # Opaque per-block metadata, retained in the source file.
+        if not size or size > len(blob)-cur.pos:
+            raise NativeError(f'LZ4 envelope size mismatch at block {blocks}, offset {offset}')
+        try:
+            block = _decompress_lz4_block(cur.take(size), limit-len(output))
+        except NativeError as exc:
+            raise NativeError(f'LZ4 block {blocks} at offset {offset}: {exc}') from exc
+        output.extend(block)
+    if not blocks:
+        raise NativeError('LZ4 envelope contains no blocks')
+    return bytes(output)
+
+
+def _decompress_lz4_block(blob, limit):
+    """Bounded raw-block decoder; previous blocks cannot satisfy backreferences."""
+    cur = Cursor(blob)
     output = bytearray()
     def extended(value):
         if value == 15:

@@ -1,4 +1,4 @@
-# Petrel Headless Extractor 0.6.0 usage
+# Petrel Headless Extractor 0.6.1 usage
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 

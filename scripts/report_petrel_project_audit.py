@@ -473,26 +473,50 @@ def decimate_xy(points: list[tuple[float, float]], maximum: int) -> list[tuple[f
 def gather_spatial_overview(package: Path, wells: dict) -> dict:
     polygon_path = package / "05_spatial" / "polygons" / "native_polygons_vertices.csv"
     point_path = package / "05_spatial" / "points" / "native_points_vertices.csv"
-    polygon_groups: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    polygon_groups: dict[tuple[str, str, str], list[dict]] = {}
     for row in read_csv_rows(polygon_path):
-        x, y = to_float(row.get("x")), to_float(row.get("y"))
-        if x is None or y is None or not math.isfinite(x) or not math.isfinite(y):
-            continue
-        key = (row.get("object_id", ""), row.get("part_index", "0"))
-        polygon_groups.setdefault(key, []).append((x, y))
-    source_polygon_vertices = sum(len(vertices) for vertices in polygon_groups.values())
-    polylines = [
-        {
-            "object_id": object_id,
-            "part_index": part_index,
-            "points": decimate_xy(points, 220),
-            "source_vertex_count": len(points),
-        }
-        for (object_id, part_index), points in polygon_groups.items()
-        if len(points) >= 2
-    ]
-    if sum(len(item["points"]) for item in polylines) > 12_000:
-        polylines = polylines[: max(1, math.floor(len(polylines) * 12_000 / sum(len(item["points"]) for item in polylines)))]
+        part = row.get("part_index") or "0"
+        segment = row.get("segment_id") or part
+        key = (row.get("object_id", ""), part, segment)
+        polygon_groups.setdefault(key, []).append(row)
+    source_polygon_vertices = 0
+    ambiguous_polygon_segments = 0
+    polylines = []
+    for (object_id, part_index, segment_id), rows in polygon_groups.items():
+        # Native part_index identifies decoded parts. An explicit segment_id
+        # further separates them; XY proximity must never create connectivity.
+        def coordinate(row):
+            x, y = to_float(row.get("x")), to_float(row.get("y"))
+            return (x, y) if x is not None and y is not None and math.isfinite(x) and math.isfinite(y) else None
+        source_polygon_vertices += sum(coordinate(row) is not None for row in rows)
+        has_order = any(str(row.get("vertex_index", "")).strip() for row in rows)
+        if has_order:
+            try:
+                indices = [int(row["vertex_index"]) for row in rows]
+                if any(index < 0 for index in indices) or len(set(indices)) != len(indices):
+                    raise ValueError("Ambiguous vertex order")
+                ordered = sorted(zip(indices, rows), key=lambda item: item[0])
+            except (ValueError, KeyError, TypeError):
+                ambiguous_polygon_segments += 1
+                continue
+        else:
+            ordered = list(enumerate(rows))
+        retained = []
+        previous = None
+        def retain_segment():
+            if len(retained) >= 2:
+                polylines.append(dict(object_id=object_id, part_index=part_index,
+                                      segment_id=segment_id, points=list(retained),
+                                      source_vertex_count=len(rows)))
+        for index, row in ordered:
+            point = coordinate(row)
+            if point is None or (previous is not None and index != previous + 1):
+                retain_segment()
+                retained = []
+            if point is not None:
+                retained.append(point)
+            previous = index
+        retain_segment()
 
     raw_points = []
     for row in read_csv_rows(point_path):
@@ -554,6 +578,11 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
                 display_polylines.append({**item, "points": retained})
     else:
         display_polylines = polylines
+    # Clip and split before decimation so a skipped out-of-view vertex cannot
+    # join disconnected sections. Sampling changes only the display density.
+    display_polylines = [{**item, "points": decimate_xy(item["points"], 220)} for item in display_polylines]
+    if sum(len(item["points"]) for item in display_polylines) > 12_000:
+        display_polylines = display_polylines[: max(1, math.floor(len(display_polylines) * 12_000 / sum(len(item["points"]) for item in display_polylines)))]
 
     return {
         "available": bool(all_xy),
@@ -564,6 +593,8 @@ def gather_spatial_overview(package: Path, wells: dict) -> dict:
         "polylines": display_polylines,
         "points": points,
         "source_polygon_vertices": source_polygon_vertices,
+        "polygon_segment_count": len(polygon_groups),
+        "ambiguous_polygon_segments": ambiguous_polygon_segments,
         "display_polygon_vertices": sum(len(item["points"]) for item in display_polylines),
         "omitted_preview_polygon_vertices": omitted_polygon_vertices,
         "source_point_vertices": len(raw_points),
@@ -961,7 +992,7 @@ def render_spatial_svg(overview: dict) -> str:
     for item in overview.get("polylines", []):
         coords = " ".join(f"{px:.2f},{py:.2f}" for px, py in (project(float(x), float(y)) for x, y in item["points"]))
         polygons.append(
-            f'<polyline points="{coords}"><title>Polygon {esc(item["object_id"][:8])}, part {esc(item["part_index"])}, '
+            f'<polyline points="{coords}"><title>Polygon {esc(item["object_id"][:8])}, part {esc(item["part_index"])}, segment {esc(item.get("segment_id", item["part_index"]))}, '
             f'{item["source_vertex_count"]} source vertices</title></polyline>'
         )
     points = []
@@ -1113,7 +1144,9 @@ def render_html(audit: dict, title: str) -> str:
         f'Display uses {overview.get("display_polygon_vertices", 0):,} decimated polygon vertices from '
         f'{overview.get("source_polygon_vertices", 0):,} source rows and {overview.get("display_point_vertices", 0):,} '
         f'points from {overview.get("source_point_vertices", 0):,}. '
-        f'{overview.get("omitted_preview_polygon_vertices", 0):,} decimated polygon vertices outside the display extent are omitted from the preview only and remain in CSV. '
+        f'Lines preserve separate object/segment IDs (decoded part IDs when no segment ID is supplied) and vertex order. '
+        f'{overview.get("ambiguous_polygon_segments", 0):,} segments with ambiguous vertex order are omitted. '
+        f'{overview.get("omitted_preview_polygon_vertices", 0):,} polygon vertices outside the display extent are omitted from the preview only and remain in CSV. '
         f'This is a native-coordinate overview, not a georeferenced web basemap.'
         if bbox else overview.get("coordinate_boundary", "")
     )

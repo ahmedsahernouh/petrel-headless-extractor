@@ -79,6 +79,11 @@ def envelope(payload):
     return b'LZ4\x01'+struct.pack('<II', len(block), 0)+block
 
 
+def chunked_envelope(*pieces):
+    # One global magic. Later chunks contain only length/opaque words + block.
+    return b'LZ4\x01'+b''.join(envelope(piece)[4:] for piece in pieces)
+
+
 def log_doc(kind='FloatWellLog', md=None, values=None, char=False, intervals=False, version=None, base=0):
     md = [10.25, 11.25, 13.25] if md is None else md
     values = [1.25, r.FLOAT_NULL, 2.5] if values is None else values
@@ -292,6 +297,68 @@ class RecoveryTests(unittest.TestCase):
             with self.assertRaises(b.NativeError): b.object_document(bad)
         with self.assertRaises(b.NativeError): b.Cursor(b'\xff\xff\xff\xff\x08').varint()
         with self.assertRaises(b.NativeError): b.decompress(raw,limit=4)
+
+    def test_chunked_bxml_at_every_byte_boundary(self):
+        payload = frame(element('root', 'A'*150), element('other', 42))
+        for split in range(1, len(payload)):
+            with self.subTest(split=split):
+                actual = b.decompress(chunked_envelope(payload[:split], payload[split:]))
+                self.assertEqual(actual, payload)
+                nodes = list(b.read_documents(actual))
+                self.assertEqual([node.scalar() for node in nodes], ['A'*150, 42])
+
+    def test_chunked_project_model_and_log_recovery(self):
+        package = self.fixture()
+        native = package/'08_native_project'
+        model = native/'ptd_store/Model.ptd'
+        payload = b.decompress(model.read_bytes())
+        model.write_bytes(chunked_envelope(payload[:6], payload[6:37], payload[37:]))
+        project = native/'project_file/test.pet'
+        raw = project.read_bytes(); payload = b.project_payload(raw)
+        project.write_bytes(raw[:32]+chunked_envelope(payload[:7], payload[7:]))
+        with closing(sqlite3.connect(native/'ptd_store/Data.ptd')) as db, db:
+            blob = db.execute('SELECT blob_data FROM blob_parts WHERE data_fk=1').fetchone()[0]
+            payload = b.decompress(blob)
+            db.execute('UPDATE blob_parts SET blob_data=? WHERE data_fk=1',
+                       (chunked_envelope(payload[:9], payload[9:]),))
+        with redirect_stdout(io.StringIO()): report = r.run(package)
+        self.assertTrue(report['source_unchanged'])
+        self.assertEqual(report['objects'][0]['status'], 'decoded')
+        las = lasio.read(next(package.rglob('curve.las')), null_policy='strict')
+        np.testing.assert_array_equal(las.index, [10.25, 11.25, 13.25])
+        self.assertTrue(np.isnan(las.data[1, 1]))
+
+    def test_chunked_length_bounds_and_trailing_data(self):
+        good = chunked_envelope(b'first block', b'second block')
+        first = envelope(b'first block')
+        invalid = [good[:-1], good+b'\0', b'LZ4\x01', first+bytes(8),
+                   first+struct.pack('<II', 0xffffffff, 0),
+                   first+envelope(b'second complete envelope')]
+        invalid += [first+good[len(first):len(first)+n] for n in range(1, 8)]
+        for blob in invalid:
+            with self.subTest(blob=blob):
+                with self.assertRaises(b.NativeError): b.decompress(blob)
+
+    def test_chunked_cumulative_output_and_block_count_bounds(self):
+        blob = chunked_envelope(b'123456', b'abcdef')
+        self.assertEqual(b.decompress(blob, limit=12), b'123456abcdef')
+        with self.assertRaisesRegex(b.NativeError, 'bound'): b.decompress(blob, limit=11)
+        with patch.object(b, 'MAX_LZ4_BLOCKS', 1):
+            with self.assertRaisesRegex(b.NativeError, 'block count'): b.decompress(blob)
+
+    def test_chunked_blocks_do_not_share_match_dictionary(self):
+        # Block two attempts a match without first emitting its own literals.
+        invalid = b'\x00\x01\x00\x50final'
+        blob = envelope(b'abcde')+struct.pack('<II', len(invalid), 0)+invalid
+        with self.assertRaisesRegex(b.NativeError, 'Invalid LZ4 match offset'):
+            b.decompress(blob)
+
+    def test_chunked_overlapping_matches_reset_per_block(self):
+        # Each independent raw block emits a literal 'a', four matching 'a's,
+        # and eight final literals, satisfying the LZ4 end-of-block conditions.
+        block = b'\x10a\x01\x00\x8012345678'
+        chunk = struct.pack('<II', len(block), 0)+block
+        self.assertEqual(b.decompress(b'LZ4\x01'+chunk+chunk), b'aaaaa12345678'*2)
 
     def test_ambiguous_field_rejected(self):
         n = next(b.read_documents(frame(element('root',children=[element('a',1),element('a',2)]))))
