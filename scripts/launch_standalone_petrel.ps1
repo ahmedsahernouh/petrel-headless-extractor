@@ -68,24 +68,24 @@ try {
                 $number = 0
                 if (-not [int]::TryParse($selection, [ref]$number) -or $number -lt 1 -or $number -gt $pairs.Count) { throw "Invalid project number." }
                 $ProjectFile = $pairs[$number - 1].FullName
-            } else { $ProjectFile = (Read-Host "Full path to the .pet project or .zgy file").Trim().Trim('"') }
+            } else { $ProjectFile = ([string](Read-Host "Full path to the .pet project or .zgy file")).Trim().Trim('"') }
             if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy') {
                 $pauseAtEnd=$false
                 Invoke-ZgyInput
                 exit $LASTEXITCODE
             }
             if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
-                $OutputRoot = (Read-Host 'Output root [Enter for your user folder\Petrel_Extracts]').Trim().Trim('"')
+                $OutputRoot = ([string](Read-Host 'Output root [Enter for your user folder\Petrel_Extracts]')).Trim().Trim('"')
             }
         }
         if ($pauseAtEnd -and -not $ReportOnly -and -not $PSBoundParameters.ContainsKey('CompanionMode')) {
             Write-Output 'Full visual report and complete inventory: always included.'
-            do { $convertAnswer = (Read-Host 'Convert supported data as well? [Y/n; Enter = Yes]').Trim().ToLowerInvariant() } while ($convertAnswer -notin @('', 'y', 'yes', 'n', 'no'))
+            do { $convertAnswer = ([string](Read-Host 'Convert supported data as well? [Y/n; Enter = Yes]')).Trim().ToLowerInvariant() } while ($convertAnswer -notin @('', 'y', 'yes', 'n', 'no'))
             $ReportOnly = $convertAnswer -in @('n', 'no')
         }
         if ($ReportOnly) { $CompanionMode = 'inventory' }
         if ($pauseAtEnd -and -not $PSBoundParameters.ContainsKey('FullHash')) {
-            do { $hashAnswer = (Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]').Trim().ToLowerInvariant() } while ($hashAnswer -notin @('', 'y', 'yes', 'n', 'no'))
+            do { $hashAnswer = ([string](Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]')).Trim().ToLowerInvariant() } while ($hashAnswer -notin @('', 'y', 'yes', 'n', 'no'))
             $FullHash = $hashAnswer -in @('y','yes')
         }
         Write-Output $(if ($FullHash) { 'Full seismic hashing: ON (reads entire source files).' } else { 'Full seismic hashing: OFF. Metadata, previews and numerical conversion QC remain available.' })

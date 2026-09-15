@@ -31,7 +31,7 @@ try {
     # Keep all interactive reads in ConsoleHost. Mixing Read-Host with a child
     # Python input() can lose buffered answers when launched from the main BAT.
     if ($interactive -and -not $Inspect -and -not $Capabilities) {
-        if (-not $InputFile) { $InputFile=(Read-Host 'Full path to the .zgy file').Trim().Trim('"') }
+        if (-not $InputFile) { $InputFile=([string](Read-Host 'Full path to the .zgy file')).Trim().Trim('"') }
         $metadataCode = @'
 import json,sys
 from pathlib import Path
@@ -46,18 +46,18 @@ with open_zgy(Path(sys.argv[1])) as reader:
         $metadata = ($metadataText -join "`n") | ConvertFrom-Json
         Write-Output ($metadata | ConvertTo-Json -Depth 5)
         if (-not $ReportOnly) {
-            do { $answer=(Read-Host 'Convert supported data as well? [Y/n; Enter = Yes]').Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
+            do { $answer=([string](Read-Host 'Convert supported data as well? [Y/n; Enter = Yes]')).Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
             $ReportOnly=$answer -in @('n','no')
         }
         if (-not $ReportOnly) {
-            if ($metadata.zunit_dimension -eq 'unknown' -and -not $Domain) { $Domain=(Read-Host 'Verified domain (time/depth)').Trim() }
-            if (-not $metadata.zunit_name -and -not $VerticalUnit) { $VerticalUnit=(Read-Host 'Verified vertical unit (s/ms/us)').Trim() }
-            if (-not $metadata.horizontal_unit -and -not $HorizontalUnit) { $HorizontalUnit=(Read-Host 'Verified horizontal unit (m/ft)').Trim() }
-            if (-not $Crs) { $Crs=(Read-Host 'CRS identifier [Enter keeps unknown]').Trim(); if (-not $Crs) { $Crs='unknown' } }
+            if ($metadata.zunit_dimension -eq 'unknown' -and -not $Domain) { $Domain=([string](Read-Host 'Verified domain (time/depth)')).Trim() }
+            if (-not $metadata.zunit_name -and -not $VerticalUnit) { $VerticalUnit=([string](Read-Host 'Verified vertical unit (s/ms/us)')).Trim() }
+            if (-not $metadata.horizontal_unit -and -not $HorizontalUnit) { $HorizontalUnit=([string](Read-Host 'Verified horizontal unit (m/ft)')).Trim() }
+            if (-not $Crs) { $Crs=([string](Read-Host 'CRS identifier [Enter keeps unknown]')).Trim(); if (-not $Crs) { $Crs='unknown' } }
         }
-        if (-not $OutputRoot) { $OutputRoot=(Read-Host 'Output root [Enter for your user folder\Petrel_Conversions]').Trim().Trim('"') }
+        if (-not $OutputRoot) { $OutputRoot=([string](Read-Host 'Output root [Enter for your user folder\Petrel_Conversions]')).Trim().Trim('"') }
         if (-not $FullHash) {
-            do { $answer=(Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]').Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
+            do { $answer=([string](Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]')).Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
             $FullHash=$answer -in @('y','yes')
         }
     }

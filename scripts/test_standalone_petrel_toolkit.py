@@ -148,7 +148,7 @@ def main():
     assert payload['elapsed_seconds'] > 0
     assert 'Elapsed:' in (result.parent/'RUN_LOG.txt').read_text()
     assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha for p,sha in original.items())
-    prompted=run('interactive_project_prompt',[],input_text=str(project)+'\n'+str(relocated/'Prompted Results')+'\n\n')
+    prompted=run('interactive_project_prompt',[],input_text=str(project)+'\n'+str(relocated/'Prompted Results')+'\n\n\n\n')
     # ConsoleHost omits Read-Host labels when redirected; verify the inputs were
     # actually consumed and produced a valid run in the requested destination.
     assert 'SUCCESS:' in prompted
