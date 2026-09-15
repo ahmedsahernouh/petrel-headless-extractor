@@ -46,7 +46,7 @@ class BinaryConversionTests(unittest.TestCase):
         return path
 
     def run_conversion(self,path,**options):
-        return converter.execute(path,self.outputs,'zgy-to-segy',options)
+        return converter.execute(path,self.outputs,'zgy-to-segy',{'full_hash':True,**options})
 
     def verify_raw(self,path,result):
         run=next(self.outputs.iterdir());out=run/'volume.segy'
@@ -149,7 +149,7 @@ class BinaryConversionTests(unittest.TestCase):
             with p.open('ab') as f:f.write(b'changed fixture')
             return result
         with patch.dict(converter.CONVERTERS,{'zgy-to-segy':changed}):
-            with self.assertRaises(converter.InputError):self.run_conversion(p)
+            with self.assertRaises((converter.InputError,OSError)):self.run_conversion(p)
         self.assertFalse(list(self.outputs.rglob('volume.segy')))
         self.assertEqual(json.loads(next(self.outputs.rglob('RUN_RESULT.json')).read_text())['status'],'failed')
 

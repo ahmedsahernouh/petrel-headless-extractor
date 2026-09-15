@@ -517,6 +517,7 @@ def main() -> int:
     parser.add_argument("--petrel-version", default="unknown")
     parser.add_argument("--mode", choices=["inventory", "copy", "convert"], default="convert")
     parser.add_argument("--max-file-bytes", type=int, default=2_000_000_000)
+    parser.add_argument('--reference-seismic', action='store_true')
     args = parser.parse_args()
     if args.max_file_bytes < 1:
         parser.error("--max-file-bytes must be positive")
@@ -555,6 +556,9 @@ def main() -> int:
     ]
     co_located_toolkit_detected = all(path.is_file() for path in toolkit_markers)
     toolkit_directory_names = [".venv", ".agents", "scripts", "00_manifest", "runtime", "bootstrap", "build"]
+    if launcher_file.is_file() and (project_root/'PetrelExtractor/STANDALONE.txt').is_file():
+        co_located_toolkit_detected=True
+        toolkit_directory_names=['PetrelExtractor']
     toolkit_file_names = [
         "run_portable_petrel_extract.bat",
         "README.md",
@@ -614,6 +618,14 @@ def main() -> int:
         size = source.stat().st_size
         over_size_limit = size > args.max_file_bytes
         category = classify(source)
+        if args.reference_seismic and source.suffix.lower() in {'.zgy','.sgy','.segy'}:
+            rows.append({'source_relative_path': source_rel, 'category': category, 'size_bytes': size,
+                         'extension': source.suffix.lower(), 'text_line_count':'','text_nonempty_line_count':'',
+                         'text_sample_bytes':'','text_sample_line_count':'','likely_delimiter':'','first_nonempty_line':'',
+                         'sha256': '', 'status': 'referenced_seismic_not_copied_or_hashed',
+                         'text_profile_scope': 'not_text', 'preserved_file': '', 'converted_files': '',
+                         'error': 'See project_seismic_inventory.json and the top-level report'})
+            continue
         if not over_size_limit and category in {"text_ascii", "text_ascii_no_extension", "ambiguous_dat_or_zmap"} and is_petrel_well_tops_ascii(source):
             category = "petrel_well_tops_ascii"
         status = "inventoried"

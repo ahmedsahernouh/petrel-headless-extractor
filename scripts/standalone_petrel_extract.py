@@ -29,6 +29,10 @@ def preflight():
     if not Path(sys.executable).resolve().is_relative_to(ROOT / 'runtime'):
         raise g.InputError('Use the bundled runtime through run_portable_petrel_extract.bat')
     manifest = g.read_json(ROOT / '00_manifest/toolkit_files.json')
+    if manifest.get('launcher'):
+        launcher=ROOT.parent/'run_portable_petrel_extract.bat'
+        if not launcher.is_file() or g.sha256(launcher)!=manifest['launcher']['sha256']:
+            raise g.InputError('Main BAT integrity failed; extract the complete release ZIP')
     with progress.hash_batch('Checking bundled files', [g.contained_file(ROOT, r['path']) for r in manifest['files']]):
         for row in manifest['files']:
             path = g.contained_file(ROOT, row['path'])
@@ -74,6 +78,7 @@ def main():
     parser.add_argument('--output-root')
     parser.add_argument('--mode', choices=['inventory','copy','convert'], default='convert')
     parser.add_argument('--report-only', action='store_true', help='Full report/inventory and temporary previews; no retained dataset conversion')
+    parser.add_argument('--full-hash', action='store_true', help='Full seismic SHA-256; off by default')
     parser.add_argument('--petrel-version', default='unknown')
     parser.add_argument('--label', default='')
     args = parser.parse_args()
@@ -97,13 +102,15 @@ def main():
         if output.is_relative_to(source.parent) or any(p.lower().endswith(('.ptd','.pet')) for p in output.parts):
             raise g.InputError('Output root must be outside the source project and native stores')
         name = re.sub(r'[^a-zA-Z0-9_-]+','_',args.label or source.stem).strip('_') or 'project'
-        run = output / (name + '_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:6])
+        stem = name + '_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:6]
+        report_path = output / (stem + '_REPORT.html')
+        run = output / (stem + '_data')
         run.mkdir(parents=True, exist_ok=False)
         g.write_json(run/'preflight.json',doctor)
         g.write_json(run/'request.json',vars(args))
         common = {'petrel_version':args.petrel_version,'version_scope':'Standalone external extraction; source release unverified unless independently established'}
         display.message('Extracting supported project evidence; source files stay unchanged.', flush=True)
-        extraction = g.dispatch('extract_portable_project', {**common,'project_file':str(source),'output_dir':str(run/'extraction'),'companion_mode':args.mode,'report_only':args.report_only})
+        extraction = g.dispatch('extract_portable_project', {**common,'project_file':str(source),'output_dir':str(run/'extraction'),'companion_mode':args.mode,'report_only':args.report_only,'reference_seismic':True,'timeout_seconds':7200})
         progress.phase(10, 'Extraction receipt and source hash verification')
         audit = g.verify_receipt(extraction)
         if audit['status'] != 'passed':
@@ -116,17 +123,31 @@ def main():
         qc_audit = g.verify_receipt(qc)
         if qc_audit['status'] != 'passed':
             raise RuntimeError('QC receipt failed: ' + repr(qc_audit))
+        from petrel_project_seismic import convert_project, deliver_report
+        inventory = g.read_json(Path(package)/'01_project_metadata/project_seismic_inventory.json')
+        inventory['full_seismic_hash']=args.full_hash
+        def update_report(complete=False):
+            g.write_json(run/'seismic_results.json',inventory)
+            deliver_report(Path(package)/'PROJECT_REPORT.html',report_path,inventory,complete)
+        update_report()
+        display.message('FULL REPORT (ready now): ' + str(report_path),flush=True)
+        progress.phase(12,'Project seismic conversion and report completion')
+        enabled=not args.report_only and args.mode=='convert'
+        convert_project(inventory,run/'seismic',enabled,args.full_hash,on_update=update_report)
+        update_report(complete=True)
         result = {'status':'passed','toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
                   'extraction_audit':audit,'qc':qc,'qc_audit':qc_audit,
                   'source_mutated':False,'petrel_process_launched':False,
                   'report_included':True,'dataset_conversion_enabled':not args.report_only and args.mode=='convert',
+                  'full_report':str(report_path),'seismic':inventory,'full_seismic_hash':args.full_hash,
                   'scientific_acceptance':'not_established'}
         g.write_json(run/'RUN_RESULT.json',result)
-        (run/'RUN_LOG.txt').write_text('Extraction and QC execution passed.\nElapsed: '+progress.duration(display.elapsed)+'\nSource files unchanged.\nPackage: '+package+'\nDashboard: '+extraction['summary']['dashboard']+'\nQC: '+qc['report_path']+'\n',encoding='utf-8')
+        (run/'RUN_LOG.txt').write_text('Extraction and QC execution passed.\nElapsed: '+progress.duration(display.elapsed)+'\nNon-seismic sources hash verified; seismic integrity is described per dataset.\nPackage: '+package+'\nDashboard: '+str(report_path)+'\nQC: '+qc['report_path']+'\n',encoding='utf-8')
         success = True
-        display.message('SUCCESS: extraction, source preservation and package QC execution passed.', flush=True)
+        display.message('SUCCESS: report and package QC completed. See per-dataset conversion and integrity results.', flush=True)
         display.message('Run folder: ' + str(run))
-        display.message('HTML report: ' + extraction['summary']['dashboard'])
+        display.message('HTML report: ' + str(report_path))
+        display.message('Seismic outcomes: ' + json.dumps(inventory.get('counts',{})))
         display.message('QC report: ' + qc['report_path'])
         display.message('Read QC findings and unresolved CRS/units before using the data.')
         return 0

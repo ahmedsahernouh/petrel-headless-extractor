@@ -8,7 +8,11 @@ setlocal EnableExtensions DisableDelayedExpansion
 echo Website: https://saherlabs.dev/
 echo Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
 echo.
-if exist "%~dp0STANDALONE.txt" goto standalone
+set "APP_ROOT=%~dp0PetrelExtractor\"
+if exist "%APP_ROOT%STANDALONE.txt" goto standalone
+set "APP_ROOT=%~dp0"
+if exist "%APP_ROOT%STANDALONE.txt" goto standalone
+if exist "%~dp0PetrelExtractor" goto incomplete_standalone
 
 rem Universal, portable, read-only, no-Ocean Petrel extraction entry point.
 rem Double-click to discover valid .pet/.ptd pairs beside this BAT.
@@ -212,13 +216,9 @@ echo The output root must be outside the source-project directory.
 exit /b 0
 
 :standalone
-if /I "%~x1"==".zgy" (
-    call "%~dp0convert_zgy_to_segy.bat" %*
-    exit /b
-)
-if not exist "%~dp0scripts\launch_standalone_petrel.ps1" goto incomplete_standalone
-if not exist "%~dp0scripts\repair_standalone_dependencies.ps1" goto incomplete_standalone
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\launch_standalone_petrel.ps1" %*
+if not exist "%APP_ROOT%scripts\launch_standalone_petrel.ps1" goto incomplete_standalone
+if not exist "%APP_ROOT%scripts\repair_standalone_dependencies.ps1" goto incomplete_standalone
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%APP_ROOT%scripts\launch_standalone_petrel.ps1" %*
 set "STANDALONE_EXIT=%errorlevel%"
 if not "%STANDALONE_EXIT%"=="0" (
     echo.

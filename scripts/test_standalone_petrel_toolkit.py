@@ -30,7 +30,8 @@ def main():
     extraction_root.mkdir(parents=True)
     with zipfile.ZipFile(args.zip) as z:
         roots={Path(m.filename).parts[0] for m in z.infolist()}
-        assert roots=={'PetrelExtractor'},roots
+        assert roots=={'PetrelExtractor','run_portable_petrel_extract.bat'},roots
+        assert [m.filename for m in z.infolist() if m.filename.lower().endswith('.bat')]==['run_portable_petrel_extract.bat']
         longest_extracted_path=max(len(str(extraction_root/m.filename)) for m in z.infolist())
         assert longest_extracted_path<240, longest_extracted_path
         for member in z.infolist():
@@ -43,7 +44,7 @@ def main():
     unzipped=subprocess.run([str(win/'System32/WindowsPowerShell/v1.0/powershell.exe'),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(unzip_script),'-Archive',str(args.zip.resolve()),'-Destination',str(extraction_root)],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=600)
     (evidence/'windows_extraction.txt').write_text(unzipped.stdout,encoding='utf-8')
     assert unzipped.returncode==0,unzipped.stdout
-    package=extraction_root/'PetrelExtractor';bat=package/'run_portable_petrel_extract.bat'
+    package=extraction_root/'PetrelExtractor';bat=extraction_root/'run_portable_petrel_extract.bat'
     env=os.environ.copy();win=Path(os.environ['SystemRoot'])
     env.update(PATH=str(win/'System32')+';'+str(win/'System32/WindowsPowerShell/v1.0'),
                PYTHONHOME=str(relocated/'NONEXISTENT_SYSTEM_PYTHON'),PYTHONPATH=str(relocated/'FORBIDDEN_IMPORTS'),
@@ -219,6 +220,7 @@ print(src/'Fixture.pet')
         ('binary_conversion_controls',[str(py),'-B',str(package/'scripts/test_petrel_binary_conversion.py')]),
         ('native_log_surface_controls',[str(py),'-B',str(package/'scripts/test_petrel_native_recovery.py')]),
         ('visual_report_controls',[str(py),'-B',str(package/'scripts/test_petrel_visual_report.py')]),
+        ('project_seismic_controls',[str(py),'-B',str(package/'scripts/test_project_seismic.py')]),
         ('portable_doctor',[str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'scripts/doctor_portable_petrel_toolkit.ps1')])]:
         p=subprocess.run(cmd,cwd=relocated,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(p.stdout,encoding='utf-8')
@@ -230,8 +232,34 @@ print(src/'Fixture.pet')
     fixture_script.write_text('import sys\nfrom pathlib import Path\nsys.path.insert(0,sys.argv[1])\nfrom test_petrel_binary_conversion import BinaryConversionTests\nt=BinaryConversionTests();t.setUp()\np=t.fixture()\nprint(str(p))\n',encoding='utf-8')
     fixture=subprocess.run([str(py),'-B',str(fixture_script),str(package/'scripts')],env=env,capture_output=True,text=True,check=True)
     zgy=Path(fixture.stdout.strip().splitlines()[-1])
+    # The project path now discovers and converts its store ZGY through the one BAT.
+    import shutil
+    shutil.copyfile(zgy,store/'linked.zgy')
+    (store/'unsupported.zgy').write_bytes(b'Unsupported seismic file retained in inventory')
+    shutil.copyfile(zgy,source/'unlinked.zgy')
+    before_seismic={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*.zgy')}
+    for report_only in (False,True):
+        destination=relocated/('Project Seismic Report Only' if report_only else 'Project Seismic Convert')
+        options=[project,destination,'-NoPause']+(['-ReportOnly'] if report_only else [])
+        run('project_zgy_report_only' if report_only else 'project_zgy_integrated',options)
+        top=list(destination.glob('*_REPORT.html'));assert len(top)==1
+        payload=json.loads(next(destination.glob('*_data/RUN_RESULT.json')).read_text())
+        assert payload['full_report']==str(top[0]) and payload['full_seismic_hash'] is False
+        rows={row['name']:row for row in payload['seismic']['objects']}
+        assert rows['linked.zgy']['status']==('not_selected' if report_only else 'converted')
+        assert rows['unlinked.zgy']['status']=='unlinked'
+        assert rows['unsupported.zgy']['status']=='unsupported'
+        assert not list(destination.rglob('*.zgy'))
+        assert len(list(destination.rglob('volume.segy')))==(0 if report_only else 1)
+        text=top[0].read_text(encoding='utf-8')
+        assert 'Not calculated — full hashing disabled' in text and 'data:image/png;base64,' in text
+        assert 'Complete data inventory tree' in text and 'linked.zgy' in text
+        assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in before_seismic.items())
+        # This explicitly proves no whole-seismic input hashes are hidden in the project wrapper.
+        receipt=json.loads(Path(payload['extraction']['receipt_path']).read_text())
+        assert not any(Path(row['path']).suffix.lower() in ('.zgy','.sgy','.segy') for row in receipt['inputs'])
     native_bat=bat
-    bat=package/'convert_zgy_to_segy.bat'
+    bat=native_bat
     capabilities=run('binary_capabilities',['-Capabilities','-NoPause'])
     assert 'zgy-to-segy' in capabilities and 'csv-to-las' not in capabilities
     inspection=run('binary_metadata_inspection',[zgy,'-Inspect','-NoPause'])
@@ -240,7 +268,7 @@ print(src/'Fixture.pet')
     assert 'SUCCESS:' in conversion and '5/5 stages complete | Complete' in conversion
     binary_receipt=json.loads(next((relocated/'Binary Results').rglob('RUN_RESULT.json')).read_text())
     assert binary_receipt['status']=='passed' and binary_receipt['summary']['all_decoded_samples_exact']
-    prompted_conversion=run('binary_interactive_prompt',[],input_text=str(zgy)+'\nunknown\n'+str(relocated/'Binary Prompt Results')+'\n\n')
+    prompted_conversion=run('binary_interactive_prompt',[],input_text=str(zgy)+'\n\nunknown\n'+str(relocated/'Binary Prompt Results')+'\n\n\n')
     assert 'SUCCESS:' in prompted_conversion
     bat=native_bat
     routed=run('main_bat_zgy_routing',[zgy,relocated/'Routed Binary Results','-NoPause'])

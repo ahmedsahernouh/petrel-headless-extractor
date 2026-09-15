@@ -11,6 +11,13 @@ param(
     [Parameter(Position=4)][string]$PetrelVersion = "unknown",
     [switch]$NoPause,
     [switch]$ReportOnly,
+    [switch]$FullHash,
+    [ValidateSet('time','depth')][string]$Domain,
+    [ValidateSet('s','ms','us')][string]$VerticalUnit,
+    [ValidateSet('m','ft')][string]$HorizontalUnit,
+    [string]$Crs,
+    [Alias('-inspect')][switch]$Inspect,
+    [Alias('-capabilities')][switch]$Capabilities,
     [Alias('-check')][switch]$Check,
     [Alias('-help')][switch]$Help
 )
@@ -21,14 +28,28 @@ $toolkitRoot = Split-Path -Parent $PSScriptRoot
 $pythonExe = Join-Path $toolkitRoot "runtime\python.exe"
 $pauseAtEnd = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
 $exitCode = 1
+function Invoke-ZgyInput {
+    $zgyArgs = @{ InputFile=$ProjectFile; OutputRoot=$OutputRoot; NoPause=$NoPause; FullHash=$FullHash; ReportOnly=$ReportOnly; Inspect=$Inspect; Capabilities=$Capabilities }
+    foreach ($field in @('Domain','VerticalUnit','HorizontalUnit','Crs')) {
+        $value=Get-Variable -Name $field -ValueOnly
+        if ($value) { $zgyArgs[$field]=$value }
+    }
+    & (Join-Path $PSScriptRoot 'launch_zgy_conversion.ps1') @zgyArgs
+}
 try {
     if ($Help -or $ProjectFile -in @("--help", "/?")) {
         Write-Output 'Usage: run_portable_petrel_extract.bat "PROJECT.pet" [OUTPUT_ROOT] [convert|copy|inventory] [LABEL] [PETREL_VERSION] [-NoPause]'
         Write-Output 'Full report/inventory always runs. Add -ReportOnly to disable dataset conversion (enabled by default).'
+        Write-Output 'The same BAT accepts INPUT.zgy, -Inspect, -Capabilities and optional -FullHash (off by default).'
         Write-Output 'Or: run_portable_petrel_extract.bat --check -NoPause'
         exit 0
     }
-    Write-Output "Petrel Headless Extractor 0.5.0 - standalone, read-only"
+    Write-Output "Petrel Headless Extractor 0.6.0 - standalone, read-only"
+    if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy' -or $Inspect -or $Capabilities) {
+        $pauseAtEnd=$false
+        Invoke-ZgyInput
+        exit $LASTEXITCODE
+    }
     . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
     $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
     if ($Check -or $ProjectFile -eq "--check") {
@@ -36,7 +57,8 @@ try {
         $exitCode = $LASTEXITCODE
     } else {
         if ([string]::IsNullOrWhiteSpace($ProjectFile)) {
-            $pairs = @(Get-ChildItem -LiteralPath $toolkitRoot -File -Filter '*.pet' | Where-Object {
+            $launcherRoot = if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $toolkitRoot) 'run_portable_petrel_extract.bat')) { Split-Path -Parent $toolkitRoot } else { $toolkitRoot }
+            $pairs = @(Get-ChildItem -LiteralPath $launcherRoot -File -Filter '*.pet' | Where-Object {
                 Test-Path -LiteralPath (Join-Path $_.DirectoryName ($_.BaseName + '.ptd')) -PathType Container
             } | Sort-Object Name)
             if ($pairs.Count -eq 1) { $ProjectFile = $pairs[0].FullName }
@@ -46,7 +68,12 @@ try {
                 $number = 0
                 if (-not [int]::TryParse($selection, [ref]$number) -or $number -lt 1 -or $number -gt $pairs.Count) { throw "Invalid project number." }
                 $ProjectFile = $pairs[$number - 1].FullName
-            } else { $ProjectFile = (Read-Host "Full path to the .pet file").Trim().Trim('"') }
+            } else { $ProjectFile = (Read-Host "Full path to the .pet project or .zgy file").Trim().Trim('"') }
+            if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy') {
+                $pauseAtEnd=$false
+                Invoke-ZgyInput
+                exit $LASTEXITCODE
+            }
             if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
                 $OutputRoot = (Read-Host 'Output root [Enter for your user folder\Petrel_Extracts]').Trim().Trim('"')
             }
@@ -57,10 +84,16 @@ try {
             $ReportOnly = $convertAnswer -in @('n', 'no')
         }
         if ($ReportOnly) { $CompanionMode = 'inventory' }
+        if ($pauseAtEnd -and -not $PSBoundParameters.ContainsKey('FullHash')) {
+            do { $hashAnswer = (Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]').Trim().ToLowerInvariant() } while ($hashAnswer -notin @('', 'y', 'yes', 'n', 'no'))
+            $FullHash = $hashAnswer -in @('y','yes')
+        }
+        Write-Output $(if ($FullHash) { 'Full seismic hashing: ON (reads entire source files).' } else { 'Full seismic hashing: OFF. Metadata, previews and numerical conversion QC remain available.' })
         Write-Output $(if ($ReportOnly) { 'Selected: full report + inventory. Dataset conversion: OFF.' } else { 'Selected: full report + inventory. Dataset conversion: ON (supported profiles).' })
         if ([string]::IsNullOrWhiteSpace($OutputRoot)) { $OutputRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Petrel_Extracts' }
         $nativeArgs = @('--project-file', $ProjectFile, '--output-root', $OutputRoot, '--mode', $CompanionMode, '--petrel-version', $PetrelVersion)
         if ($ReportOnly) { $nativeArgs += '--report-only' }
+        if ($FullHash) { $nativeArgs += '--full-hash' }
         if (-not [string]::IsNullOrWhiteSpace($ProjectName)) { $nativeArgs += @('--label', $ProjectName) }
         & $pythonExe -B (Join-Path $PSScriptRoot "standalone_petrel_extract.py") @nativeArgs
         $exitCode = $LASTEXITCODE

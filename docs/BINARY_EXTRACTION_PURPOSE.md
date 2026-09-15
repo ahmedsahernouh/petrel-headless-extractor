@@ -51,4 +51,4 @@ Preserve read-only source handling, offline Windows operation and no Petrel/Ocea
 
 ## Report-first product workflow
 
-The full visual report and complete foldable data inventory are the mandatory baseline. Conversion is optional and enabled by default: SEG-Y for supported seismic; documented ASCII/text for other data. Report-only retains previews and inventory metadata, with no retained converted datasets. v0.5.0 implements this selection for the existing extraction pipeline; project-wide linked ZGY-to-SEG-Y automation remains subsequent work.
+The full visual report and complete foldable data inventory are the mandatory baseline. Conversion is optional and enabled by default: SEG-Y for supported seismic; documented ASCII/text for other data. Report-only retains previews and inventory metadata, with no retained converted datasets. v0.6.0 implements the same main-BAT workflow for supported ZGY in the selected store and explicit project references. Seismic SHA-256 is optional and off by default; source references, metadata, previews and numerical QC are retained without a false checksum claim.

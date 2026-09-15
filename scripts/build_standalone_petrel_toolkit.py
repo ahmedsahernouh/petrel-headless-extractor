@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.5.0'
+VERSION = '0.6.0'
 PACKAGE_FOLDER = 'PetrelExtractor'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -43,6 +43,7 @@ SCRIPTS = [
     'petrel_file_convert.py', 'launch_zgy_conversion.ps1', 'test_petrel_binary_conversion.py',
     'petrel_native_binary.py', 'petrel_native_recovery.py', 'test_petrel_native_recovery.py',
     'petrel_visual_report.py', 'test_petrel_visual_report.py',
+    'petrel_project_seismic.py', 'petrel_seismic_integrity.py', 'test_project_seismic.py',
 ]
 
 
@@ -95,8 +96,8 @@ def main():
     for file in ['AGENTS.md','LICENSE','requirements-core.txt','requirements-geodata.txt']:
         shutil.copy2(ROOT/'portable_petrel_toolkit'/file,package/file)
     shutil.copy2(lock,package/'requirements-standalone-lock.txt')
-    shutil.copy2(ROOT/'run_portable_petrel_extract.bat',package/'run_portable_petrel_extract.bat')
-    shutil.copy2(ROOT/'convert_zgy_to_segy.bat',package/'convert_zgy_to_segy.bat')
+    launcher=package.parent/'run_portable_petrel_extract.bat'
+    shutil.copy2(ROOT/'run_portable_petrel_extract.bat',launcher)
     shutil.copy2(ROOT/'docs/BINARY_EXTRACTION_PURPOSE.md',package/'BINARY_EXTRACTION_PURPOSE.md')
     shutil.copy2(ROOT/'docs/native_binary_audit.json',package/'native_binary_audit.json')
     shutil.copy2(ROOT/'docs/ZGY_TO_SEGY.md',package/'ZGY_TO_SEGY.md')
@@ -107,7 +108,7 @@ def main():
     shutil.copy2(ROOT/'portable_petrel_toolkit/.agents/skills/petrel-portable-extractor/SKILL.md',skill/'SKILL.md')
     metadata=json.loads((ROOT/'portable_petrel_toolkit/toolkit.json').read_text())
     metadata.update(version=VERSION,distribution='standalone_windows_x64',python_required=False,
-                    internet_required=False,bundled_python=PYTHON_VERSION,entrypoint='run_portable_petrel_extract.bat',
+                    internet_required=False,bundled_python=PYTHON_VERSION,entrypoint='../run_portable_petrel_extract.bat',
                     receipt_contract='petrel-geoscience-1',automatic_package_qc=True,
                     automatic_dependency_repair=True,dependency_install_source='verified_offline_cache')
     write_json(package/'toolkit.json',metadata)
@@ -146,12 +147,14 @@ def main():
     if longest_explorer_path>=240:
         raise ValueError('Release layout exceeds Windows extraction path budget: '+str(longest_explorer_path))
     write_json(manifests/'toolkit_files.json',{'toolkit':'portable-petrel-project-extractor','version':VERSION,
-                'distribution':'standalone_windows_x64','files':records,'file_count_excluding_this_manifest':len(records)})
+                'distribution':'standalone_windows_x64','files':records,'file_count_excluding_this_manifest':len(records),
+                'launcher':{'path':launcher.name,'size_bytes':launcher.stat().st_size,'sha256':digest(launcher)}})
     check=subprocess.run([str(runtime/'python.exe'),'-B',str(scripts/'standalone_petrel_extract.py'),'--check'],capture_output=True,text=True)
     (args.output_root/(name+'_build_check.txt')).write_text(check.stdout+'\n'+check.stderr,encoding='utf-8')
     if check.returncode:raise RuntimeError('Bundled runtime preflight failed: '+check.stderr)
     zip_path=package.parent/zip_name
     with zipfile.ZipFile(zip_path,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+        z.write(launcher,launcher.name)
         for p in sorted(package.rglob('*')):
             if p.is_file() and not p.is_relative_to(runtime):
                 z.write(p,name+'/'+p.relative_to(package).as_posix(),

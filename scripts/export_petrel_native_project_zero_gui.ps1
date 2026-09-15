@@ -27,6 +27,8 @@ param(
 
     [switch]$SparsePackage,
 
+    [switch]$ReferenceSeismic,
+
     [switch]$NoValidate
 )
 
@@ -423,6 +425,25 @@ $textProbeCount = 0
 $totalBytes = 0L
 
 foreach ($source in $sourceFiles) {
+    if ($ReferenceSeismic -and $source.Extension.ToLowerInvariant() -in @('.zgy','.sgy','.segy')) {
+        # Seismic remains inventoried and is processed from its original path.
+        # Avoid copying huge cubes merely to generate an inventory/report.
+        $nativeInventory.Add([pscustomobject]@{
+            native_id = "native_reference_$(Get-ShortHash $source.FullName)"
+            source_relative_path = Get-RelativePath -BasePath $ptdDir -PathValue $source.FullName
+            package_relative_path = ''
+            native_kind = 'seismic_source_reference'
+            format_signature = $source.Extension
+            extension = $source.Extension
+            size_bytes = $source.Length
+            sha256 = ''
+            text_probe_scanned = $false
+            text_probe_terms = ''
+            candidate_count = 0
+            last_write_time_utc = $source.LastWriteTimeUtc.ToString('o')
+        })
+        continue
+    }
     $isProjectFile = ($source.FullName -ieq $ProjectFile)
     if ($isProjectFile) {
         $sourceRelative = $source.Name
@@ -539,6 +560,7 @@ $summary = [ordered]@{
     universal_conversion_status = "not_attempted_proprietary_native_decode_required"
     copied_file_count = $copiedCount
     copied_total_bytes = $totalBytes
+    seismic_preservation = if ($ReferenceSeismic) { 'referenced_in_place_not_copied' } else { 'copied' }
     text_probe_file_count = $textProbeCount
     candidate_count = $candidateRows.Count
     native_inventory_path = $nativeInventoryPath
@@ -570,7 +592,7 @@ $summaryLines = @(
     "",
     "## Boundary",
     "",
-    "This is a complete zero-GUI native-store export of the Petrel project files into the universal package structure.",
+    "Native-store files are copied; when ReferenceSeismic is enabled, seismic is inventoried at source and is not duplicated.",
     "It is not yet a universal-format geological conversion. LAS, SEG-Y, ZMAP, RESQML, and grid/property conversions still require Petrel export commands, Ocean, or decoded native object layouts.",
     "",
     "## Reports",

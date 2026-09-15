@@ -10,7 +10,9 @@ param(
     [Alias('-inspect')][switch]$Inspect,
     [Alias('-capabilities')][switch]$Capabilities,
     [Alias('-help')][switch]$Help,
-    [switch]$NoPause
+    [switch]$NoPause,
+    [switch]$FullHash,
+    [switch]$ReportOnly
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -19,13 +21,46 @@ $exitCode = 1
 $interactive = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
 try {
     if ($Help) {
-        Write-Output 'convert_zgy_to_segy.bat "INPUT.zgy" [OUTPUT_ROOT] [-Domain time] [-VerticalUnit ms] [-HorizontalUnit m] [-Crs "identifier"] [-NoPause]'
+        Write-Output 'run_portable_petrel_extract.bat "INPUT.zgy" [OUTPUT_ROOT] [-Domain time] [-VerticalUnit ms] [-HorizontalUnit m] [-Crs "identifier"] [-FullHash] [-NoPause]'
         Write-Output 'Use -Inspect to read metadata or -Capabilities to list supported profiles. Double-click or drag a ZGY to enter missing metadata interactively.'
         exit 0
     }
-    Write-Output 'Petrel binary seismic to SEG-Y 0.4.0 - beta, source read-only'
+    Write-Output 'Petrel binary seismic to SEG-Y 0.6.0 - beta, source read-only'
     . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
     $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
+    # Keep all interactive reads in ConsoleHost. Mixing Read-Host with a child
+    # Python input() can lose buffered answers when launched from the main BAT.
+    if ($interactive -and -not $Inspect -and -not $Capabilities) {
+        if (-not $InputFile) { $InputFile=(Read-Host 'Full path to the .zgy file').Trim().Trim('"') }
+        $metadataCode = @'
+import json,sys
+from pathlib import Path
+from standalone_petrel_extract import preflight
+from petrel_file_convert import open_zgy,zgy_metadata
+preflight()
+with open_zgy(Path(sys.argv[1])) as reader:
+    print(json.dumps(zgy_metadata(reader)))
+'@
+        $metadataText = & (Join-Path $toolkitRoot 'runtime\python.exe') -B -c $metadataCode $InputFile
+        if ($LASTEXITCODE -ne 0) { throw 'Could not inspect ZGY metadata. Check the source path and error above.' }
+        $metadata = ($metadataText -join "`n") | ConvertFrom-Json
+        Write-Output ($metadata | ConvertTo-Json -Depth 5)
+        if (-not $ReportOnly) {
+            do { $answer=(Read-Host 'Convert supported data as well? [Y/n; Enter = Yes]').Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
+            $ReportOnly=$answer -in @('n','no')
+        }
+        if (-not $ReportOnly) {
+            if ($metadata.zunit_dimension -eq 'unknown' -and -not $Domain) { $Domain=(Read-Host 'Verified domain (time/depth)').Trim() }
+            if (-not $metadata.zunit_name -and -not $VerticalUnit) { $VerticalUnit=(Read-Host 'Verified vertical unit (s/ms/us)').Trim() }
+            if (-not $metadata.horizontal_unit -and -not $HorizontalUnit) { $HorizontalUnit=(Read-Host 'Verified horizontal unit (m/ft)').Trim() }
+            if (-not $Crs) { $Crs=(Read-Host 'CRS identifier [Enter keeps unknown]').Trim(); if (-not $Crs) { $Crs='unknown' } }
+        }
+        if (-not $OutputRoot) { $OutputRoot=(Read-Host 'Output root [Enter for your user folder\Petrel_Conversions]').Trim().Trim('"') }
+        if (-not $FullHash) {
+            do { $answer=(Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]').Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
+            $FullHash=$answer -in @('y','yes')
+        }
+    }
     $arguments = @('-B', (Join-Path $PSScriptRoot 'petrel_file_convert.py'))
     if ($Capabilities) { $arguments += '--capabilities' }
     if ($Inspect) { $arguments += '--inspect' }
@@ -35,7 +70,8 @@ try {
     if ($VerticalUnit) { $arguments += @('--vertical-unit', $VerticalUnit) }
     if ($HorizontalUnit) { $arguments += @('--horizontal-unit', $HorizontalUnit) }
     if ($Crs) { $arguments += @('--crs', $Crs) }
-    if ($interactive) { $arguments += '--interactive' }
+    if ($FullHash) { $arguments += '--full-hash' }
+    if ($ReportOnly) { $arguments += '--report-only' }
     & (Join-Path $toolkitRoot 'runtime\python.exe') @arguments
     $exitCode = $LASTEXITCODE
 } catch {

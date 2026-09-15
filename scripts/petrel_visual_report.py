@@ -224,16 +224,26 @@ def plot_native(package, item, record, figures):
 
 def seismic_previews(package, figures, records, issues):
     from petrel_file_convert import open_zgy
-    paths = sorted(p for p in (package/'08_native_project').rglob('*.zgy') if p.is_file())
-    for index, candidate in enumerate(paths):
-        relative = candidate.relative_to(package).as_posix()
-        record = dict(name=candidate.stem, object_id=relative, category='Seismic', status='preserved_only',
+    from petrel_seismic_integrity import file_state, readonly_source
+    paths = [(p,p.relative_to(package).as_posix(),None) for p in sorted((package/'08_native_project').rglob('*.zgy')) if p.is_file()]
+    reference_path='01_project_metadata/project_seismic_inventory.json'
+    inventory=load_json(package/reference_path)
+    paths += [(Path(item['source']),reference_path,item) for item in inventory.get('objects',[]) if item.get('format')=='.zgy']
+    for index, (candidate,relative,item) in enumerate(paths):
+        identity=item['id'] if item else relative
+        record = dict(name=item['name'] if item else candidate.stem, object_id=identity, category='Seismic', status='referenced_at_source' if item else 'preserved_only',
                       preview_status='not_selected_budget', links=[dict(label='ZGY source', path=relative)])
+        if item: record.update(source=str(candidate),metadata=item.get('metadata',{}),source_sha256=None,hash_status='not_requested',size_bytes=item.get('file_state',{}).get('size_bytes'))
         records.append(record)
+        if item and item['status'] in ('missing','unsupported'):
+            record.update(status=item['status'],preview_status='unavailable',reason=item.get('reason',''))
+            issues.append(dict(object_id=identity,reason=item.get('reason','Unavailable seismic source')))
+            continue
         if index >= MAX_SEISMIC_FIGURES: continue
         try:
-            path = contained(package, relative); before = path.stat()
-            with open_zgy(path) as reader:
+            path = candidate if item else contained(package, relative); before = file_state(path)
+            if item and before!=item.get('file_state'): raise ValueError('Source changed since seismic inventory')
+            with readonly_source(path), open_zgy(path) as reader:
                 ni,nj,nk = map(int, reader.size)
                 if min(ni,nj,nk) < 1: raise ValueError('Empty ZGY volume')
                 # A bounded central patch avoids reading/hashing an entire large cube.
@@ -252,7 +262,7 @@ def seismic_previews(package, figures, records, issues):
                 fig.suptitle(path.stem+' | central inline patch',weight='bold')
                 record.update(stats(finite), dimensions=[ni,nj,nk], preview_origin=[ni//2,j0,k0], preview_shape=[1,njp,nkp])
                 caption=f'Inline index {ni//2}; central {njp} × {nkp} patch of {ni} × {nj} × {nk}. Patch statistics only. Display clipped at ±{clip:.5g} (98th percentile). Axis units are sample indices; no domain/CRS inferred. Preview does not mean SEG-Y conversion.'
-                if before.st_size!=path.stat().st_size or before.st_mtime_ns!=path.stat().st_mtime_ns:
+                if before!=file_state(path):
                     figures.plt.close(fig);raise ValueError('ZGY changed during preview read')
                 record['figure']=figures.save(fig,path.stem,'Seismic',caption,relative,relative)
                 record['preview_status']='plotted'
@@ -450,7 +460,7 @@ def render_inventory(audit, href):
         if 'figure' in node:links+=f'<a href="#figure-{node["figure"]}">Figure</a>'
         text=f'<b>{esc(name)}</b> <span class="tree-kind">{esc(kind)}</span> <span class="visual-status">{esc(status)}</span>'
         info=f'<div class="tree-detail"><code>{esc(tag)}</code> · {esc(node.get("placement","unknown"))}<br>{esc(node.get("reason",""))} {links}</div>'
-        return (f'<details class="object-node" data-search="{esc(search)}" data-status="{esc(status)}"'+(' open' if depth==0 else '')+'>'
+        return (f'<details class="object-node" data-object-id="{esc(tag)}" data-search="{esc(search)}" data-status="{esc(status)}"'+(' open' if depth==0 else '')+'>'
                 f'<summary>{text} <small>({len(nested)} children)</small></summary>{info}'
                 +''.join(render(child,depth+1) for child in nested)+'</details>')
     roots=children.get('',[])
@@ -531,7 +541,7 @@ def render_section(audit, href):
         links=''.join(f'<a href="{href(audit,a["path"])}">{esc(a["label"])}</a>' for a in o.get('links',[]))
         if 'figure' in o:links+=f'<a href="#figure-{o["figure"]}">Figure</a>'
         n=o.get('valid_count');limits=f'{o.get("minimum"):.6g} to {o.get("maximum"):.6g}' if n else '—'
-        rows.append(f'<tr data-status="{esc(o.get("status","unknown"))}" data-search="{esc(json.dumps(o,ensure_ascii=False).lower())}">'
+        rows.append(f'<tr data-object-id="{esc(o.get("object_id",""))}" data-status="{esc(o.get("status","unknown"))}" data-search="{esc(json.dumps(o,ensure_ascii=False).lower())}">'
                     f'<td><strong>{esc(o.get("name") or o.get("object_id",""))}</strong><br>{esc(o.get("well",""))}<br><small>{esc(o.get("object_id",""))}</small></td>'
                     f'<td>{esc(o.get("category",""))}</td><td><span class="visual-status">{esc(o.get("status","unknown"))}</span><br>{esc(o.get("preview_status",""))}</td>'
                     f'<td>{n if n is not None else "—"}</td><td>{limits}<br>{esc(o.get("unit") or "unit not resolved")}</td>'
@@ -545,7 +555,7 @@ def render_section(audit, href):
     return f'''<section id="visual-report"><div class="visual-intro"><div><h2>Explore the recovered data</h2>
     <p>Maps, log tracks and distributions derived from the files in this extraction.</p></div><button id="print-report" type="button">Print / save PDF</button></div>
     <div class="visual-kpis"><div><b>{len(figures):,}</b><span>Data figures</span></div><div><b>{len(objects):,}</b><span>Objects in decoder/file catalogue</span></div>
-    <div><b>{recovered_count:,}</b><span>{recovered_label}</span></div><div><b>{len(visual.get('issues',[])):,}</b><span>Preview issues</span></div></div>
+    <div><b id="decoded-catalogue-count" data-base-count="{recovered_count}">{recovered_count:,}</b><span>{recovered_label}</span></div><div><b>{len(visual.get('issues',[])):,}</b><span>Preview issues</span></div></div>
     {temporary_findings}<p class="note">Preview sampling never changes data. {omitted} objects exceed the figure budget; they remain inventoried. Missing plots do not mean missing project data. ZGY preview statistics describe only the labelled patch. Dataset exports are absent when report-only is selected.</p>
     <div class="figure-toolbar"><select id="figure-group" aria-label="Figure category"><option value="">All figures</option>{options}</select><input id="figure-search" type="search" aria-label="Search figures" placeholder="Search figures by well, object, name or unit"><span id="figure-count" role="status"></span></div>
     <div class="visual-gallery">{''.join(cards) or '<p class="visual-empty">No numeric payloads are available for plotting in this package. See the coverage and object inventory.</p>'}</div></section>

@@ -491,12 +491,21 @@ def extract_portable_project(args: dict) -> dict:
     # The existing pipeline may inspect companions; include that entire source lane.
     progress.phase(2, 'Initial source integrity hashes')
     inputs=safe_files(source.parent)
+    if args.get('reference_seismic'):
+        from petrel_seismic_integrity import SEISMIC_SUFFIXES
+        neighbors={p.resolve() for p in source.parent.glob('*.ptd') if p.resolve()!=store}
+        inputs=[p for p in inputs if p.suffix.lower() not in SEISMIC_SUFFIXES
+                and not (p.suffix.lower()=='.pet' and p!=source)
+                and not any(parent in neighbors for parent in p.parents)
+                and not (not source.is_relative_to(ROOT) and p.is_relative_to(ROOT))]
+        if source not in inputs: inputs.append(source)
     run=Run('extract_portable_project',args,inputs,[source.parent])
     if run.dry_run:return run.plan({'source':str(source),'matching_store':str(store),'companion_mode':mode})
     command=['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/invoke_portable_petrel_extract.ps1'),
              '-ProjectFile',str(source),'-OutputRoot',str(run.output/'package'),'-ProjectName',source.stem,
              '-PetrelVersion',run.version['petrel_version'],'-CompanionMode',mode,'-PythonPath',sys.executable]
     if args.get('report_only'):command.append('-ReportOnly')
+    if args.get('reference_seismic'):command.append('-ReferenceSeismic')
     progress.phase(3, 'Native project copy and inventory')
     try:
         code = progress.run_pipeline(command, ROOT, run.output/'extraction.log', args.get('timeout_seconds',1800))

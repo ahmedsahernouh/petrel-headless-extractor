@@ -6,19 +6,19 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-**Version 0.5.0:** adds an [offline visual report and complete foldable data inventory](docs/VISUAL_REPORT.md), with maps, log tracks, bounded seismic previews, statistics and data links.
+**Version 0.6.0:** one main BAT for projects and ZGY files, optional seismic hashing (off by default), and the full HTML report beside its data folder. The [visual report and complete foldable inventory](docs/VISUAL_REPORT.md) always remain included; conversion is optional and on by default.
 
-**Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The [beta ZGY-to-SEG-Y BAT](docs/ZGY_TO_SEGY.md) remains available separately. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
+**Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The main BAT also performs [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic in the selected store or explicitly referenced by the project. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
 
 The release ZIP includes Python and all pinned runtime dependencies. No Python installation, Petrel, Ocean SDK, administrator access, or internet connection is needed to run it. Windows 10/11 x64 with built-in Windows PowerShell is the target.
 
 ## Run on your project
 
 1. Download the **standalone ZIP** from Releases and extract the whole folder. GitHub's automatic "Source code" archives do not include the runtime.
-2. Open the inner `PetrelExtractor` folder containing the BAT, `scripts`, and `bootstrap`. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
+2. The extracted folder contains one `run_portable_petrel_extract.bat` beside a `PetrelExtractor` support folder; launch that BAT. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
 3. Drag the `.pet` file onto `run_portable_petrel_extract.bat`, or double-click the BAT and enter its path.
 4. The BAT installs Python and dependencies from its bundled cache on first launch. Later launches automatically repair missing or damaged runtime files before checking imports. This stays inside the extracted toolkit folder and works offline.
-5. Open the printed `PROJECT_REPORT.html` path. Results default to `%USERPROFILE%\Petrel_Extracts`, in a new folder for each run.
+5. Open the printed `<project>_<run>_REPORT.html` directly in your selected output folder. Its matching `<project>_<run>_data` folder holds all datasets, logs and receipts. The full report is available before seismic conversion finishes; refresh it for progress. Results default to `%USERPROFILE%\Petrel_Extracts`.
 
 Keep the whole extracted release together: the BAT alone is a launcher, not the application. Choose an output folder outside your source project.
 
@@ -38,8 +38,8 @@ The BAT shows an overall stage bar and elapsed timer automatically. Large-file h
 
 ## What you get
 
-- A separate beta BAT for **binary ZGY to SEG-Y**, with amplitude/geometry checks, progress and timing; see [supported profile](docs/ZGY_TO_SEGY.md).
-- Native `.pet`/`.ptd` copies and source/artifact SHA-256 hashes.
+- The main BAT converts supported **binary ZGY to SEG-Y**, with full amplitude/geometry checks; see [supported profile](docs/ZGY_TO_SEGY.md). Unlinked nearby seismic stays inventoried until selected by its exact file path.
+- Native `.pet`/`.ptd` copies with SHA-256 verification. Raw seismic is referenced at source rather than duplicated. Seismic SHA-256 is optional; metadata, figures and numerical conversion checks do not depend on it.
 - Supported native metadata, well heads, and structurally validated point, polygon, and trajectory layouts.
 - Native continuous logs as LAS/CSV, categorical boundary records as CSV, and validated surface arrays as XYZ/CSV with node/cell masks. Units and geometry must match the supported profiles.
 - Supported LAS, modern Excel, shapefile, and Petrel Well Tops ASCII conversions.
@@ -47,7 +47,7 @@ The BAT shows an overall stage bar and elapsed timer automatically. Large-file h
 
 Existing open-format companion handling is secondary. It does not count as decoding native well logs, faults, grids or property arrays. Those gaps and the next binary parsers are listed in the [native coverage roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 
-`convert` is the standalone default: preserve sources and attempt supported conversions. `copy` preserves companions without converting them. `inventory` inventories companions without copying them. **All three modes copy the selected native `.pet`/`.ptd` files.** Neighboring Petrel projects are excluded from companion ingestion.
+`convert` is the standalone default: preserve sources and attempt supported conversions. `copy` preserves companions without converting them. `inventory` inventories companions without copying them. **Native non-seismic files are copied; raw seismic stays at source.** Add `-FullHash` to calculate full seismic checksums, or leave it off for faster processing. Neighboring Petrel projects are excluded from companion ingestion.
 
 ## Scope and limits
 

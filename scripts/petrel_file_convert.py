@@ -21,8 +21,9 @@ from pathlib import Path
 
 import numpy as np
 import petrel_progress as progress
+from petrel_seismic_integrity import file_state, readonly_source
 
-VERSION = '0.3.0'
+VERSION = '0.6.0'
 ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES = [
     dict(id='zgy-to-segy', input='Petrel ZGY binary seismic cube', output='SEG-Y + metadata JSON', status='beta',
@@ -217,7 +218,15 @@ SUFFIXES={'.zgy':'zgy-to-segy'}
 
 
 def execute(source,output_root,operation,options):
+    # Keep the source open read-only while metadata, conversion and QC run.
+    with readonly_source(source):
+        return _execute(source,output_root,operation,options)
+
+
+def _execute(source,output_root,operation,options):
     source=source_path(source);output=Path(output_root).expanduser().resolve()
+    if options.get('expected_source_state') and file_state(source)!=options['expected_source_state']:
+        raise InputError('Seismic source changed since the report inventory; start a new run')
     if output.is_relative_to(source.parent) or any(p.lower().endswith(('.ptd','.pet')) for p in output.parts):
         raise InputError('Choose an output root outside the source directory and native Petrel stores')
     if operation not in CONVERTERS:raise InputError('Unsupported conversion operation')
@@ -234,19 +243,27 @@ def execute(source,output_root,operation,options):
         started_at=datetime.now(timezone.utc).isoformat(),options=options)
     write_json(run/'RUN_RESULT.json',receipt)
     try:
-        sources=[source]
-        progress.phase(2,'Hashing selected source files')
-        before={str(p):progress.hash_file(p) for p in sources}
+        full_hash=bool(options.get('full_hash',False))
+        state_before=file_state(source)
+        progress.phase(2,'Full seismic hashing' if full_hash else 'Checking seismic file state (full hashing off)')
+        before={str(source):progress.hash_file(source)} if full_hash else {}
         progress.phase(3,'Converting '+operation)
         summary,pending=CONVERTERS[operation](source,run,options)
-        progress.phase(5,'Checking source preservation and final output hashes')
-        after={str(p):progress.hash_file(p) for p in sources}
-        if before!=after:raise InputError('Source changed during conversion; output is not accepted')
+        progress.phase(5,'Checking source state and selected integrity evidence')
+        after={str(source):progress.hash_file(source)} if full_hash else {}
+        state_after=file_state(source)
+        if before!=after or state_before!=state_after:raise InputError('Source changed during conversion; output is not accepted')
         # Rename only after numerical QC and source preservation checks pass.
         for temporary,final in pending:temporary.rename(final)
-        artifacts=[dict(path=p.relative_to(run).as_posix(),size_bytes=p.stat().st_size,sha256=progress.hash_file(p))
+        artifacts=[dict(path=p.relative_to(run).as_posix(),size_bytes=p.stat().st_size,
+                        sha256=progress.hash_file(p) if full_hash or p.suffix.lower()!='.segy' else None,
+                        hash_status='sha256' if full_hash or p.suffix.lower()!='.segy' else 'not_requested')
                    for p in sorted(run.iterdir()) if p.is_file() and p.name!='RUN_RESULT.json']
-        receipt.update(status='passed',source_hashes_before=before,source_hashes_after=after,source_unchanged=True,
+        receipt.update(status='passed',source_hashes_before=before,source_hashes_after=after,
+                       source_unchanged=True if full_hash else None,source_stat_unchanged=True,
+                       source_state_before=state_before,source_state_after=state_after,full_seismic_hash=full_hash,
+                       integrity_scope='SHA-256 before/after plus numerical QC' if full_hash else 'File-state checks plus numerical QC; byte identity not established by SHA-256',
+                       receipt_path=str(run/'RUN_RESULT.json'),
                        summary=summary,artifacts=artifacts,elapsed_seconds=round(time.monotonic()-started,3))
         write_json(run/'RUN_RESULT.json',receipt)
         print('SUCCESS: '+str(run),flush=True)
@@ -265,7 +282,10 @@ def main():
     parser.add_argument('--domain',choices=['time','depth']);parser.add_argument('--vertical-unit',choices=['s','ms','us'])
     parser.add_argument('--horizontal-unit',choices=['m','ft']);parser.add_argument('--crs')
     parser.add_argument('--inspect',action='store_true');parser.add_argument('--capabilities',action='store_true')
-    parser.add_argument('--interactive',action='store_true');args=parser.parse_args()
+    parser.add_argument('--interactive',action='store_true')
+    parser.add_argument('--full-hash',action='store_true',help='Optional full seismic SHA-256 before/after; off by default')
+    parser.add_argument('--report-only',action='store_true')
+    args=parser.parse_args()
     display=progress.ConsoleProgress(stages=1 if args.inspect or args.capabilities else 5).start();success=False
     try:
         from standalone_petrel_extract import preflight
@@ -283,14 +303,24 @@ def main():
         if operation=='zgy-to-segy' and args.interactive:
             with open_zgy(source) as reader:meta=zgy_metadata(reader)
             display.message(json.dumps(meta,indent=2))
-            if meta['zunit_dimension']=='unknown' and not args.domain:args.domain=input('Verified domain (time/depth): ').strip()
-            if not meta['zunit_name'] and not args.vertical_unit:args.vertical_unit=input('Verified vertical unit (s/ms/us for time): ').strip()
-            if not meta['horizontal_unit'] and not args.horizontal_unit:args.horizontal_unit=input('Verified horizontal unit (m/ft): ').strip()
-            if not args.crs:args.crs=input('CRS identifier [Enter keeps unknown]: ').strip() or 'unknown'
+            if not args.report_only:
+                answer=input('Convert supported data as well? [Y/n; Enter = Yes]: ').strip().lower()
+                if answer not in ('','n','no','y','yes'):raise InputError('Enter Y or N for conversion')
+                args.report_only=answer in ('n','no')
+            if not args.report_only:
+                if meta['zunit_dimension']=='unknown' and not args.domain:args.domain=input('Verified domain (time/depth): ').strip()
+                if not meta['zunit_name'] and not args.vertical_unit:args.vertical_unit=input('Verified vertical unit (s/ms/us for time): ').strip()
+                if not meta['horizontal_unit'] and not args.horizontal_unit:args.horizontal_unit=input('Verified horizontal unit (m/ft): ').strip()
+                if not args.crs:args.crs=input('CRS identifier [Enter keeps unknown]: ').strip() or 'unknown'
         if not args.output_root and args.interactive:
             args.output_root=input('Output root [Enter for your user folder/Petrel_Conversions]: ').strip().strip('"')
         output=args.output_root or str(Path.home()/'Petrel_Conversions')
-        execute(source,output,operation,vars(args));success=True;return 0
+        if args.interactive and not args.full_hash:
+            answer=input('Calculate full seismic SHA-256? [y/N; Enter = No]: ').strip().lower()
+            if answer not in ('','n','no','y','yes'): raise InputError('Enter Y or N for full hashing')
+            args.full_hash=answer in ('y','yes')
+        from petrel_project_seismic import single_file_run
+        success=single_file_run(source,output,vars(args));return 0 if success else 1
     except (Exception,KeyboardInterrupt) as exc:
         display.message('ERROR: '+(str(exc) or 'Cancelled'));return 130 if isinstance(exc,KeyboardInterrupt) else 1
     finally:display.close(success)

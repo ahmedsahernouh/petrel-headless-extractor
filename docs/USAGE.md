@@ -1,69 +1,59 @@
-# Petrel Headless Extractor 0.4.0 — standalone Windows x64
+# Petrel Headless Extractor 0.6.0 usage
 
-By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
+[Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
-**ZGY binary conversion:** use the separate `convert_zgy_to_segy.bat`; see [instructions](ZGY_TO_SEGY.md). Whole-project extraction does not yet convert every ZGY automatically.
+Extract the whole standalone release ZIP. The top level contains only:
 
-**Shapefile limitation:** the current `.geojson` derivative retains source coordinates without reprojection. If the source is projected, this is not WGS84 GeoJSON under RFC 7946. Preserve the source shapefile/PRJ and check CRS before using the derivative in a map. A standards-correct exporter is recorded in the [backlog](RELEASE_BACKLOG.md).
-
-1. Extract the **whole ZIP** into a normal writable folder, separate from your project data.
-2. Drag your `.pet` file onto **run_portable_petrel_extract.bat**, or double-click the BAT and enter the project path.
-3. On first launch, the BAT installs bundled Python and dependencies into its own `runtime` folder. Each later launch checks them and automatically repairs missing or damaged runtime files.
-4. When it finishes, open the `PROJECT_REPORT.html` path printed in the window. The output also includes package QC, checksums, source-preservation receipts and a run log.
-
-The release ZIP is `PetrelExtractor-0.4.0-win64.zip` and its inner folder is `PetrelExtractor`. Open that folder to find the BAT. If Windows shows `0x80010135: Path too long`, cancel, choose a shorter extraction destination, and extract again without skipping files. An incomplete extraction cannot run. The short outer ZIP contains a compressed dependency cache; the BAT expands it after extraction.
-
-Keep the matching, complete `ProjectName.ptd` directory beside `ProjectName.pet`. Close the test project in Petrel before extraction so another program cannot change its files during the read. The extractor itself never opens Petrel or edits its stores.
-
-The ZIP includes Python and its dependencies. No Python installation, pip setup, Petrel, Ocean, admin access or internet connection is required at run time. Windows 10/11 x64 with its built-in Windows PowerShell is the target. Other operating systems and ARM64 are not validated. The BAT is a launcher: **copying only the BAT is insufficient**.
-
-Default output: `%USERPROFILE%\Petrel_Extracts`. Each run creates a new directory. Choose an output root outside the project directory. Do not put results inside `.ptd`.
-
-From Command Prompt:
-
-```bat
-run_portable_petrel_extract.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert
+```text
+run_portable_petrel_extract.bat
+PetrelExtractor/                 application, scripts and offline runtime cache
 ```
 
-Modes: `convert` (default) preserves native/companion files and attempts supported conversions and native spatial decoding; `copy` preserves companions without conversion; `inventory` inventories companions without copying them. All modes preserve the selected native `.pet/.ptd` files in the output. Neighboring Petrel projects are excluded from companion ingestion.
+Double-click the BAT and enter your exact `.pet` or `.zgy` path, or drag the file onto it. Keep the BAT beside its support folder; it need not be beside the project. For `.pet`, keep the complete same-name `.ptd` folder beside the project. Close the project in Petrel during the read.
 
-Check and automatically repair dependencies without reading a project:
+The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **off by default**: press Enter at `Calculate full seismic SHA-256? [y/N]`, or type `y` for thorough checksums.
+
+Results appear directly in the selected output root:
+
+```text
+Example_<run>_REPORT.html        open this full report
+Example_<run>_data/              datasets, figures, snapshots, logs and receipts
+```
+
+The report is a full HTML document, not a redirect. It becomes available before seismic conversion and is refreshed after each dataset; reload it to see updates. Keep the report and its matching data folder together when moving results. Source seismic references need access to the original files; converted SEG-Y and figures are in the result data folder.
+
+## Commands
 
 ```bat
+run_portable_petrel_extract.bat "E:\Projects\Example.pet" "E:\Results" -NoPause
+run_portable_petrel_extract.bat "E:\Projects\Example.pet" "E:\Results" -ReportOnly -NoPause
+run_portable_petrel_extract.bat "E:\Projects\Example.pet" "E:\Results" -FullHash -NoPause
+run_portable_petrel_extract.bat "E:\Projects\Example.ptd\cube.zgy" "E:\Results" -NoPause
+run_portable_petrel_extract.bat "E:\Projects\Example.ptd\cube.zgy" -Inspect -NoPause
+run_portable_petrel_extract.bat -Capabilities -NoPause
 run_portable_petrel_extract.bat --check -NoPause
 ```
 
-For unattended runs, append `-NoPause`. Exit code 0 means extraction, receipt integrity and package QC execution passed. Read the QC findings separately; duplicates, missing depth/CRS information or unsupported formats are not automatically repaired. Nonzero exit means failure; retain the log and choose a new run after correcting the cause.
+Choose an output root outside the source directory and all native stores. Each run gets a unique report/data pair, with no overwriting of previous results. `-NoPause` is for unattended use. The legacy `convert`, `copy` and `inventory` positional modes remain accepted; `-ReportOnly` explicitly disables dataset conversion.
 
-Extraction covers supported native metadata, well-head records, validated point/polygon/trajectory layouts, LAS tables, supported Excel sheets, shapefiles and Petrel Well Tops ASCII. Unsupported proprietary arrays remain preserved or explicitly unavailable. ZGY/SEG-Y and other specialist formats may be inventoried rather than converted by this extraction flow. This is not a universal native decoder, geological approval, or Petrel re-import test. Input Petrel release defaults to `unknown`.
+## Seismic conversion and hashing
 
-`00_manifest/toolkit_files.json` records hashes for the installed application and runtime. Startup checks application integrity, restores missing or damaged runtime files from the SHA-256-verified `bootstrap/runtime.zip`, then verifies Python imports and a ZFP compression round-trip before extraction. The cache identity is in `00_manifest/dependency_repair.json`; repair results are in `build/dependencies/last_check.json`. No system Python, pip, internet download, administrator access, or registry change is used.
+One BAT handles both project extraction and exact-file ZGY conversion. A project run attempts supported ZGY in the selected store and explicit file/path/URI fields recovered from XML or the validated native BXML project profile. Missing references, unreadable files, unsupported profiles and unlinked companions remain visible. Nearby seismic is not automatically assigned to the selected project. See [ZGY profile](ZGY_TO_SEGY.md).
 
-If the cache is missing or damaged and a dependency needs repair, extraction stops with instructions to re-extract the complete release. Missing or changed application scripts also require re-extraction. A runtime in use by another extraction is not repaired. Keep the entire release together; installing this release in a separate folder does not update a currently running older version.
+With hashing off, no whole ZGY/SEG-Y SHA-256 passes or raw seismic copies are added by project preservation/QC stages. The report still includes filename, size, available metadata/geometry, bounded previews, conversion status and output links. Its checksum field says **Not calculated — full hashing disabled**. Fast mode records file identity/size/timestamps and, on Windows, holds a read-only lease while converting. These checks are weaker than full byte-identity proof and are labelled accordingly. Conversion still checks every decoded amplitude and key trace header; this necessary numerical QC can itself take substantial time.
 
-ZFP support (`zfpy`) is included. Cloud SeismicStore (`sdglue`) is optional and not configured; it is not needed for local project files and requires its separate vendor client and authentication. The launcher reports this capability separately instead of displaying the known missing-`sdglue` warning. This does not extend the extractor's supported native layouts or enable cloud extraction.
+`-FullHash` adds full source SHA-256 before/after conversion and a SEG-Y checksum. Report-only full hashing calculates source inventory checksums. Ordinary application/runtime and non-seismic package integrity checks remain enabled. Full hashes detect byte changes and identify files; they do not prove CRS or geological correctness.
 
- `00_manifest/runtime_provenance.json`, `00_manifest/dependency_inventory.json`, `requirements-standalone-lock.txt` and `THIRD_PARTY_NOTICES.md` record the bundled runtime, exact dependencies and licenses. No project data, local credentials, source corpus or proprietary Petrel binaries are included.
+## Dependencies and failures
 
-The runtime comes from the [official Python Windows release manifest](https://www.python.org/ftp/python/3.13.15/windows-3.13.15.json). This package uses Python 3.13.15 x64 and verifies the archive against the SHA-256 published there.
+Windows 10/11 x64 with Windows PowerShell is the target. The BAT installs/repairs bundled Python, plotting and conversion dependencies inside `PetrelExtractor/runtime` from its verified offline cache. No system Python, pip, administrator access, Petrel, Ocean or network download is required. Cloud SeismicStore is not configured and is unnecessary for local files.
 
-Large companion files: text detection reads at most 64 KiB, well-top header detection reads at most 256 KiB, and text profiling samples at most 1 MiB (with a one-byte truncation check). Prefix profiles are labelled and do not claim full-file line counts. The default companion copy/conversion limit is 2,000,000,000 bytes per file. Files above it stay in the inventory with `skipped_size_limit` and are never sent to a converter. SHA-256 still streams across source files, including oversized files, so folders containing very large seismic volumes can take considerable time. This release does not convert SEG-Y volumes.
+Keep the whole release together. If extraction is incomplete or Windows reports Path too long, cancel and extract again to a shorter writable directory without skipping files. Missing application scripts or a damaged repair cache require re-extraction. A running older release is not updated by unpacking a new one.
+
+Run logs and receipts are inside the result data folder. Per-dataset conversion failures stay in the report while other supported cubes continue. Partial SEG-Y files are not accepted outputs. Exit zero for a project means the extraction/report/QC workflow completed, not that every proprietary object converted. Receiving-software import, CRS, geological acceptance and untested Petrel versions remain separate.
 
 ## Progress and timer
 
-Progress starts automatically when you run the BAT. Dependency checking and offline installation show file counts and their own timer. After you enter the project and output paths, the extraction timer starts; it includes bundled-runtime verification, extraction and final QC, and excludes time spent at prompts.
+The console shows elapsed time and stage progress. Conversion/QC uses measured trace counts. When full hashing is selected, byte progress and Hash ETA apply to that hash pass, not the whole job. Report-only still reads the bounded data needed for figures. No ETAs are invented for unknown stages.
 
-- The overall bar counts **12 completed workflow stages**. Stages take different amounts of time, so this is not a percentage of total processing time.
-- Hashing shows a byte-based percentage, bytes read, file counts and an approximate **Hash ETA** for the current hash pass or file. Large filenames are printed when hashing starts.
-- Stages without measurable remaining work show elapsed time and the active stage. The timer refreshes every second in a console; redirected logs receive updates every 10 seconds.
-- The overall bar reaches completion only after extraction and QC receipts pass and the run result is saved. Errors retain the partial stage count and elapsed time.
-
-Large seismic files can take a long time to hash even when they exceed the copy/conversion size limit. Integrity checks read files again at later stages, so the hash percentage may restart for a new pass. The ETA is an estimate from observed read speed, not a guarantee or a whole-run estimate.
-
-`RUN_RESULT.json` records `elapsed_seconds`; successful `RUN_LOG.txt` files include the elapsed time. Dependency time is also recorded in `build/dependencies/last_check.json`. The extraction pipeline log is written as it runs at `extraction/extraction.log`.
-
-Download and extract the complete new release into its own folder. An already running older BAT does not gain the display until you launch the new version.
-
-## Native logs and surfaces in v0.4.0
-
-The normal `convert` run now recovers supported native well logs to LAS/CSV and surfaces to XYZ/CSV. Open `07_workflows_reports/native_recovery/native_recovery_report.json` inside the extraction package, and the package's `native_data` folder for the files. Each continuous curve has its own LAS, preserving original MD positions. Categorical records stay CSV; `is_null` flags native missing values. Surface `VALUE` preserves its source sign and unit. Unknown units, geometry and layouts are reported per object. See [the native profile](NATIVE_LOGS_SURFACES.md) for validated profiles and limits. No CSV-to-LAS input converter was added.
+The current shapefile GeoJSON derivative retains source coordinates without reprojection; projected coordinates are not RFC 7946 WGS84 GeoJSON. See the backlog for that separate correction.

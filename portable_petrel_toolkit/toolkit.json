@@ -1,6 +1,6 @@
 {
   "name": "portable-petrel-project-extractor",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -30,9 +30,10 @@
     {
       "input": "ZGY",
       "output": "SEG-Y",
-      "entrypoint": "convert_zgy_to_segy.bat",
+      "entrypoint": "run_portable_petrel_extract.bat",
       "status": "beta_time_domain_profile",
-      "whole_project_integration": false
+      "whole_project_integration": true,
+      "discovery": "selected store and explicit project XML references; unlinked companions remain inventoried"
     }
   ],
   "companion_conversions": [
@@ -48,7 +49,7 @@
     "docs": "NATIVE_LOGS_SURFACES.md"
   },
   "visual_report": {
-    "entrypoint": "PROJECT_REPORT.html",
+    "entrypoint": "<project>_<run>_REPORT.html beside <project>_<run>_data/",
     "offline": true,
     "data_tree": "all_discovered_subjects_registry_and_receipt_objects",
     "formats": [
@@ -62,5 +63,11 @@
     "default_enabled": true,
     "report_only_switch": "-ReportOnly",
     "report_only_retains_dataset_exports": false
+  },
+  "seismic_integrity": {
+    "full_hash_default_enabled": false,
+    "switch": "-FullHash",
+    "fast_mode": "file state plus complete numerical conversion QC; no source SHA-256 claim",
+    "raw_seismic_copied": false
   }
 }

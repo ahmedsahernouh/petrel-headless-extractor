@@ -23,7 +23,7 @@ Keep the normal product/version heading, progress, timer and operational message
 
 Both launchers retain the website and project repository lines. The relocated acceptance test checks the original launcher's first two lines; the ZGY launcher is exercised separately. Version/progress/timer messages remain.
 
-## Conversion expansion and capability accuracy — registered 2026-09-14
+## Conversion expansion and capability accuracy â€” registered 2026-09-14
 
 Status: priorities superseded by the user clarification: native/binary recovery only. See BINARY_EXTRACTION_PURPOSE.md. Historical broad research and bounded tests retained below; open-to-open additions are not planned. See the [28-route matrix](CONVERSION_CAPABILITIES.md), [applicability review](CONVERSION_REVIEW_2026-09-14.md) and [probe results](conversion_probe_results.json). These entries do not claim functionality in v0.2.5.
 
@@ -40,8 +40,12 @@ Acceptance requires source preservation, geometry/domain/units/null/precision ch
 
 CSV-to-LAS and new generic ASCII/SEG-Y table reformatting were removed from the implementation. v0.3.0 adds a beta ZGY-to-SEG-Y entry point and corrects native coverage counts: companion logs/tops, unlinked surfaces and legacy ZGY reports are excluded; spatial counts use successful object statuses and unique IDs. Native FloatWellLog/IntWellLog and surface payload decoders take priority next; faults/grids/properties follow with validated geometry and identity. See [purpose](BINARY_EXTRACTION_PURPOSE.md).
 
-## Visual report before automatic project conversion — 2026-09-14
+## Visual report before automatic project conversion â€” 2026-09-14
 
 User priority: strong visual report with figures, maps, plots, statistics, lists, links and visualizations, including a full foldable data inventory tree. Implemented for v0.5.0: see [visual report](VISUAL_REPORT.md). Automatic project-linked ZGY conversion remains the subsequent integration step. Output contract: SEG-Y for seismic; documented ASCII/text for other data.
 
 User clarification: full report/inventory is basic and always included. Dataset conversion is optional, selected by default. v0.5.0 adds Y/n selection and `-ReportOnly`; temporary preview datasets are discarded.
+
+## Unified entry point, optional seismic hashing and report delivery — 2026-09-14
+
+Implemented for v0.6.0: one root BAT beside the support folder; selected-project/store ZGY conversion in the same run; full seismic hashing optional and off by default. Report and full inventory remain mandatory, conversions on by default. Full `*_REPORT.html` is directly beside its matching `*_data` directory and updates after each seismic dataset. No raw seismic duplication. Unlinked companions and unresolved metadata are explicitly listed. Historical notes above describe earlier releases.

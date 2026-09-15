@@ -19,6 +19,7 @@ param(
     [switch]$SkipNativeBinaryRecovery,
     [switch]$SkipAudit,
     [switch]$ReportOnly,
+    [switch]$ReferenceSeismic,
     [switch]$NoValidate
 )
 
@@ -101,6 +102,7 @@ $nativeOutput = & $nativeExporter `
     -ExportRoot $outputRootResolved `
     -CreateNewPackage `
     -SparsePackage `
+    -ReferenceSeismic:$ReferenceSeismic `
     -MaxTextProbeBytes $MaxTextProbeBytes `
     -MaxCandidatesPerFile $MaxCandidatesPerFile `
     -NoValidate
@@ -112,6 +114,10 @@ $exportPackage = ($packageLine[0] -replace '^Export package:\s*', '').Trim()
 $exportPackage = (Resolve-Path -LiteralPath $exportPackage).Path
 $selection = @{ full_report = $true; full_inventory = $true; dataset_conversion_enabled = (-not $ReportOnly -and $CompanionMode -eq 'convert'); report_only = [bool]$ReportOnly }
 $selection | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $exportPackage '01_project_metadata\extraction_options.json') -Encoding UTF8
+if ($ReferenceSeismic) {
+    & $pythonExe (Join-Path $scriptDir 'petrel_project_seismic.py') --project-file $projectFileResolved --output (Join-Path $exportPackage '01_project_metadata\project_seismic_inventory.json')
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 if (-not $SkipSemanticExtraction) {
     Write-Output "Stage 2/6: safe native semantic metadata extraction"
@@ -129,13 +135,15 @@ if (-not $SkipSemanticExtraction) {
 
 if (-not $SkipCompanionExtraction) {
     Write-Output "Stage 3/6: companion source inventory, preservation, and supported conversion"
+    $seismicArgs = @()
+    if ($ReferenceSeismic) { $seismicArgs += '--reference-seismic' }
     & $pythonExe $companionExtractor `
         --project-file $projectFileResolved `
         --export-package $exportPackage `
         --project-name $ProjectName `
         --petrel-version $PetrelVersion `
         --mode $CompanionMode `
-        --max-file-bytes $MaxCompanionFileBytes
+        --max-file-bytes $MaxCompanionFileBytes @seismicArgs
     $companionCode = Get-PetrelMcpLastExitCode
     if ($companionCode -ne 0) { exit $companionCode }
 } else {

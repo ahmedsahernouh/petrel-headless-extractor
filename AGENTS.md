@@ -13,7 +13,7 @@ Before release work, review [deferred release requests](docs/RELEASE_BACKLOG.md)
 3. Require the output root to be outside the source project.
 4. Never launch Petrel, use Ocean, or mutate `.pet/.ptd` files.
 5. When projects share one directory, exclude every neighboring `.pet` file and `.ptd` directory from companion ingestion and report the exclusions.
-6. Preserve source companions and hashes before interpreting converted derivatives.
+6. Preserve non-seismic companions and hashes before interpreting derivatives. Seismic may be referenced in place; full seismic hashing is optional and off by default. Record the actual integrity scope, never imply a skipped SHA-256 passed.
 7. Treat converter success as structural execution evidence, not CRS, semantic, scientific, approval, or officiality evidence.
 8. Report unsupported formats and cross-version gaps explicitly.
 9. Do not describe this toolkit as a universal proprietary Petrel decoder.
