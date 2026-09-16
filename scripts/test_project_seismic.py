@@ -62,7 +62,7 @@ class ProjectSeismicTests(unittest.TestCase):
         source=self.internal_zgy();inventory=project_seismic.discover(self.project)
         inventory['objects'][0]['file_state']['mtime_ns']-=1
         project_seismic.convert_project(inventory,self.fixture.outputs,True)
-        self.assertEqual(inventory['objects'][0]['status'],'unavailable')
+        self.assertEqual(inventory['objects'][0]['status'],'conversion_failed')
         self.assertFalse(self.fixture.outputs.exists())
 
     def test_discovery_retains_unlinked_and_excludes_neighbor_store(self):
@@ -106,8 +106,8 @@ class ProjectSeismicTests(unittest.TestCase):
         self.internal_zgy();self.internal_zgy(name='depth',zunitdim=fixtures.UnitDimension.length,zunitname='m',zunitfactor=1.)
         inventory=project_seismic.discover(self.project)
         project_seismic.convert_project(inventory,self.fixture.outputs,True)
-        self.assertEqual(inventory['counts'],{'unavailable':1,'converted':1})
-        self.assertEqual(len(list(self.fixture.outputs.rglob('volume.segy'))),1)
+        self.assertEqual(inventory['counts'],{'converted':2})
+        self.assertEqual(len(list(self.fixture.outputs.rglob('volume.segy'))),2)
 
     def test_report_is_full_html_with_relocated_links(self):
         data=self.root/'Output & Results';package=data/'Project_data'/'nested package';package.mkdir(parents=True)

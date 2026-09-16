@@ -30,8 +30,8 @@ function Get-RelativePath {
         [string]$PathValue
     )
 
-    $baseUri = [System.Uri]((Resolve-Path -LiteralPath $BasePath).Path.TrimEnd("\") + "\")
-    $fileUri = [System.Uri]((Resolve-Path -LiteralPath $PathValue).Path)
+    $baseUri = [System.Uri]((Resolve-Path -LiteralPath $BasePath).ProviderPath.TrimEnd("\") + "\")
+    $fileUri = [System.Uri]((Resolve-Path -LiteralPath $PathValue).ProviderPath)
     return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($fileUri).ToString()).Replace("/", "\")
 }
 
@@ -247,7 +247,7 @@ function Get-RegistrationNotes {
     return "Auto-registered from export package folder scan."
 }
 
-$packageRoot = (Resolve-Path -LiteralPath $ExportPackage).Path
+$packageRoot = (Resolve-Path -LiteralPath $ExportPackage).ProviderPath
 $manifestPath = Join-Path $packageRoot "00_manifest\export_manifest.csv"
 $sourceInventoryPath = Join-Path $packageRoot "00_manifest\source_object_inventory.csv"
 $runDir = Join-Path $packageRoot "07_workflows_reports\automation_runs"

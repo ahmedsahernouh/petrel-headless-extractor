@@ -1,3 +1,5 @@
+> Current release: [GeoViewer_data_extractor 0.8.0](GEOVIEWER_0_8.md) supersedes the historical time-only seismic restriction and adds observed 2024.5 profiles, project identity, diagnostics and a shallow export index.
+
 # Visual project report and complete inventory tree
 
 [Website](https://saherlabs.dev/) · [Project](https://github.com/ahmedsahernouh/petrel-headless-extractor)
@@ -6,7 +8,7 @@ Version 0.6.0 uses one BAT for the project and its supported ZGY conversion. The
 
 Run the main BAT, then open the top-level `*_REPORT.html`. **The full report and complete inventory are always included. Dataset conversion is optional and enabled by default.** At the prompt `Convert supported data as well? [Y/n; Enter = Yes]`, press Enter for conversion or type `n` for report-only.
 
-For unattended report-only runs, use `run_portable_petrel_extract.bat "C:\Projects\Example.pet" "C:\PetrelOut" -ReportOnly -NoPause`. Report-only mode still preserves the native snapshot, inventories companions, and prepares supported native previews in disposable scratch space. It keeps figures, statistics, metadata and inventory tables; it discards temporary log/surface/spatial datasets. Those objects are labelled `preview_only`, never counted as exported datasets. Source links point to preserved binaries. The selected mode appears at the top of the report. The report works offline without a web server. Keep the whole extraction package together so its relative data links work after moving it.
+For unattended report-only runs, use `GeoViewer_data_extractor.bat "C:\Projects\Example.pet" "C:\PetrelOut" -ReportOnly -NoPause`. Report-only mode still preserves the native snapshot, inventories companions, and prepares supported native previews in disposable scratch space. It keeps figures, statistics, metadata and inventory tables; it discards temporary log/surface/spatial datasets. Those objects are labelled `preview_only`, never counted as exported datasets. Source links point to preserved binaries. The selected mode appears at the top of the report. The report works offline without a web server. Keep the whole extraction package together so its relative data links work after moving it.
 
 ## Included
 

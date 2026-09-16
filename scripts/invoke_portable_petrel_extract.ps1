@@ -37,13 +37,13 @@ function Test-IsWithinPath {
 function Get-RequiredFile {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Label)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "$Label not found: $Path" }
-    return (Resolve-Path -LiteralPath $Path).Path
+    return (Resolve-Path -LiteralPath $Path).ProviderPath
 }
 
 function Remove-EmptyPackageDirectories {
     param([Parameter(Mandatory = $true)][string]$PackageRoot)
 
-    $resolvedRoot = (Resolve-Path -LiteralPath $PackageRoot).Path.TrimEnd('\')
+    $resolvedRoot = (Resolve-Path -LiteralPath $PackageRoot).ProviderPath.TrimEnd('\')
     $rootPrefix = $resolvedRoot + '\'
     $removed = 0
     do {
@@ -68,7 +68,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $toolkitRoot = Split-Path -Parent $scriptDir
 . (Get-RequiredFile -Path (Join-Path $scriptDir "petrel_mcp_dependencies.ps1") -Label "Dependency resolver")
 
-$projectFileResolved = (Resolve-Path -LiteralPath $ProjectFile).Path
+$projectFileResolved = (Resolve-Path -LiteralPath $ProjectFile).ProviderPath
 if ([System.IO.Path]::GetExtension($projectFileResolved) -ine ".pet") { throw "ProjectFile must be a .pet file: $projectFileResolved" }
 $projectRoot = Split-Path -Parent $projectFileResolved
 $projectStem = [System.IO.Path]::GetFileNameWithoutExtension($projectFileResolved)
@@ -76,7 +76,7 @@ $ptdRoot = Join-Path $projectRoot "$projectStem.ptd"
 if (-not (Test-Path -LiteralPath $ptdRoot -PathType Container)) { throw "Matching Petrel store directory not found: $ptdRoot" }
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
-$outputRootResolved = (Resolve-Path -LiteralPath $OutputRoot).Path
+$outputRootResolved = (Resolve-Path -LiteralPath $OutputRoot).ProviderPath
 if (Test-IsWithinPath -Path $outputRootResolved -Parent $projectRoot) {
     throw "OutputRoot must be outside the source project directory to prevent recursive self-ingestion: $outputRootResolved"
 }
@@ -111,9 +111,20 @@ if ($nativeCode -ne 0) { exit $nativeCode }
 $packageLine = @($nativeOutput | Where-Object { $_ -match '^Export package:' } | Select-Object -Last 1)
 if ($packageLine.Count -eq 0) { throw "Native exporter did not report the export package path." }
 $exportPackage = ($packageLine[0] -replace '^Export package:\s*', '').Trim()
-$exportPackage = (Resolve-Path -LiteralPath $exportPackage).Path
+$exportPackage = (Resolve-Path -LiteralPath $exportPackage).ProviderPath
 $selection = @{ full_report = $true; full_inventory = $true; dataset_conversion_enabled = (-not $ReportOnly -and $CompanionMode -eq 'convert'); report_only = [bool]$ReportOnly }
 $selection | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $exportPackage '01_project_metadata\extraction_options.json') -Encoding UTF8
+$contextPath = Join-Path $exportPackage '01_project_metadata\project_context.json'
+$workflowArgs = @()
+if ($CompanionMode -eq 'convert') { $workflowArgs = @('--workflow-output', (Join-Path $exportPackage 'native_workflows')) }
+& $pythonExe (Join-Path $scriptDir 'geoviewer_metadata.py') --project $projectFileResolved --output $contextPath @workflowArgs
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$nativeContext = Get-Content -Raw -LiteralPath (Join-Path $exportPackage '01_project_metadata\native_compatibility.json') | ConvertFrom-Json
+if (-not $nativeContext.native_decoders_applicable) {
+    Write-Output "Native numeric decoding unavailable for storage layout: $($nativeContext.layout). Inventory and report will continue."
+    $SkipNativeSpatialExtraction = $true
+    $SkipNativeBinaryRecovery = $true
+}
 if ($ReferenceSeismic) {
     & $pythonExe (Join-Path $scriptDir 'petrel_project_seismic.py') --project-file $projectFileResolved --output (Join-Path $exportPackage '01_project_metadata\project_seismic_inventory.json')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

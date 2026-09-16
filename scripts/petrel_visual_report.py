@@ -361,11 +361,12 @@ def build_visuals(package, audit, output_package=None, report_only=False):
         relative = ('05_spatial/polygons/native_polygons_vertices.csv' if kind=='Polygons3' else
                     '05_spatial/points/native_points_vertices.csv' if kind=='Points3' else
                     '02_wells/trajectories/native_well_trajectory_records.csv')
-        links=[dict(label='Native CSV',path=relative)] if (package/relative).is_file() else []
+        accepted=item.get('status')=='decoded'
+        links=[dict(label='Shared native CSV (filter by UUID)',path=relative)] if accepted and (package/relative).is_file() else []
         records.append(dict(name=item.get('object_name') or item.get('blob_type','Spatial object'),
                             object_id=item.get('object_id',''), category='Spatial objects',
                             status=item.get('status','unknown'),reason=item.get('reason') or item.get('error',''),
-                            preview_status='see_spatial_map',links=links))
+                            preview_status='see_spatial_map' if accepted else 'not_plotted',links=links))
     seismic_previews(destination,figures,records,issues)
     if report_only:
         binary_sources=[p for p in (destination/'08_native_project/ptd_store').glob('Data.ptd') if p.is_file()]
@@ -597,10 +598,11 @@ def render_section(audit, href):
         links=''.join(f'<a href="{href(audit,a["path"])}">{esc(a["label"])}</a>' for a in o.get('links',[]))
         if 'figure' in o:links+=f'<a href="#figure-{o["figure"]}">Figure</a>'
         n=o.get('valid_count');limits=f'{o.get("minimum"):.6g} to {o.get("maximum"):.6g}' if n else '—'
+        count_label=(str(n)+' (preview patch)' if o.get('category')=='Seismic' and n is not None else str(n) if n is not None else '—')
         rows.append(f'<tr data-object-id="{esc(o.get("object_id",""))}" data-status="{esc(o.get("status","unknown"))}" data-search="{esc(json.dumps(o,ensure_ascii=False).lower())}">'
                     f'<td><strong>{esc(o.get("name") or o.get("object_id",""))}</strong><br>{esc(o.get("well",""))}<br><small>{esc(o.get("object_id",""))}</small></td>'
                     f'<td>{esc(o.get("category",""))}</td><td><span class="visual-status">{esc(o.get("status","unknown"))}</span><br>{esc(o.get("preview_status",""))}</td>'
-                    f'<td>{n if n is not None else "—"}</td><td>{limits}<br>{esc(o.get("unit") or "unit not resolved")}</td>'
+                    f'<td>{count_label}</td><td>{limits}<br>{esc(o.get("unit") or "unit not resolved")}</td>'
                     f'<td>{esc(o.get("reason",""))}{links}</td></tr>')
     options=''.join(f'<option value="{esc(g)}">{esc(g)}</option>' for g in groups)
     statuses=''.join(f'<option value="{esc(s)}">{esc(s)}</option>' for s in sorted({o.get('status','unknown') for o in objects}))

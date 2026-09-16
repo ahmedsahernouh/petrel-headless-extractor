@@ -81,8 +81,8 @@ function Get-RelativePath {
         [string]$PathValue
     )
 
-    $baseUri = [System.Uri]((Resolve-Path -LiteralPath $BasePath).Path.TrimEnd("\") + "\")
-    $fileUri = [System.Uri]((Resolve-Path -LiteralPath $PathValue).Path)
+    $baseUri = [System.Uri]((Resolve-Path -LiteralPath $BasePath).ProviderPath.TrimEnd("\") + "\")
+    $fileUri = [System.Uri]((Resolve-Path -LiteralPath $PathValue).ProviderPath)
     return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($fileUri).ToString()).Replace("/", "\")
 }
 
@@ -364,11 +364,11 @@ function Upsert-ManifestRows {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 
-$ProjectFile = (Resolve-Path -LiteralPath $ProjectFile).Path
+$ProjectFile = (Resolve-Path -LiteralPath $ProjectFile).ProviderPath
 if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
     $ProjectPath = Split-Path -Parent $ProjectFile
 }
-$ProjectPath = (Resolve-Path -LiteralPath $ProjectPath).Path
+$ProjectPath = (Resolve-Path -LiteralPath $ProjectPath).ProviderPath
 $projectStem = [System.IO.Path]::GetFileNameWithoutExtension($ProjectFile)
 if ([string]::IsNullOrWhiteSpace($ProjectName)) { $ProjectName = $projectStem }
 $ptdDir = Join-Path $ProjectPath "$projectStem.ptd"
@@ -396,7 +396,7 @@ if ($CreateNewPackage -or [string]::IsNullOrWhiteSpace($ExportPackage)) {
     }
 }
 
-$ExportPackage = (Resolve-Path -LiteralPath $ExportPackage).Path
+$ExportPackage = (Resolve-Path -LiteralPath $ExportPackage).ProviderPath
 $manifestPath = Join-Path $ExportPackage "00_manifest\export_manifest.csv"
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Export manifest not found: $manifestPath"

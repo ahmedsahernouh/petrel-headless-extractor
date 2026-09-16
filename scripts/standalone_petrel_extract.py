@@ -27,10 +27,10 @@ MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy'
 
 def preflight():
     if not Path(sys.executable).resolve().is_relative_to(ROOT / 'runtime'):
-        raise g.InputError('Use the bundled runtime through run_portable_petrel_extract.bat')
+        raise g.InputError('Use the bundled runtime through GeoViewer_data_extractor.bat')
     manifest = g.read_json(ROOT / '00_manifest/toolkit_files.json')
     if manifest.get('launcher'):
-        launcher=ROOT.parent/'run_portable_petrel_extract.bat'
+        launcher=ROOT.parent/manifest['launcher']['path']
         if not launcher.is_file() or g.sha256(launcher)!=manifest['launcher']['sha256']:
             raise g.InputError('Main BAT integrity failed; extract the complete release ZIP')
     with progress.hash_batch('Checking bundled files', [g.contained_file(ROOT, r['path']) for r in manifest['files']]):
@@ -84,6 +84,9 @@ def main():
     args = parser.parse_args()
     if args.report_only: args.mode = 'inventory'
     run = None
+    diagnostics = None
+    context = {}
+    report_path = None
     display = progress.ConsoleProgress(stages=1 if args.check else 12).start()
     success = False
     try:
@@ -102,10 +105,27 @@ def main():
         if output.is_relative_to(source.parent) or any(p.lower().endswith(('.ptd','.pet')) for p in output.parts):
             raise g.InputError('Output root must be outside the source project and native stores')
         name = re.sub(r'[^a-zA-Z0-9_-]+','_',args.label or source.stem).strip('_') or 'project'
+        name = name[:28]
         stem = name + '_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:6]
         report_path = output / (stem + '_REPORT.html')
         run = output / (stem + '_data')
         run.mkdir(parents=True, exist_ok=False)
+        from geoviewer_diagnostics import Diagnostics
+        from geoviewer_metadata import inspect_project
+        from geoviewer_delivery import partial_report, publish_exports, decorate
+        log_path=output/(stem+'_LOG.txt');event_path=output/(stem+'_EVENTS.jsonl')
+        diagnostics=Diagnostics(log_path,event_path)
+        diagnostics.event('started',request=vars(args),preflight=doctor)
+        bootstrap=os.environ.get('GEOVIEWER_BOOTSTRAP_LOG')
+        if bootstrap:
+            diagnostics.event('bootstrap_log',path=bootstrap)
+            try:
+                (run/'BOOTSTRAP_LOG.txt').write_text(Path(bootstrap).read_text(encoding='utf-8-sig',errors='replace'),encoding='utf-8')
+            except OSError as exc:diagnostics.event('bootstrap_log_copy_unavailable',reason=str(exc))
+        context=inspect_project(source)
+        diagnostics.event('native_preflight',layout=context['layout'],saved_version=context['saved_version'],findings=context['findings'])
+        partial_report(report_path,context,'Extraction in progress','Metadata inventory is ready. Converted files and final QC are not ready yet.',log_path)
+        display.message('REPORT (updates as extraction completes): '+str(report_path),flush=True)
         g.write_json(run/'preflight.json',doctor)
         g.write_json(run/'request.json',vars(args))
         common = {'petrel_version':args.petrel_version,'version_scope':'Standalone external extraction; source release unverified unless independently established'}
@@ -133,34 +153,58 @@ def main():
         display.message('FULL REPORT (ready now): ' + str(report_path),flush=True)
         progress.phase(12,'Project seismic conversion and report completion')
         enabled=not args.report_only and args.mode=='convert'
-        convert_project(inventory,run/'seismic',enabled,args.full_hash,on_update=update_report)
+        with progress.keep_stage(12):
+            convert_project(inventory,run/'seismic',enabled,args.full_hash,on_update=update_report)
         update_report(complete=True)
+        progress.phase(12,'Publishing converted-file index and final report')
+        destination=output/(stem+'_EXPORTS')
+        export_index=publish_exports(package,inventory,destination) if enabled else None
+        workflow_receipt=Path(package)/'01_project_metadata/workflow_recovery.json'
+        if workflow_receipt.is_file():context['workflows']=g.read_json(workflow_receipt)
+        decorate(report_path,context,export_index,destination,log_path,event_path)
+        for row in inventory.get('objects',[]):
+            diagnostics.event('seismic_outcome',object_id=row['id'],status=row['status'],reason=row.get('reason'),result=row.get('result'))
+        for evidence in ('07_workflows_reports/native_recovery/native_recovery_report.json','07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json'):
+            path=Path(package)/evidence
+            if path.is_file():
+                for row in g.read_json(path).get('objects',[]):diagnostics.event('native_object_outcome',**row)
         result = {'status':'passed','toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
                   'extraction_audit':audit,'qc':qc,'qc_audit':qc_audit,
                   'source_mutated':False,'petrel_process_launched':False,
                   'report_included':True,'dataset_conversion_enabled':not args.report_only and args.mode=='convert',
                   'full_report':str(report_path),'seismic':inventory,'full_seismic_hash':args.full_hash,
-                  'scientific_acceptance':'not_established'}
+                  'scientific_acceptance':'not_established','project_context':context,
+                  'file_index':str(destination/'FILE_INDEX.csv') if enabled else None,
+                  'process_log':str(log_path),'structured_events':str(event_path)}
         g.write_json(run/'RUN_RESULT.json',result)
-        (run/'RUN_LOG.txt').write_text('Extraction and QC execution passed.\nElapsed: '+progress.duration(display.elapsed)+'\nNon-seismic sources hash verified; seismic integrity is described per dataset.\nPackage: '+package+'\nDashboard: '+str(report_path)+'\nQC: '+qc['report_path']+'\n',encoding='utf-8')
+        diagnostics.event('completed',elapsed_seconds=round(display.elapsed,3),package=package,report=str(report_path),qc=qc_audit)
+        (run/'RUN_LOG.txt').write_text('Elapsed: '+progress.duration(display.elapsed)+'\nDetailed log: '+str(log_path)+'\nStructured events: '+str(event_path)+'\n',encoding='utf-8')
         success = True
         display.message('SUCCESS: report and package QC completed. See per-dataset conversion and integrity results.', flush=True)
         display.message('Run folder: ' + str(run))
         display.message('HTML report: ' + str(report_path))
+        display.message('Process log: ' + str(log_path))
+        if enabled:display.message('Extracted file index: ' + str(destination/'FILE_INDEX.csv'))
         display.message('Seismic outcomes: ' + json.dumps(inventory.get('counts',{})))
         display.message('QC report: ' + qc['report_path'])
         display.message('Read QC findings and unresolved CRS/units before using the data.')
         return 0
-    except Exception as exc:
+    except (Exception,KeyboardInterrupt) as exc:
         failure = {'status':'failed','error':str(exc),'elapsed_seconds':round(display.elapsed, 3),'traceback':traceback.format_exc()}
         if run is not None and run.exists():
             g.write_json(run/'RUN_RESULT.json',failure)
             (run/'RUN_LOG.txt').write_text(failure['traceback'],encoding='utf-8')
+            if diagnostics:diagnostics.event('failed',**failure)
+            if report_path:
+                from geoviewer_delivery import partial_report
+                partial_report(report_path,context,'Extraction failed — partial metadata report',str(exc),log_path if diagnostics else None)
+                display.message('PARTIAL REPORT: '+str(report_path))
             display.message('Failure evidence: ' + str(run/'RUN_RESULT.json'))
         display.message('ERROR: ' + str(exc),file=sys.stderr)
-        return 1
+        return 130 if isinstance(exc,KeyboardInterrupt) else 1
     finally:
         display.close(success=success)
+        if diagnostics:diagnostics.close()
 
 
 if __name__ == '__main__':

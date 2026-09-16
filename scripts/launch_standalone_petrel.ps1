@@ -28,6 +28,11 @@ $toolkitRoot = Split-Path -Parent $PSScriptRoot
 $pythonExe = Join-Path $toolkitRoot "runtime\python.exe"
 $pauseAtEnd = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
 $exitCode = 1
+$transcriptStarted = $false
+$diagnosticsRoot = Join-Path $toolkitRoot 'build\diagnostics'
+New-Item -ItemType Directory -Path $diagnosticsRoot -Force | Out-Null
+$env:GEOVIEWER_BOOTSTRAP_LOG = Join-Path $diagnosticsRoot ('bootstrap_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '_' + [guid]::NewGuid().ToString('N').Substring(0,6) + '.txt')
+try { Start-Transcript -Path $env:GEOVIEWER_BOOTSTRAP_LOG -ErrorAction Stop | Out-Null; $transcriptStarted = $true } catch { Write-Output 'Bootstrap transcript unavailable; extraction diagnostics will still be written.' }
 function Invoke-ZgyInput {
     $zgyArgs = @{ InputFile=$ProjectFile; OutputRoot=$OutputRoot; NoPause=$NoPause; FullHash=$FullHash; ReportOnly=$ReportOnly; Inspect=$Inspect; Capabilities=$Capabilities }
     foreach ($field in @('Domain','VerticalUnit','HorizontalUnit','Crs')) {
@@ -38,13 +43,13 @@ function Invoke-ZgyInput {
 }
 try {
     if ($Help -or $ProjectFile -in @("--help", "/?")) {
-        Write-Output 'Usage: run_portable_petrel_extract.bat "PROJECT.pet" [OUTPUT_ROOT] [convert|copy|inventory] [LABEL] [PETREL_VERSION] [-NoPause]'
+        Write-Output 'Usage: GeoViewer_data_extractor.bat "PROJECT.pet" [OUTPUT_ROOT] [convert|copy|inventory] [LABEL] [PETREL_VERSION] [-NoPause]'
         Write-Output 'Full report/inventory always runs. Add -ReportOnly to disable dataset conversion (enabled by default).'
         Write-Output 'The same BAT accepts INPUT.zgy, -Inspect, -Capabilities and optional -FullHash (off by default).'
-        Write-Output 'Or: run_portable_petrel_extract.bat --check -NoPause'
+        Write-Output 'Or: GeoViewer_data_extractor.bat --check -NoPause'
         exit 0
     }
-    Write-Output "Petrel Headless Extractor 0.7.0 - standalone, read-only"
+    Write-Output "GeoViewer_data_extractor 0.8.0 - standalone, read-only"
     if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy' -or $Inspect -or $Capabilities) {
         $pauseAtEnd=$false
         Invoke-ZgyInput
@@ -57,7 +62,7 @@ try {
         $exitCode = $LASTEXITCODE
     } else {
         if ([string]::IsNullOrWhiteSpace($ProjectFile)) {
-            $launcherRoot = if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $toolkitRoot) 'run_portable_petrel_extract.bat')) { Split-Path -Parent $toolkitRoot } else { $toolkitRoot }
+            $launcherRoot = if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $toolkitRoot) 'GeoViewer_data_extractor.bat')) { Split-Path -Parent $toolkitRoot } else { $toolkitRoot }
             $pairs = @(Get-ChildItem -LiteralPath $launcherRoot -File -Filter '*.pet' | Where-Object {
                 Test-Path -LiteralPath (Join-Path $_.DirectoryName ($_.BaseName + '.ptd')) -PathType Container
             } | Sort-Object Name)
@@ -102,6 +107,7 @@ try {
     Write-Output ("ERROR: " + $_.Exception.Message)
     $exitCode = 1
 } finally {
+    if ($transcriptStarted) { Stop-Transcript | Out-Null }
     if ($pauseAtEnd) { [void](Read-Host 'Press Enter to close') }
 }
 exit $exitCode

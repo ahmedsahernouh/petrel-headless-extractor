@@ -68,7 +68,7 @@ function Resolve-PetrelMcpExecutable {
         }
         $resolved = $candidate
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            $resolved = (Resolve-Path -LiteralPath $candidate).Path
+            $resolved = (Resolve-Path -LiteralPath $candidate).ProviderPath
         } elseif ($candidate -match '[\\/]') {
             $checked.Add($candidate) | Out-Null
             continue

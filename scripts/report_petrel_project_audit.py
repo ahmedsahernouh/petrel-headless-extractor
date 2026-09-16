@@ -87,9 +87,13 @@ def to_int(value: object, default: int = 0) -> int:
 
 def gather_project_summary(package: Path) -> dict:
     summary = load_json_file(package / "01_project_metadata" / "project_summary.json") or {}
+    context = load_json_file(package / '01_project_metadata' / 'project_context.json') or {}
+    native_version=context.get('saved_version',{})
     return {
         "project_name": summary.get("project_name", ""),
-        "petrel_version": summary.get("petrel_version", ""),
+        "petrel_version": native_version.get('value') if native_version.get('status')=='recorded' else summary.get("petrel_version", ""),
+        "requested_petrel_version": summary.get('petrel_version','unknown'),
+        "petrel_version_source": 'native Model.ptd' if native_version.get('status')=='recorded' else 'caller or unknown',
         "project_path": summary.get("project_path", ""),
         "export_id": summary.get("export_id", package.name),
         "coordinate_reference_system": summary.get("coordinate_reference_system", ""),

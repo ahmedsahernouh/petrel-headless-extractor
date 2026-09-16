@@ -21,9 +21,10 @@ import uuid
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import petrel_native_binary as binary
+import time
 from petrel_native_binary import NativeError, Node
 
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 TYPES = ('FloatWellLog', 'IntWellLog', 'RegValGrid2', 'ValGrid2')
 PROFILES = {
     'FloatWellLog': [1, 3, 0, 2, 0, 1],
@@ -191,10 +192,10 @@ def decode_log(node, kind):
         missing = values == 255
         null_encoding = 'uint8 255'
     else:
-        if kind != 'FloatWellLog':
-            raise NativeError('Non-character IntWellLog is not validated')
         values = scalar_array(values_node.child('float_values'), 'float').astype(np.float64)
         missing = values == FLOAT_NULL
+        if kind == 'IntWellLog' and np.any(values[~missing] != np.trunc(values[~missing])):
+            raise NativeError('IntWellLog contains non-integral categorical codes')
         null_encoding = 'positive IEEE float32 maximum'
     if len(md) != len(values) or not np.all(np.isfinite(md)) or not np.all(np.isfinite(values)):
         raise NativeError('Non-finite log value/index or unequal array lengths')
@@ -240,6 +241,13 @@ def decode_surface(node, kind):
     legacy = kind == 'RegValGrid2' and node.attrs.get('Version') == REGULAR_GRID_V0
     fields = ['user_data','node_size','has_node_defs','has_cell_defs','has_connections','has_segments','grid']
     fields += [name for name in ('node_defs','cell_defs') if node.get('has_'+name) is True]
+    # Petrel 2024.5 adds this typed flag without changing the payload's Version.
+    # Retain it as evidence; it does not replace array/mask/geometry validation.
+    consistency = node.child('is_known_consistent', required=False)
+    if consistency is not None:
+        if type(consistency.scalar()) is not bool:
+            raise NativeError('Surface consistency flag must be Boolean')
+        fields.append('is_known_consistent')
     if kind == 'RegValGrid2':
         fields += ['original_inc','original_min','original_max','has_coordinate_context','original_rotation','dip']
         if not legacy: fields += ['axis_flip_state']
@@ -264,7 +272,8 @@ def decode_surface(node, kind):
     i = np.tile(np.arange(nx), ny); j = np.repeat(np.arange(ny), nx)
     geometry = dict(node_size=[nx, ny], ordering='i/x fastest, then j/y',
                     mask_encoding='packed bits, least significant bit first; 1=defined',
-                    cell_mask_preserved=True)
+                    cell_mask_preserved=True,
+                    native_is_known_consistent=consistency.scalar() if consistency else None)
     if kind == 'RegValGrid2':
         if values.dtype.kind != 'f' or values.dtype.itemsize != 4:
             raise NativeError('Only float32 regular-grid values are validated')
@@ -500,13 +509,14 @@ def run(package, *, grids_only=False, preview_only=False):
         try: metadata = Metadata(sources[0], sources[1])
         except (NativeError, UnicodeError, OSError) as exc: metadata_error = str(exc)
         directory = package/'native_data'; directory.mkdir(exist_ok=False)
-        with closing(sqlite3.connect(dbpath.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+        with closing(sqlite3.connect(binary.sqlite_readonly_uri(dbpath), uri=True)) as db:
             db.execute('PRAGMA query_only=ON')
             db.execute('BEGIN')
             objects = select_objects(db)
             if grids_only: objects = [row for row in objects if row[4] in ('RegValGrid2','ValGrid2')]
             report['object_type_counts'] = dict(collections.Counter(r[4] for r in objects))
             for index, (pk, tag, name, version, kind) in enumerate(objects):
+                object_started=time.monotonic()
                 record = dict(object_id=tag, blob_type=kind, data_pk=pk, registry_version=version, artifacts=[])
                 try:
                     if metadata_error: raise MissingMetadata(metadata_error)
@@ -517,6 +527,8 @@ def run(package, *, grids_only=False, preview_only=False):
                     state = 'missing_metadata' if isinstance(exc, MissingMetadata) else 'conversion_failed' if isinstance(exc, QCError) else 'unsupported_layout'
                     record.update(status=state, reason=str(exc))
                 report['objects'].append(record)
+                record['elapsed_seconds']=round(time.monotonic()-object_started,3)
+                print('OBJECT_RESULT '+json.dumps({key:record.get(key) for key in ('object_id','name','blob_type','status','reason','elapsed_seconds')},ensure_ascii=True),flush=True)
                 if grids_only:
                     write_json(report_path, report)
                 if index % 20 == 0 or index+1 == len(objects):

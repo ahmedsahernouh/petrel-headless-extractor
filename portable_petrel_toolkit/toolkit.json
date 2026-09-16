@@ -1,6 +1,6 @@
 {
-  "name": "portable-petrel-project-extractor",
-  "version": "0.7.0",
+  "name": "GeoViewer_data_extractor",
+  "version": "0.8.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -11,7 +11,8 @@
     "Native well-top rows after Petrel ASCII XYZ calibration",
     "Native FloatWellLog continuous curves to LAS/CSV with original MD, values and nulls",
     "Native IntWellLog categorical/boundary records to CSV with codes and null flags",
-    "Validated native RegValGrid2 surface arrays to XYZ/CSV/ZMAP and explicit ValGrid2 meshes to XYZ/CSV with definition masks"
+    "Validated native RegValGrid2 surface arrays to XYZ/CSV/ZMAP and explicit ValGrid2 meshes to XYZ/CSV with definition masks",
+    "Observed Commands workflow definitions to readable JSON; no execution or native re-import"
   ],
   "specialist_inventory": [
     "SEG-Y",
@@ -30,10 +31,10 @@
     {
       "input": "ZGY",
       "output": "SEG-Y",
-      "entrypoint": "run_portable_petrel_extract.bat",
-      "status": "beta_time_domain_profile",
+      "entrypoint": "GeoViewer_data_extractor.bat",
+      "status": "beta_time_or_explicit_unspecified_axis",
       "whole_project_integration": true,
-      "discovery": "selected store and explicit project XML references; unlinked companions remain inventoried"
+      "discovery": "selected store plus exact native UUID links and external reference inventory"
     }
   ],
   "companion_conversions": [
@@ -43,7 +44,7 @@
     "Petrel Well Tops ASCII to structured CSV"
   ],
   "native_recovery": {
-    "entrypoint": "run_portable_petrel_extract.bat",
+    "entrypoint": "GeoViewer_data_extractor.bat",
     "mode": "convert",
     "status": "beta_validated_profiles",
     "docs": "NATIVE_LOGS_SURFACES.md"
@@ -69,5 +70,6 @@
     "switch": "-FullHash",
     "fast_mode": "file state plus complete numerical conversion QC; no source SHA-256 claim",
     "raw_seismic_copied": false
-  }
+  },
+  "modern_validation_priority": "2023/2024 and later through observed profiles; primary supplied fixture records 2024.5.0"
 }

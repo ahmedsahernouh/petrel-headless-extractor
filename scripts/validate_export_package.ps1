@@ -42,8 +42,8 @@ function Get-RelativePath {
         [string]$PathValue
     )
 
-    $baseUri = [System.Uri]((Resolve-Path -LiteralPath $BasePath).Path.TrimEnd("\") + "\")
-    $fileUri = [System.Uri]((Resolve-Path -LiteralPath $PathValue).Path)
+    $baseUri = [System.Uri]((Resolve-Path -LiteralPath $BasePath).ProviderPath.TrimEnd("\") + "\")
+    $fileUri = [System.Uri]((Resolve-Path -LiteralPath $PathValue).ProviderPath)
     return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($fileUri).ToString()).Replace("/", "\")
 }
 
@@ -111,7 +111,7 @@ function Test-LasFile {
     return $result
 }
 
-$packageRoot = (Resolve-Path -LiteralPath $ExportPackage).Path
+$packageRoot = (Resolve-Path -LiteralPath $ExportPackage).ProviderPath
 $manifestPath = Join-Path $packageRoot "00_manifest\export_manifest.csv"
 $summaryPath = Join-Path $packageRoot "01_project_metadata\project_summary.json"
 $validationRoot = Join-Path $packageRoot "07_workflows_reports\validation_reports"

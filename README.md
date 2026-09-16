@@ -1,4 +1,6 @@
-# Petrel Headless Extractor
+![FieldViewer FV](docs/assets/fv-mark.svg)
+
+# GeoViewer_data_extractor
 
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -6,7 +8,7 @@ Extract supported data and metadata from a Petrel project into a browsable, chec
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-**Version 0.7.0:** expands native surface/grid recovery to the validated older binary profile, exports regular grids as **ZMAP + XYZ/CSV**, and displays grid maps with full-data statistics in the report. Explicit XYZ meshes retain XYZ/CSV without assuming regular spacing. Undefined nodes/cells and original indices are preserved; unresolved native units remain labelled. [Grid profile and validation](docs/NATIVE_LOGS_SURFACES.md). One main BAT handles projects and ZGY files; seismic hashing is off by default. The [visual report and complete foldable inventory](docs/VISUAL_REPORT.md) always remain included; conversion is optional and on by default. The [polygon segment correction](docs/NATIVE_POLYGONS.md) is retained.
+**Version 0.8.0:** modern-first recovery tested on a project recording Petrel 2024.5.0; native grids and logs, typed polygon/point recovery, direct ZGY-to-SEG-Y with explicit unresolved-axis metadata, project identity and history, detailed logs and a shallow converted-data index. [Read the current usage and limits](docs/GEOVIEWER_0_8.md).
 
 **Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The main BAT also performs [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic in the selected store or explicitly referenced by the project. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
 
@@ -15,23 +17,23 @@ The release ZIP includes Python and all pinned runtime dependencies. No Python i
 ## Run on your project
 
 1. Download the **standalone ZIP** from Releases and extract the whole folder. GitHub's automatic "Source code" archives do not include the runtime.
-2. The extracted folder contains one `run_portable_petrel_extract.bat` beside a `PetrelExtractor` support folder; launch that BAT. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
-3. Drag the `.pet` file onto `run_portable_petrel_extract.bat`, or double-click the BAT and enter its path.
+2. The extracted folder contains one `GeoViewer_data_extractor.bat` beside a `GeoViewer` support folder; launch that BAT. Keep `Project.pet` and its complete matching `Project.ptd` directory together elsewhere. Close the project in Petrel during extraction.
+3. Drag the `.pet` file onto `GeoViewer_data_extractor.bat`, or double-click the BAT and enter its path.
 4. The BAT installs Python and dependencies from its bundled cache on first launch. Later launches automatically repair missing or damaged runtime files before checking imports. This stays inside the extracted toolkit folder and works offline.
-5. Open the printed `<project>_<run>_REPORT.html` directly in your selected output folder. Its matching `<project>_<run>_data` folder holds all datasets, logs and receipts. The full report is available before seismic conversion finishes; refresh it for progress. Results default to `%USERPROFILE%\Petrel_Extracts`.
+5. Open the printed `<project>_<run>_REPORT.html` directly in your selected output folder. Use its separate **Open the extracted data** index or sibling `<project>_<run>_EXPORTS/FILE_INDEX.csv`. The matching `_data` folder holds evidence and receipts. The full report is available before seismic conversion finishes; refresh it for progress. Results default to `%USERPROFILE%\Petrel_Extracts`.
 
 Keep the whole extracted release together: the BAT alone is a launcher, not the application. Choose an output folder outside your source project.
 
 **Windows "Path too long" during extraction:** cancel the incomplete extraction and use **v0.2.1 or newer**. These releases use short ZIP and folder names. Extract to a short destination and do not skip files. Version 0.2.0's long repeated folder names could interrupt Windows Explorer extraction and leave the BAT without its scripts.
 
 ```bat
-run_portable_petrel_extract.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert
+GeoViewer_data_extractor.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert
 ```
 
 Append `-NoPause` for unattended runs. Check and repair dependencies without opening a project:
 
 ```bat
-run_portable_petrel_extract.bat --check -NoPause
+GeoViewer_data_extractor.bat --check -NoPause
 ```
 
 The BAT shows an overall stage bar and elapsed timer automatically. Large-file hashing also shows byte progress and an estimated time remaining for that hash pass. Stages take different amounts of time; the bar reaches completion only after extraction and QC pass. See [progress and timer details](docs/USAGE.md#progress-and-timer).
@@ -51,7 +53,7 @@ Existing open-format companion handling is secondary. It does not count as decod
 
 ## Scope and limits
 
-The extractor reads source projects and writes new output folders. It never launches Petrel or modifies source stores. It does not universally decode proprietary Petrel formats. Unknown native layouts can stop conversion; ZGY/SEG-Y and other specialist formats may be inventoried instead of converted. CRS, units, geological validity, and Petrel re-import require independent checking. Input Petrel version defaults to `unknown`; cross-version compatibility is not established.
+The extractor reads source projects and writes new output folders. It never launches Petrel or modifies source stores. Native saved-version evidence is shown when readable, including the validated 2024.5.0 fixture. Decoding depends on observed storage and object profiles, not a blanket supported-year range. Unsupported objects remain inventoried while independent supported categories continue. CRS, units, geological validity and Petrel re-import require independent checking. See [current profile limits](docs/GEOVIEWER_0_8.md).
 
 The release is checked with synthetic fixtures, actual BAT execution from a relocated folder, system Python unavailable on PATH, poisoned Python environment variables, checksum tampering, missing project stores, and source/output overlap. Local supplied-project checks are summarized without distributing their data in [validation](docs/VALIDATION.md).
 
@@ -68,3 +70,7 @@ Licensed manuals, KB content, demonstration projects, client data, machine-local
 MIT License, copyright 2026 Ahmed Saher Nouh. Bundled Python and dependencies retain their own license texts and notices. Releases include `THIRD_PARTY_NOTICES.md` and runtime/dependency provenance manifests.
 
 Petrel and Ocean are trademarks of SLB. This is an independent interoperability project, not affiliated with or endorsed by SLB.
+
+## Version 0.8.0
+
+Start with [the updated usage and capability guide](docs/GEOVIEWER_0_8.md). Modern-first native recovery, shallow file index, project version/save evidence, detailed diagnostics and explicit unknown-axis seismic export. Complete 3D RESCUE remains [planned](docs/RESCUE_EXPORT_PLAN.md).

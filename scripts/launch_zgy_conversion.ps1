@@ -21,7 +21,7 @@ $exitCode = 1
 $interactive = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
 try {
     if ($Help) {
-        Write-Output 'run_portable_petrel_extract.bat "INPUT.zgy" [OUTPUT_ROOT] [-Domain time] [-VerticalUnit ms] [-HorizontalUnit m] [-Crs "identifier"] [-FullHash] [-NoPause]'
+        Write-Output 'GeoViewer_data_extractor.bat "INPUT.zgy" [OUTPUT_ROOT] [-Domain time] [-VerticalUnit ms] [-HorizontalUnit m] [-Crs "identifier"] [-FullHash] [-NoPause]'
         Write-Output 'Use -Inspect to read metadata or -Capabilities to list supported profiles. Double-click or drag a ZGY to enter missing metadata interactively.'
         exit 0
     }

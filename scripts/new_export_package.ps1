@@ -38,7 +38,7 @@ function ConvertTo-Slug {
 }
 
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$exportId = "$(ConvertTo-Slug $ProjectName)_export_$timestamp"
+$exportId = "p_${timestamp}_$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $packageRoot = Join-Path $OutputRoot $exportId
 
 $domainDirs = @(

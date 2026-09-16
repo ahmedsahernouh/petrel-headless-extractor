@@ -9,7 +9,7 @@ The core purpose is Petrel binary/native payload recovery into open, usable form
 Before release work, review [deferred release requests](docs/RELEASE_BACKLOG.md). Implement pending requests in their specified update; registration alone does not authorize an immediate release.
 
 1. Run `scripts\doctor_portable_petrel_toolkit.ps1` before extraction.
-2. For project extraction, require an exact `.pet` path and matching `<stem>.ptd` directory. For the direct ZGY converter, require the exact `.zgy` file and resolved domain/units; see [the supported profile](docs/ZGY_TO_SEGY.md).
+2. For project extraction, require an exact `.pet` path and matching `<stem>.ptd` directory. For the direct ZGY converter, require the exact `.zgy` file ; unknown domain/units may export with explicitly unspecified headers and an exact native-axis sidecar; see [the supported profile](docs/ZGY_TO_SEGY.md).
 3. Require the output root to be outside the source project.
 4. Never launch Petrel, use Ocean, or mutate `.pet/.ptd` files.
 5. When projects share one directory, exclude every neighboring `.pet` file and `.ptd` directory from companion ingestion and report the exclusions.

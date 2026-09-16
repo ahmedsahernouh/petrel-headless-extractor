@@ -85,11 +85,26 @@ class BinaryConversionTests(unittest.TestCase):
     def test_compressed_zfp(self):
         p=self.fixture(compressed=True);self.verify_raw(p,self.run_conversion(p))
 
-    def test_missing_units_rejected_before_hash_or_output(self):
-        p=self.fixture(zunitdim=UnitDimension.unknown,zunitname='',hunitdim=UnitDimension.unknown,hunitname='')
-        with patch.object(progress,'hash_file',side_effect=AssertionError('must not hash unresolved input')):
-            with self.assertRaises(converter.InputError):self.run_conversion(p)
-        self.assertFalse(self.outputs.exists())
+    def test_unknown_axis_exports_values_without_false_time_units(self):
+        p=self.fixture(zunitdim=UnitDimension.unknown,zunitname='',hunitdim=UnitDimension.unknown,hunitname='',zinc=10.946130752563477,zstart=-4.25)
+        result=self.run_conversion(p,full_hash=False)
+        folder=Path(result['receipt_path']).parent
+        metadata=json.loads((folder/'conversion_metadata.json').read_text())
+        self.assertEqual(metadata['domain'],'unknown')
+        self.assertEqual(metadata['native_axis']['increment'],10.946130752563477)
+        self.assertEqual(metadata['native_axis']['origin'],-4.25)
+        with (folder/'volume.segy').open('rb') as stream,converter.open_zgy(p) as source:
+            header=stream.read(3600)
+            self.assertEqual(struct.unpack_from('>H',header,3216)[0],0)
+            self.assertEqual(struct.unpack_from('>H',header,3254)[0],0)
+            for i in range(3):
+                block=np.empty((1,4,16),dtype=np.float32);source.read((i,0,0),block)
+                for j in range(4):
+                    trace=stream.read(240)
+                    self.assertEqual(struct.unpack_from('>H',trace,116)[0],0)
+                    self.assertEqual(struct.unpack_from('>h',trace,108)[0],0)
+                    np.testing.assert_array_equal(np.frombuffer(stream.read(64),dtype='>f4'),block[0,j])
+        self.assertTrue(result['summary']['all_decoded_samples_exact'])
 
     def test_explicit_metadata_for_unknown_source(self):
         p=self.fixture(zunitdim=UnitDimension.unknown,zunitname='',hunitdim=UnitDimension.unknown,hunitname='')

@@ -108,7 +108,7 @@ def polygon_doc(parts, closed=None, *, outer_count=None, inner_version=None, att
     return element('data',children=children,attrs={'xmlns':r.NAMESPACE,'Id':1,'Type':'Polygons3','Version':[1,2,0,1,1]})
 
 
-def surface_doc(kind='RegValGrid2', rotation=0, context=True, dims=(3, 2), mask=b'\x1f', connections=False, packed=False, legacy=False):
+def surface_doc(kind='RegValGrid2', rotation=0, context=True, dims=(3, 2), mask=b'\x1f', connections=False, packed=False, legacy=False, consistent=None):
     n = dims[0]*dims[1]
     vals = list(range(1, n+1))
     children = [element('user_data', attrs={'Size': 0}), element('node_size', children=[array('int', dims, '<i4')]),
@@ -127,10 +127,20 @@ def surface_doc(kind='RegValGrid2', rotation=0, context=True, dims=(3, 2), mask=
     else:
         xyz = [[100.+i*20, 200.+j*30, vals[j*dims[0]+i]] for j in range(dims[1]) for i in range(dims[0])]
         children.append(element('grid', children=[array('node', np.ravel(xyz), '<f8')], attrs={'Size': -1}))
+    if consistent is not None:children.append(element('is_known_consistent',consistent))
     return element('data', children=children, attrs={'xmlns': r.NAMESPACE, 'Type': kind, 'Version': r.REGULAR_GRID_V0 if legacy else r.PROFILES[kind]})
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_modern_surface_consistency_field_does_not_bypass_checks(self):
+        for kind in ('RegValGrid2','ValGrid2'):
+            for flag in (True,False):
+                node=b.object_document(envelope(frame(surface_doc(kind,consistent=flag))))
+                decoded=r.decode_surface(node,kind)
+                self.assertEqual(decoded[-1]['native_is_known_consistent'],flag)
+                self.assertEqual(decoded[0].size,6)
+            with self.assertRaises(b.NativeError):
+                r.decode_surface(b.object_document(envelope(frame(surface_doc(kind,consistent='true')))),kind)
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='Petrel native fixture ')
         self.addCleanup(self.temp.cleanup)
@@ -189,6 +199,13 @@ class RecoveryTests(unittest.TestCase):
     def test_discrete_intervals_remain_boundary_csv(self):
         _, _, record = self.run_fixture(kind='IntWellLog', doc=log_doc('IntWellLog', char=True, values=[2,255,4], intervals=True))
         self.assertEqual(record['las_status'], 'not_written')
+
+    def test_modern_float_encoded_integer_log_codes(self):
+        _,_,record=self.run_fixture(kind='IntWellLog',doc=log_doc('IntWellLog',char=False,values=[9.,15.,9.],intervals=True))
+        self.assertEqual(record['numeric_round_trip'],'exact')
+        self.assertEqual(record['las_status'],'not_written')
+        with self.assertRaises(b.NativeError):
+            r.decode_log(b.object_document(envelope(frame(log_doc('IntWellLog',char=False,values=[9.,15.5,9.])))),'IntWellLog')
         self.assertTrue(record['interval_records']); self.assertEqual(record['sample_count'], 3)
 
     def test_unknown_units_do_not_become_las(self):

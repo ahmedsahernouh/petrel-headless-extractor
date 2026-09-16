@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 import petrel_native_binary as native_binary
+import time
 
 
 SUPPORTED_TYPES = {
@@ -393,7 +394,7 @@ def decompress_lz4_block(blob: bytes) -> tuple[bytes, dict[str, Any]]:
 def open_read_only_sqlite(path: Path) -> sqlite3.Connection:
     if not path.is_file():
         raise FileNotFoundError(f"Data.ptd was not found: {path}")
-    connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    connection = sqlite3.connect(native_binary.sqlite_readonly_uri(path), uri=True)
     connection.row_factory = sqlite3.Row
     required = {"data", "blob_parts"}
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -523,24 +524,44 @@ def decode_count_scalar(payload: bytes, offset: int) -> tuple[int, int]:
 
 
 def decode_points3(payload: bytes) -> tuple[list[tuple[float, float, float] | None], dict[str, Any]]:
-    dictionary, dictionary_end = parse_initial_dictionary(payload)
-    if "Points3" not in dictionary or "vertices" not in dictionary:
-        raise DecodeError("Payload dictionary is not a Points3 vertex layout")
-    collection_prefix = b"\x42\x18\x06\x08"
-    collection_position = payload.find(collection_prefix, dictionary_end)
-    if collection_position < 0:
-        raise DecodeError("Points3 declared point count was not found")
-    point_count, cursor = decode_count_scalar(payload, collection_position + len(collection_prefix))
-    if point_count == 0:
-        return [], {"dictionary_entries": len(dictionary), "reason": "empty_point_collection"}
-    vector_marker = b"\x42\x1a\x01\x93"
-    if cursor >= len(payload) or payload[cursor] != 0x03 or payload[cursor + 1 : cursor + 1 + len(vector_marker)] != vector_marker:
-        raise DecodeError("Points3 XYZ array does not immediately follow the declared point count")
-    marker_offset = cursor + 1
-    array = decode_xyz_vector(payload, marker_offset, vector_marker, point_count)
+    """Read framed typed XYZ arrays; never guess offsets from plausible coordinates."""
+    try:
+        nodes = list(native_binary.read_documents(payload))
+        if len(nodes) != 1:
+            raise DecodeError('Expected one Points3 document')
+        node = nodes[0]
+        if (node.name != 'data' or node.attrs.get('Type') != 'Points3'
+                or node.attrs.get('Version') != [1, 2, 0, 1, 1]
+                or node.attrs.get('xmlns') != 'http://www.slb.com/Petrel/2011/03/Serialization'):
+            raise DecodeError('Points3 type/version/namespace is outside the validated profile')
+        expected = ['user_data', 'vertices', 'has_attr', 'has_object_ids']
+        if node.get('has_attr') is True:
+            expected.append('attributes')
+        if node.get('has_object_ids') is True:
+            expected.append('object_ids')
+        if (node.content or sorted(c.name for c in node.children) != sorted(expected)
+                or type(node.get('has_attr')) is not bool or type(node.get('has_object_ids')) is not bool):
+            raise DecodeError('Unsupported Points3 fields or object IDs')
+        user = node.child('user_data')
+        if user.attrs.get('Size') != 0 or user.children or user.content:
+            raise DecodeError('Points3 user-data layout is not validated')
+        vertices = node.child('vertices'); point_count = vertices.attrs.get('Size')
+        if type(point_count) is not int or not 0 <= point_count <= 2_000_000 or vertices.content:
+            raise DecodeError('Invalid Points3 declared count')
+        values = vertices.array('double') if point_count else []
+        if (len(values) != 3*point_count or any(c.name != 'double' for c in vertices.children)
+                or (point_count and (values.dtype.kind!='f' or values.dtype.itemsize!=8))):
+            raise DecodeError('Points3 typed XYZ count mismatch')
+        if node.get('has_object_ids'):
+            ids=node.child('object_ids')
+            if (ids.attrs.get('Size')!=point_count or len(ids.children)!=point_count or ids.content
+                    or any(c.name!='item' or c.attrs.get('Version')!=3 for c in ids.children)):
+                raise DecodeError('Points3 object identity slots do not match vertices')
+    except native_binary.NativeError as exc:
+        raise DecodeError(str(exc)) from exc
     points: list[tuple[float, float, float] | None] = []
-    for index in range(0, len(array.values), 3):
-        point = tuple(array.values[index : index + 3])
+    for index in range(0, len(values), 3):
+        point = tuple(float(v) for v in values[index : index + 3])
         if any(is_native_missing_float(value) for value in point):
             points.append(None)
         elif all(math.isfinite(value) and abs(value) <= MAX_ABS_COORDINATE for value in point):
@@ -548,12 +569,12 @@ def decode_points3(payload: bytes) -> tuple[list[tuple[float, float, float] | No
         else:
             raise DecodeError(f"Points3 contains an invalid XYZ triple at point {index // 3}")
     return points, {
-        "dictionary_entries": len(dictionary),
-        "vertices_marker_offset": array.marker_offset,
+        "decoder": "length_framed_typed_NBFX",
         "declared_point_count": point_count,
-        "vertices_scalar_count": len(array.values),
+        "vertices_scalar_count": len(values),
         "missing_vertex_slots": sum(point is None for point in points),
-        "dictionary_frames_skipped": list(array.dictionary_frames_skipped),
+        "attributes_status": "retained_in_native_source_not_exported" if node.get('has_attr') else "not_present",
+        "object_ids_status": "retained_in_native_source_not_exported" if node.get('has_object_ids') else "not_present",
     }
 
 
@@ -1452,13 +1473,18 @@ def run(args: argparse.Namespace) -> int:
     point_rows: list[dict[str, Any]] = []
     trajectory_rows: list[dict[str, Any]] = []
     point_objects: list[dict[str, Any]] = []
+    context_path=export_package/'01_project_metadata/project_context.json'
+    context=json.loads(context_path.read_text(encoding='utf-8-sig')) if context_path.is_file() else {}
+    object_names={row['object_id']:row['name'] for row in context.get('objects',[])}
     try:
         objects = live_native_objects(connection)
         for native_object in objects:
+            object_started=time.monotonic()
             report: dict[str, Any] = {
                 "object_id": native_object.object_id,
                 "data_pk": native_object.data_pk,
                 "name": native_object.name,
+                "object_name": object_names.get(native_object.object_id,native_object.name),
                 "version": native_object.version,
                 "blob_type": native_object.blob_type,
                 "timestamp": native_object.timestamp,
@@ -1470,7 +1496,7 @@ def run(args: argparse.Namespace) -> int:
                 report["envelope"] = envelope
                 # The typed polygon reader consumes declared frames itself. Removing
                 # marker-like bytes beforehand can corrupt a float inside an array.
-                if native_object.blob_type != "Polygons3":
+                if native_object.blob_type not in ("Polygons3", "Points3"):
                     _, initial_dictionary_end = parse_initial_dictionary(payload)
                     payload, embedded_frames = strip_dictionary_extensions(payload, initial_dictionary_end)
                     report["embedded_dictionary_frames_removed"] = embedded_frames
@@ -1492,7 +1518,7 @@ def run(args: argparse.Namespace) -> int:
                                 {
                                     "object_id": native_object.object_id,
                                     "data_pk": native_object.data_pk,
-                                    "object_name": native_object.name,
+                                    "object_name": object_names.get(native_object.object_id,native_object.name),
                                     "version": native_object.version,
                                     "point_index": index,
                                     "x": x,
@@ -1518,7 +1544,7 @@ def run(args: argparse.Namespace) -> int:
                                 {
                                     "object_id": native_object.object_id,
                                     "data_pk": native_object.data_pk,
-                                    "object_name": native_object.name,
+                                    "object_name": object_names.get(native_object.object_id,native_object.name),
                                     "version": native_object.version,
                                     "part_index": part_index,
                                     "segment_id": segment['segment_id'],
@@ -1543,7 +1569,7 @@ def run(args: argparse.Namespace) -> int:
                         row: dict[str, Any] = {
                             "object_id": native_object.object_id,
                             "data_pk": native_object.data_pk,
-                            "object_name": native_object.name,
+                            "object_name": object_names.get(native_object.object_id,native_object.name),
                             "version": native_object.version,
                             "provider_type": native_object.blob_type,
                             "record_index": record["record_index"],
@@ -1563,6 +1589,8 @@ def run(args: argparse.Namespace) -> int:
             except Exception as exc:  # per-object fail-closed boundary
                 report["error"] = f"{type(exc).__name__}: {exc}"
             object_reports.append(report)
+            report['elapsed_seconds']=round(time.monotonic()-object_started,3)
+            print('OBJECT_RESULT '+json.dumps({key:report.get(key) for key in ('object_id','object_name','blob_type','status','error','elapsed_seconds')},ensure_ascii=True),flush=True)
     finally:
         connection.close()
 
@@ -1654,7 +1682,7 @@ def run(args: argparse.Namespace) -> int:
     report_path = report_root / "native_spatial_decode_report.json"
     summary = {
         "tool": "export_petrel_native_spatial_zero_gui.py",
-        "tool_version": "0.3.0-typed-polygon-segments",
+        "tool_version": "0.8.0-typed-spatial",
         "completed_at_utc": utc_now(),
         "source_data_file": str(data_file),
         "source_open_mode": "sqlite_uri_mode_ro",
@@ -1662,7 +1690,7 @@ def run(args: argparse.Namespace) -> int:
         "petrel_process_launched": False,
         "ocean_api_used": False,
         "source_mutated": False,
-        "layout_scope": "validated Petrel 2010 and 2018 LZ4-v1 BXML object layouts only",
+        "layout_scope": "observed LZ4-v1/BXML object profiles, including the supplied Petrel 2024.5 fixture; not blanket release compatibility",
         "crs_boundary": "coordinates are preserved numerically; CRS is not inferred from geometry payloads",
         "supported_types": sorted(SUPPORTED_TYPES),
         "object_type_counts": dict(sorted(type_counts.items())),

@@ -68,19 +68,15 @@ def literal_lz4_envelope(payload: bytes) -> bytes:
 
 
 def points_payload(points: list[tuple[float, float, float]], checkpoint: tuple[int, bytes] | None = None) -> bytes:
-    names = BASE_NAMES + ["Points3", "user_data", "vertices", "double"]
-    raw = b"".join(struct.pack("<3d", *point) for point in points)
+    from test_petrel_native_recovery import element,array,frame,vint
+    children=[element('user_data',attrs={'Size':0}),
+        element('vertices',children=[array('double',[v for p in points for v in p],'<f8')],attrs={'Size':len(points)}),
+        element('has_attr',False),element('has_object_ids',False)]
+    doc=element('data',children=children,attrs={'Type':'Points3','Version':[1,2,0,1,1],'xmlns':BASE_NAMES[-1]})
     if checkpoint:
-        offset, frame = checkpoint
-        raw = raw[:offset] + frame + raw[offset:]
-    return (
-        dictionary(names)
-        + b"\x42\x18\x06\x08\x88"
-        + bytes([len(points)])
-        + b"\x03\x42\x1A\x01\x93"
-        + decoder.encode_uleb128(len(points) * 3)
-        + raw
-    )
+        cut=doc.index(struct.pack('<3d',*points[0]))+checkpoint[0]
+        return b'BXML\x01'+b'\xa0'+vint(cut)+doc[:cut]+b'\xa0'+vint(len(doc)-cut)+doc[cut:]+b'\xa2'
+    return frame(doc)
 
 
 class NativeSpatialDecoderTests(unittest.TestCase):
@@ -131,12 +127,12 @@ class NativeSpatialDecoderTests(unittest.TestCase):
 
     def test_points3_checkpoint_inside_double(self) -> None:
         points = [(450_000.0 + i, 2_900_000.0 + i * 2, -1_000.0 - i) for i in range(20)]
-        # Insert the observed A0-plus-two-byte checkpoint inside Y of point 12.
+        # A legal length frame splits inside Y of point 12 without changing bytes.
         payload = points_payload(points, checkpoint=(12 * 24 + 8 + 5, b"\xA0\x12\x34"))
         decoded, evidence = decoder.decode_points3(payload)
         self.assertEqual(decoded, points)
         self.assertEqual(evidence["declared_point_count"], 20)
-        self.assertEqual(len(evidence["dictionary_frames_skipped"]), 1)
+        self.assertEqual(evidence['decoder'],'length_framed_typed_NBFX')
 
     def test_polygons3_declared_counts(self) -> None:
         from test_petrel_native_recovery import frame, polygon_doc

@@ -67,9 +67,12 @@ def is_link(path: Path) -> bool:
     return path.is_symlink() or bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)
 
 
-def safe_files(directory: Path) -> list[Path]:
+def safe_files(directory: Path, exclude_toolkits=False) -> list[Path]:
     result = []
     for base, dirs, names in os.walk(directory, followlinks=False):
+        if exclude_toolkits:
+            from geoviewer_paths import is_toolkit
+            dirs[:]=[d for d in dirs if not is_toolkit(Path(base)/d)]
         for name in dirs + names:
             p = Path(base) / name
             if is_link(p):
@@ -490,7 +493,7 @@ def extract_portable_project(args: dict) -> dict:
     if mode not in ('inventory','copy','convert'):raise InputError('Invalid companion_mode')
     # The existing pipeline may inspect companions; include that entire source lane.
     progress.phase(2, 'Initial source integrity hashes')
-    inputs=safe_files(source.parent)
+    inputs=safe_files(source.parent,exclude_toolkits=True)
     if args.get('reference_seismic'):
         from petrel_seismic_integrity import SEISMIC_SUFFIXES
         neighbors={p.resolve() for p in source.parent.glob('*.ptd') if p.resolve()!=store}

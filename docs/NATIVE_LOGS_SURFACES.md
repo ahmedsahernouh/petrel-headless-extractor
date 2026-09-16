@@ -1,3 +1,5 @@
+> Current release: [GeoViewer_data_extractor 0.8.0](GEOVIEWER_0_8.md) supersedes the historical time-only seismic restriction and adds observed 2024.5 profiles, project identity, diagnostics and a shallow export index.
+
 # Native well logs and surfaces — v0.7.0 beta
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
@@ -6,7 +8,7 @@ The normal standalone BAT now attempts native well-log and surface recovery in `
 
 ## Using the outputs
 
-Run `run_portable_petrel_extract.bat`, enter the exact `.pet` path, and let extraction finish. In `PROJECT_REPORT.html`, check **Extraction coverage** and the **Native log and surface recovery** evidence link.
+Run `GeoViewer_data_extractor.bat`, enter the exact `.pet` path, and let extraction finish. In `PROJECT_REPORT.html`, check **Extraction coverage** and the **Native log and surface recovery** evidence link.
 
 Under the extraction package, open:
 

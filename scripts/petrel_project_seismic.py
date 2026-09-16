@@ -72,6 +72,29 @@ def discover(project):
         rows[key]=row
     for path in sorted(store.rglob('*')):
         if path.is_file() and path.suffix.lower() in SEISMIC_SUFFIXES: add(path,'selected_project_store')
+    native_objects=[]
+    try:
+        from geoviewer_metadata import inspect_project
+        native_objects=inspect_project(project).get('seismic_objects',[])
+        for obj in native_objects:
+            for reference in obj.get('references',[]):
+                value=reference['value']; leaf=Path(value.replace('\\','/')).name
+                # Only exact UUID-named storage inside the selected project is relocated.
+                match=[r for r in rows.values() if r['association'] in ('selected_project_store','exact_native_UUID_in_selected_store') and
+                       re.fullmatch(r'[0-9a-fA-F-]{36}\.zgy',leaf) and Path(r['source']).name.casefold()==leaf.casefold()]
+                if match:
+                    row=match[0]
+                    row.setdefault('native_objects',[]).append(dict(object_id=obj['object_id'],name=obj['name']))
+                    row['name']=obj['name'];row['association']='exact_native_UUID_in_selected_store'
+                else:
+                    key='reference:'+value.casefold()
+                    if key not in rows:
+                        rows[key]=dict(id=hashlib.sha256(key.encode()).hexdigest()[:16],source=value,name=leaf,
+                            association='native_model_external_reference',reference=value,format=Path(leaf).suffix.lower(),
+                            status='missing',reason='Referenced file is not present in the selected store. External hosts were not probed; this does not establish that the original file was deleted.',
+                            native_objects=[],sha256=None,hash_status='not_available',preserved_copy=False)
+                    rows[key]['native_objects'].append(dict(object_id=obj['object_id'],name=obj['name']))
+    except (OSError,ValueError) as exc:findings.append('Native seismic object linkage unavailable: '+str(exc))
     # Parse bounded XML or supported BXML fields. No fuzzy binary-string matching.
     if project.stat().st_size <= 64*1024*1024:
         try:
@@ -95,11 +118,12 @@ def discover(project):
             findings.append('External project reference discovery unavailable: '+str(exc))
     else: findings.append('Project XML exceeds the 64 MiB reference-discovery limit')
     neighboring={p.resolve() for p in project.parent.glob('*.ptd') if p.resolve()!=store}
-    for path in sorted(project.parent.rglob('*')):
+    from geoviewer_paths import project_files
+    for path in sorted(project_files(project.parent)):
         if path.suffix.lower() not in SEISMIC_SUFFIXES or not path.is_file(): continue
         if any(parent in neighboring for parent in path.resolve().parents): continue
         add(path,'unlinked_companion')
-    return dict(version='0.6.0', project_file=str(project), objects=list(rows.values()), findings=findings,
+    return dict(version='0.8.0', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
                 discovery_boundary='Selected store and explicit XML or supported BXML file/path fields only. Unlinked companions need an exact-file run. Unparsed references are not inferred.')
 
 
@@ -130,8 +154,19 @@ def convert_project(inventory, output, enabled, full_hash=False, on_update=None,
             result=execute(row['source'],output,'zgy-to-segy',{**(options or {}),'full_hash':full_hash,'expected_source_state':row.get('file_state')})
             row.update(status='converted', result=result, receipt_path=result['receipt_path'],
                        output_file=str(Path(result['receipt_path']).parent/'volume.segy'))
+            if full_hash:
+                row.update(sha256=result['source_hashes_before'].get(str(Path(row['source']).resolve())),hash_status='sha256')
         except Exception as exc:
-            row.update(status='unavailable', reason=str(exc))
+            row.update(status='conversion_failed', reason=str(exc))
+            if full_hash and row.get('file_state') and not row.get('sha256'):
+                try:
+                    source=Path(row['source'])
+                    with readonly_source(source):
+                        before=file_state(source);digest=hash_file(source)
+                        if before!=file_state(source):raise ValueError('Source changed while hashing')
+                    row.update(sha256=digest,hash_status='sha256')
+                except (OSError,ValueError) as error:
+                    row.update(hash_status='failed',hash_reason=str(error))
         if on_update: on_update()
     inventory['counts']=dict(Counter(row['status'] for row in inventory['objects']))
     inventory['conversion_enabled']=enabled
@@ -154,23 +189,39 @@ def single_file_run(source, output, options):
     stem=(re.sub(r'[^A-Za-z0-9_-]+','_',source.stem)[:64] or 'Seismic')+'_'+datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:6]
     data=output/(stem+'_data');data.mkdir(parents=True,exist_ok=False)
     package=data/'report';report=output/(stem+'_REPORT.html')
+    from geoviewer_delivery import decorate,publish_exports,partial_report
+    from geoviewer_diagnostics import Diagnostics
+    logs=Diagnostics(output/(stem+'_LOG.txt'),output/(stem+'_EVENTS.jsonl'))
+    logs.event('started',source=str(source),options=options,mode='exact_ZGY_file')
     inventory=dict(objects=[dict(id=stem,name=source.name,source=str(source),format='.zgy',
                     association='explicit_file_selection',status='inventoried',file_state=file_state(source),
                     metadata=metadata,sha256=None,hash_status='not_requested')],findings=[],full_seismic_hash=options.get('full_hash',False))
     write_json(package/'01_project_metadata/project_seismic_inventory.json',inventory)
     script=Path(__file__).with_name('report_petrel_project_audit.py')
-    rendered=subprocess.run([sys.executable,'-B',str(script),'--export-package',str(package),'--title',source.stem+' seismic report'],capture_output=True,text=True)
-    (data/'report_build.log').write_text(rendered.stdout+'\n'+rendered.stderr,encoding='utf-8')
-    if rendered.returncode: raise RuntimeError('Seismic report failed; see '+str(data/'report_build.log'))
-    def update(complete=False):
-        write_json(data/'seismic_results.json',inventory)
-        deliver_report(package/'PROJECT_REPORT.html',report,inventory,complete)
-    update();print('FULL REPORT (ready now): '+str(report),flush=True)
-    convert_project(inventory,data/'seismic',not options.get('report_only',False),options.get('full_hash',False),update,options)
-    update(True);print('HTML report: '+str(report),flush=True)
-    failed=any(row['status']=='unavailable' for row in inventory['objects'])
-    print(('Conversion unavailable; see report: ' if failed else 'SUCCESS: ')+str(report),flush=True)
-    return not failed
+    try:
+        rendered=subprocess.run([sys.executable,'-B',str(script),'--export-package',str(package),'--title',source.stem+' seismic report'],capture_output=True,text=True)
+        (data/'report_build.log').write_text(rendered.stdout+'\n'+rendered.stderr,encoding='utf-8')
+        logs.event('report_builder',exit_code=rendered.returncode,stdout=rendered.stdout,stderr=rendered.stderr)
+        if rendered.returncode: raise RuntimeError('Seismic report failed; see '+str(data/'report_build.log'))
+        def update(complete=False):
+            write_json(data/'seismic_results.json',inventory)
+            deliver_report(package/'PROJECT_REPORT.html',report,inventory,complete)
+        update();print('FULL REPORT (ready now): '+str(report),flush=True)
+        enabled=not options.get('report_only',False)
+        convert_project(inventory,data/'seismic',enabled,options.get('full_hash',False),update,options)
+        update(True)
+        destination=output/(stem+'_EXPORTS')
+        index=publish_exports(package,inventory,destination) if enabled else None
+        decorate(report,{'findings':['Exact ZGY file mode; no Petrel project metadata was supplied.']},index,destination,logs.text_path,logs.events_path)
+        failed=any(row['status'] in ('unavailable','conversion_failed','unsupported','missing') for row in inventory['objects'])
+        logs.event('completed',success=not failed,outcomes=inventory)
+        print(('Conversion failed; see report: ' if failed else 'SUCCESS: ')+str(report),flush=True)
+        return not failed
+    except (Exception,KeyboardInterrupt) as exc:
+        logs.event('failed',error=str(exc),exception=type(exc).__name__)
+        partial_report(report,{},'Seismic extraction failed',str(exc),logs.text_path)
+        raise
+    finally:logs.close()
 
 
 class RelocateLinks(HTMLParser):
@@ -204,14 +255,15 @@ def deliver_report(package_report, destination, inventory, complete=False):
                 path=Path(item[key]); relative=path.relative_to(destination.parent).as_posix()
                 links.append('<a href="'+quote(relative,safe='/')+'">'+label+'</a>')
         reason=item.get('reason','')
-        if item.get('result'): reason='Every amplitude and trace geometry checked. '+item['result']['integrity_scope']
+        if item.get('result'): reason='Every amplitude and trace geometry checked. '+item['result']['integrity_scope']+' '+item['result']['summary']['profile'].get('import_warning','')
         metadata=escape(json.dumps(item.get('metadata',{}),indent=2))
         checksum='Not calculated — full hashing disabled'
         if item.get('result',{}).get('full_seismic_hash'):
             checksum=item['result']['source_hashes_before'].get(item['source'],'Not calculated')
         elif inventory.get('full_seismic_hash'): checksum='Not calculated — no completed conversion'
         if item.get('sha256'): checksum=item['sha256']
-        detail='<details><summary>Source, geometry and checksum</summary><p>'+escape(item['source'])+'</p><p>Size: '+str(item.get('file_state',{}).get('size_bytes','unavailable'))+' bytes</p><p>SHA-256: '+escape(checksum)+'</p><pre>'+metadata+'</pre></details>'
+        associations=escape(json.dumps(item.get('native_objects',[]),indent=2))
+        detail='<details><summary>Source, native object associations, geometry and checksum</summary><p>'+escape(item['source'])+'</p><p>Size: '+str(item.get('file_state',{}).get('size_bytes','unavailable'))+' bytes</p><p>SHA-256: '+escape(checksum)+'</p><pre>'+associations+'</pre><pre>'+metadata+'</pre></details>'
         rows.append('<tr><td>'+escape(item['name'])+detail+'</td><td>'+escape(item['association'])+'</td><td>'+escape(item['status'])+'</td><td>'+escape(reason)+' '+ ' · '.join(links)+'</td></tr>')
     notices=''.join('<li>'+escape(x)+'</li>' for x in inventory.get('findings',[]))
     section='<section id="project-seismic"><style>#project-seismic pre{white-space:pre-wrap;overflow-wrap:anywhere}#project-seismic td{overflow-wrap:anywhere}</style><h2>Project seismic conversion</h2><p>'+('Run finished.' if complete else 'Report ready; conversion is still in progress. Refresh this page for updates.')+'</p>'

@@ -23,13 +23,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.7.0'
-PACKAGE_FOLDER = 'PetrelExtractor'
+VERSION = '0.8.0'
+PACKAGE_FOLDER = 'GeoViewer'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
 PYTHON_SHA256 = '791ada5e20aba24524f8d939cdeb069976d632a699fe5cb65274b23f4545e68a'
 OFFICIAL_MANIFEST = 'https://www.python.org/ftp/python/3.13.15/windows-3.13.15.json'
 SCRIPTS = [
+    'geoviewer_metadata.py','geoviewer_delivery.py','geoviewer_diagnostics.py','geoviewer_paths.py',
+    'test_geoviewer_release.py',
     'doctor_portable_petrel_toolkit.ps1', 'invoke_portable_petrel_extract.ps1',
     'test_portable_petrel_toolkit.ps1', 'test_petrel_native_spatial_zero_gui.py',
     'petrel_mcp_dependencies.ps1', 'new_export_package.ps1',
@@ -69,7 +71,7 @@ def main():
     # Explorer adds a directory named after the ZIP during Extract All. Keep both
     # that name and the archive's own root short enough for legacy Windows paths.
     name=PACKAGE_FOLDER
-    zip_name='PetrelExtractor-'+VERSION+'-win64.zip'
+    zip_name='GeoViewer-'+VERSION+'-win64.zip'
     package=args.output_root.resolve()/name
     package.mkdir(parents=True,exist_ok=False)
     scripts=package/'scripts';scripts.mkdir()
@@ -97,20 +99,25 @@ def main():
     for file in ['AGENTS.md','LICENSE','requirements-core.txt','requirements-geodata.txt']:
         shutil.copy2(ROOT/'portable_petrel_toolkit'/file,package/file)
     shutil.copy2(lock,package/'requirements-standalone-lock.txt')
-    launcher=package.parent/'run_portable_petrel_extract.bat'
-    shutil.copy2(ROOT/'run_portable_petrel_extract.bat',launcher)
+    launcher=package.parent/'GeoViewer_data_extractor.bat'
+    shutil.copy2(ROOT/'GeoViewer_data_extractor.bat',launcher)
     shutil.copy2(ROOT/'docs/BINARY_EXTRACTION_PURPOSE.md',package/'BINARY_EXTRACTION_PURPOSE.md')
     shutil.copy2(ROOT/'docs/native_binary_audit.json',package/'native_binary_audit.json')
     shutil.copy2(ROOT/'docs/ZGY_TO_SEGY.md',package/'ZGY_TO_SEGY.md')
     shutil.copy2(ROOT/'docs/NATIVE_LOGS_SURFACES.md',package/'NATIVE_LOGS_SURFACES.md')
     shutil.copy2(ROOT/'docs/VISUAL_REPORT.md',package/'VISUAL_REPORT.md')
+    shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'fv-mark.svg')
+    (package/'assets').mkdir()
+    shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'assets/fv-mark.svg')
+    for document in ('GEOVIEWER_0_8.md','RESCUE_EXPORT_PLAN.md'):
+        shutil.copy2(ROOT/'docs'/document,package/document)
     shutil.copy2(ROOT/'docs/NATIVE_POLYGONS.md',package/'NATIVE_POLYGONS.md')
     shutil.copy2(ROOT/'portable_petrel_toolkit/STANDALONE_README.md',package/'README.md')
     skill=package/'.agents/skills/petrel-portable-extractor';skill.mkdir(parents=True)
     shutil.copy2(ROOT/'portable_petrel_toolkit/.agents/skills/petrel-portable-extractor/SKILL.md',skill/'SKILL.md')
     metadata=json.loads((ROOT/'portable_petrel_toolkit/toolkit.json').read_text())
     metadata.update(version=VERSION,distribution='standalone_windows_x64',python_required=False,
-                    internet_required=False,bundled_python=PYTHON_VERSION,entrypoint='../run_portable_petrel_extract.bat',
+                    internet_required=False,bundled_python=PYTHON_VERSION,entrypoint='../GeoViewer_data_extractor.bat',
                     receipt_contract='petrel-geoscience-1',automatic_package_qc=True,
                     automatic_dependency_repair=True,dependency_install_source='verified_offline_cache')
     write_json(package/'toolkit.json',metadata)

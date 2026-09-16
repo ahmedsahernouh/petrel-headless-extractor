@@ -168,7 +168,7 @@ with open(base + ".prj", "w", encoding="utf-8") as handle:
     Write-Output "Validation report: $($validation.FullName)"
 } finally {
     if (Test-Path -LiteralPath $testRoot) {
-        $resolvedTestRoot = (Resolve-Path -LiteralPath $testRoot).Path
+        $resolvedTestRoot = (Resolve-Path -LiteralPath $testRoot).ProviderPath
         $resolvedTempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
         if (-not (($resolvedTestRoot.TrimEnd('\') + '\').StartsWith($resolvedTempRoot, [System.StringComparison]::OrdinalIgnoreCase))) {
             throw "Refusing to remove smoke-test directory outside the system temp root: $resolvedTestRoot"

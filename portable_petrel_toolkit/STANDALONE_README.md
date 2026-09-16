@@ -1,12 +1,16 @@
-# Petrel Headless Extractor 0.7.0 usage
+# GeoViewer_data_extractor 0.8.0
+
+Read GEOVIEWER_0_8.md for the current layout, modern profiles and unknown-axis seismic import instructions.
+
+# GeoViewer_data_extractor 0.8.0 usage
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
 Extract the whole standalone release ZIP. The top level contains only:
 
 ```text
-run_portable_petrel_extract.bat
-PetrelExtractor/                 application, scripts and offline runtime cache
+GeoViewer_data_extractor.bat
+GeoViewer/                 application, scripts and offline runtime cache
 ```
 
 Double-click the BAT and enter your exact `.pet` or `.zgy` path, or drag the file onto it. Keep the BAT beside its support folder; it need not be beside the project. For `.pet`, keep the complete same-name `.ptd` folder beside the project. Close the project in Petrel during the read.
@@ -19,7 +23,10 @@ Results appear directly in the selected output root:
 
 ```text
 Example_<run>_REPORT.html        open this full report
-Example_<run>_data/              datasets, figures, snapshots, logs and receipts
+Example_<run>_EXPORTS/           open files + FILE_INDEX.csv
+Example_<run>_LOG.txt            detailed process log
+Example_<run>_EVENTS.jsonl        structured events
+Example_<run>_data/              figures, snapshots and receipts
 ```
 
 The report is a full HTML document, not a redirect. It becomes available before seismic conversion and is refreshed after each dataset; reload it to see updates. Keep the report and its matching data folder together when moving results. Source seismic references need access to the original files; converted SEG-Y and figures are in the result data folder.
@@ -27,13 +34,13 @@ The report is a full HTML document, not a redirect. It becomes available before 
 ## Commands
 
 ```bat
-run_portable_petrel_extract.bat "E:\Projects\Example.pet" "E:\Results" -NoPause
-run_portable_petrel_extract.bat "E:\Projects\Example.pet" "E:\Results" -ReportOnly -NoPause
-run_portable_petrel_extract.bat "E:\Projects\Example.pet" "E:\Results" -FullHash -NoPause
-run_portable_petrel_extract.bat "E:\Projects\Example.ptd\cube.zgy" "E:\Results" -NoPause
-run_portable_petrel_extract.bat "E:\Projects\Example.ptd\cube.zgy" -Inspect -NoPause
-run_portable_petrel_extract.bat -Capabilities -NoPause
-run_portable_petrel_extract.bat --check -NoPause
+GeoViewer_data_extractor.bat "E:\Projects\Example.pet" "E:\Results" -NoPause
+GeoViewer_data_extractor.bat "E:\Projects\Example.pet" "E:\Results" -ReportOnly -NoPause
+GeoViewer_data_extractor.bat "E:\Projects\Example.pet" "E:\Results" -FullHash -NoPause
+GeoViewer_data_extractor.bat "E:\Projects\Example.ptd\cube.zgy" "E:\Results" -NoPause
+GeoViewer_data_extractor.bat "E:\Projects\Example.ptd\cube.zgy" -Inspect -NoPause
+GeoViewer_data_extractor.bat -Capabilities -NoPause
+GeoViewer_data_extractor.bat --check -NoPause
 ```
 
 Choose an output root outside the source directory and all native stores. Each run gets a unique report/data pair, with no overwriting of previous results. `-NoPause` is for unattended use. The legacy `convert`, `copy` and `inventory` positional modes remain accepted; `-ReportOnly` explicitly disables dataset conversion.
@@ -48,7 +55,7 @@ With hashing off, no whole ZGY/SEG-Y SHA-256 passes or raw seismic copies are ad
 
 ## Dependencies and failures
 
-Windows 10/11 x64 with Windows PowerShell is the target. The BAT installs/repairs bundled Python, plotting and conversion dependencies inside `PetrelExtractor/runtime` from its verified offline cache. No system Python, pip, administrator access, Petrel, Ocean or network download is required. Cloud SeismicStore is not configured and is unnecessary for local files.
+Windows 10/11 x64 with Windows PowerShell is the target. The BAT installs/repairs bundled Python, plotting and conversion dependencies inside `GeoViewer/runtime` from its verified offline cache. No system Python, pip, administrator access, Petrel, Ocean or network download is required. Cloud SeismicStore is not configured and is unnecessary for local files.
 
 Keep the whole release together. If extraction is incomplete or Windows reports Path too long, cancel and extract again to a shorter writable directory without skipping files. Missing application scripts or a damaged repair cache require re-extraction. A running older release is not updated by unpacking a new one.
 

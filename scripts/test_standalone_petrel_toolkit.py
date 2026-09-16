@@ -1,4 +1,4 @@
-# Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
+# GeoViewer_data_extractor - Ahmed Saher Nouh / SaherLabs
 # Website: https://saherlabs.dev/
 # GitHub: https://github.com/ahmedsahernouh
 # Repository: https://github.com/ahmedsahernouh/petrel-headless-extractor
@@ -30,8 +30,8 @@ def main():
     extraction_root.mkdir(parents=True)
     with zipfile.ZipFile(args.zip) as z:
         roots={Path(m.filename).parts[0] for m in z.infolist()}
-        assert roots=={'PetrelExtractor','run_portable_petrel_extract.bat'},roots
-        assert [m.filename for m in z.infolist() if m.filename.lower().endswith('.bat')]==['run_portable_petrel_extract.bat']
+        assert roots=={'GeoViewer','GeoViewer_data_extractor.bat'},roots
+        assert [m.filename for m in z.infolist() if m.filename.lower().endswith('.bat')]==['GeoViewer_data_extractor.bat']
         longest_extracted_path=max(len(str(extraction_root/m.filename)) for m in z.infolist())
         assert longest_extracted_path<240, longest_extracted_path
         for member in z.infolist():
@@ -44,7 +44,7 @@ def main():
     unzipped=subprocess.run([str(win/'System32/WindowsPowerShell/v1.0/powershell.exe'),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(unzip_script),'-Archive',str(args.zip.resolve()),'-Destination',str(extraction_root)],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=600)
     (evidence/'windows_extraction.txt').write_text(unzipped.stdout,encoding='utf-8')
     assert unzipped.returncode==0,unzipped.stdout
-    package=extraction_root/'PetrelExtractor';bat=extraction_root/'run_portable_petrel_extract.bat'
+    package=extraction_root/'GeoViewer';bat=extraction_root/'GeoViewer_data_extractor.bat'
     env=os.environ.copy();win=Path(os.environ['SystemRoot'])
     env.update(PATH=str(win/'System32')+';'+str(win/'System32/WindowsPowerShell/v1.0'),
                PYTHONHOME=str(relocated/'NONEXISTENT_SYSTEM_PYTHON'),PYTHONPATH=str(relocated/'FORBIDDEN_IMPORTS'),
@@ -165,9 +165,15 @@ def main():
     run('reject_missing_store',[orphan,output,'convert','-NoPause'],expected=1)
     unsupported=source/'Unsupported.pet';unsupported.write_text('unsupported native layout fixture')
     (source/'Unsupported.ptd').mkdir();(source/'Unsupported.ptd/Data.ptd').write_bytes(b'not a validated SQLite store')
-    failed_output=run('reject_unvalidated_native_layout',[unsupported,output,'convert','-NoPause'],expected=1)
-    assert 'Stopped before completion' in failed_output
-    assert '12/12 stages complete' not in failed_output
+    unsupported_output=relocated/'Unsupported Layout Results'
+    inventory_output=run('unsupported_layout_inventory_report',[unsupported,unsupported_output,'convert','-NoPause'])
+    assert '12/12 stages complete | Complete' in inventory_output
+    context=json.loads(next(unsupported_output.rglob('project_context.json')).read_text(encoding='utf-8'))
+    assert context['layout']=='unrecognized' and context['native_decoders_applicable'] is False
+    index=json.loads(next(unsupported_output.glob('*_EXPORTS/FILE_INDEX.json')).read_text(encoding='utf-8'))
+    assert not index['files']
+    partial_text=next(unsupported_output.glob('*_REPORT.html')).read_text(encoding='utf-8')
+    assert 'unrecognized' in partial_text and 'Model metadata incomplete' in partial_text
     for index,real in enumerate(args.project,1):
         run('real_project_'+str(index),[real.resolve(),relocated/('Real Results '+str(index)),'convert','-NoPause'])
     py=package/'runtime/python.exe';ps=win/'System32/WindowsPowerShell/v1.0/powershell.exe'
@@ -262,7 +268,7 @@ print(src/'Fixture.pet')
         text=top[0].read_text(encoding='utf-8')
         assert 'Not calculated — full hashing disabled' in text and 'data:image/png;base64,' in text
         assert 'Complete data inventory tree' in text and 'linked.zgy' in text
-        assert 'Native well-head metadata' in text and 'LZ4 envelope size mismatch' in text
+        assert 'Model metadata incomplete' in text and 'LZ4 envelope size mismatch' in text
         assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in before_seismic.items())
         # This explicitly proves no whole-seismic input hashes are hidden in the project wrapper.
         receipt=json.loads(Path(payload['extraction']['receipt_path']).read_text())

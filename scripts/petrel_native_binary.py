@@ -21,6 +21,14 @@ MAX_NODES = 2_000_000
 MAX_LZ4_BLOCKS = 4096
 
 
+def sqlite_readonly_uri(path):
+    """SQLite rejects UNC URI authorities; encode the host as an absolute path."""
+    uri = Path(path).resolve(strict=True).as_uri()
+    if uri.startswith('file://') and not uri.startswith('file:///'):
+        uri = 'file:////' + uri[len('file://'):]
+    return uri + '?mode=ro'
+
+
 class NativeError(ValueError):
     pass
 

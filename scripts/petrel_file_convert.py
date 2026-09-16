@@ -3,7 +3,7 @@
 Website: https://saherlabs.dev/
 Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
 Contract: no Petrel/Ocean, no native store mutation, no implicit resampling.
-Unsupported metadata stops conversion; partial outputs retain a failure receipt.
+Unknown physical axes remain explicit; invalid geometry or samples stop conversion.
 """
 from __future__ import annotations
 
@@ -23,11 +23,11 @@ import numpy as np
 import petrel_progress as progress
 from petrel_seismic_integrity import file_state, readonly_source
 
-VERSION = '0.6.0'
+VERSION = '0.8.0'
 ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES = [
     dict(id='zgy-to-segy', input='Petrel ZGY binary seismic cube', output='SEG-Y + metadata JSON', status='beta',
-         limits='Regular 3D time-domain cube; s/ms/us; integer microsecond interval and millisecond origin; CRS may remain explicitly unknown'),
+         limits='Regular affine 3D cube. Known time axes use standard headers; unresolved axes use unspecified header fields plus exact native axis in text/JSON. Receiving software may require manual axis settings.'),
 ]
 
 
@@ -77,31 +77,32 @@ def exact_integer(value, label, lower, upper):
 
 def seismic_plan(meta, options):
     domain = options.get('domain') or meta['zunit_dimension']
-    if domain != 'time':
-        raise InputError('This release exports time-domain ZGY only. Resolve unknown domain; depth needs a separate validated profile.')
+    domain = domain if domain in ('time','depth','length') else 'unknown'
     # Known source dimensions cannot be contradicted by a command-line label.
-    if meta['zunit_dimension'] not in ('unknown', 'time'):
-        raise InputError('Source declares a non-time domain; relabelling it as time is not conversion.')
+    if options.get('domain') and meta['zunit_dimension'] not in ('unknown', options['domain'], 'length' if options['domain']=='depth' else 'time'):
+        raise InputError('Source domain conflicts with the supplied label.')
     unit = options.get('vertical_unit') or meta['zunit_name'].strip().lower()
     factors = {'s':1000., 'ms':1., 'us':.001}
-    if unit not in factors:
-        raise InputError('Vertical units unresolved: specify s, ms or us from independent project evidence.')
-    if meta['zunit_dimension'] == 'time' and meta['zunit_factor'] > 0:
+    physical_time = domain == 'time' and unit in factors
+    if physical_time and meta['zunit_dimension'] == 'time' and meta['zunit_factor'] > 0:
         if not math.isclose(meta['zunit_factor'], factors[unit]/1000, rel_tol=1e-6):
             raise InputError('Vertical units conflict with the declared source SI unit factor.')
     hunit = options.get('horizontal_unit') or meta['horizontal_unit'].strip().lower()
     aliases = {'metres':'m','meters':'m','metre':'m','meter':'m','feet':'ft','foot':'ft'}
     hunit = aliases.get(hunit, hunit)
-    if hunit not in ('m','ft') or meta['horizontal_dimension'] not in ('length','unknown'):
-        raise InputError('Horizontal units must be m or ft. Angular/unknown units need resolution; no reprojection is performed.')
-    if meta['horizontal_dimension'] == 'length' and meta['horizontal_factor'] > 0:
+    if meta['horizontal_dimension'] not in ('length','unknown'):
+        raise InputError('Angular geometry is outside this affine XY profile; no reprojection is performed.')
+    if hunit not in ('m','ft'): hunit='unknown'
+    if hunit!='unknown' and meta['horizontal_dimension'] == 'length' and meta['horizontal_factor'] > 0:
         if not math.isclose(meta['horizontal_factor'], 1 if hunit=='m' else .3048, rel_tol=1e-6):
             raise InputError('Horizontal units conflict with the source SI unit factor.')
     ni, nx, ns = meta['size']
     if min(ni,nx) < 2 or not 1 <= ns <= 32767 or ni*nx > 2147483647:
         raise InputError('Profile requires at least 2 inlines and 2 crosslines, 1..32767 samples and at most 2^31-1 traces.')
-    dt = exact_integer(meta['zinc']*factors[unit]*1000, 'Sample interval in microseconds', 1, 65535)
-    delay = exact_integer(meta['zstart']*factors[unit], 'Sample origin in milliseconds', -32768, 32767)
+    if not math.isfinite(meta['zstart']) or not math.isfinite(meta['zinc']) or meta['zinc'] <= 0:
+        raise InputError('Invalid native sample axis')
+    dt = exact_integer(meta['zinc']*factors[unit]*1000, 'Sample interval in microseconds', 1, 65535) if physical_time else 0
+    delay = exact_integer(meta['zstart']*factors[unit], 'Sample origin in milliseconds', -32768, 32767) if physical_time else 0
     axes=[]
     for count, start, step, label in [(ni,meta['inline_start'],meta['inline_step'],'inline'),
                                      (nx,meta['crossline_start'],meta['crossline_step'],'crossline')]:
@@ -121,12 +122,15 @@ def seismic_plan(meta, options):
     crs=options.get('crs') or 'unknown'
     if len(crs)>4000:
         raise InputError('CRS text too long; use an identifier or short description')
-    return dict(size=[ni,nx,ns], interval_us=dt, origin_ms=delay, domain='time',
-                source_vertical_unit=unit, horizontal_unit=hunit, crs=crs,
+    return dict(size=[ni,nx,ns], interval_us=dt, origin_ms=delay, domain=domain,
+                source_vertical_unit=unit or 'unknown', horizontal_unit=hunit, crs=crs,
+                native_axis=dict(origin=meta['zstart'],increment=meta['zinc'],count=ns,unit=unit or 'unknown',domain=domain),
+                axis_header_policy='physical_time' if physical_time else 'unspecified_headers_exact_native_axis_in_text_and_JSON',
+                import_warning='' if physical_time else 'Sample interval/origin headers are unspecified (zero). Set the native axis from conversion_metadata.json when importing; do not accept a receiving application default time axis.',
                 crs_verified=False, coordinate_scale=scale, max_coordinate_rounding=.5/scale,
                 inline=list(axes[0]),crossline=list(axes[1]),
                 expected_bytes=3600+ni*nx*(240+4*ns),
-                profile='SEG-Y rev1-compatible, big endian IEEE float32, regular 3D poststack time',
+                profile='SEG-Y big endian IEEE float32; '+('time axis headers' if physical_time else 'unspecified physical axis, native axis sidecar required'),
                 sample_count_limit=32767, original_acquisition_headers_recovered=False,
                 metadata_overrides={k:v for k,v in options.items() if k in ('domain','vertical_unit','horizontal_unit','crs') and v},
                 validation_boundary='Numerical/structural QC; receiving-application import and geological validity not established')
@@ -151,23 +155,26 @@ def convert_zgy(source, run, options):
         ni,nx,ns=plan['size']; scale=plan['coordinate_scale']
         spec=segyio.spec(); spec.format=5;spec.sorting=2
         # Unstructured allocation avoids allocating an axis array for huge grids.
-        spec.tracecount=ni*nx;spec.samples=np.arange(ns,dtype=np.float64)*plan['interval_us']/1000+plan['origin_ms']
+        spec.tracecount=ni*nx;spec.samples=np.arange(ns,dtype=np.float64)*(plan['interval_us']/1000 if plan['interval_us'] else 1)+plan['origin_ms']
         pending=run/'volume.partial.segy';target=run/'volume.segy'
         phase_start=time.monotonic();done=0
         progress.phase(3,'Converting ZGY to SEG-Y')
         with segyio.create(str(pending),spec) as writer:
             crs_ascii=plan['crs'].encode('ascii','replace').decode().replace('\n',' ').replace('\r',' ')
             writer.text[0]=segyio.tools.create_text_header({
-                1:'PETREL HEADLESS EXTRACTOR 0.3.0 - https://saherlabs.dev/',
+                1:'GeoViewer_data_extractor 0.8.0 - https://saherlabs.dev/',
                 2:'NEW CUBE EXCHANGE FILE. ORIGINAL ACQUISITION HEADERS NOT RECOVERED.',
-                3:'TIME DOMAIN; SAMPLE INTERVAL MICROSECONDS; ORIGIN MILLISECONDS.',
+                3:'TIME AXIS: DT MICROSECONDS, ORIGIN MILLISECONDS.' if plan['interval_us'] else 'PHYSICAL AXIS UNSPECIFIED. SET NATIVE AXIS ON IMPORT; SEE BELOW.',
                 4:'IEEE FLOAT32 BIG ENDIAN; INLINE 189; CROSSLINE 193; CDP X/Y 181/185.',
                 5:f"XY UNITS {plan['horizontal_unit']}; COORDINATE SCALAR {-scale}.",
                 6:'CRS (USER DECLARED, NOT VERIFIED): '+crs_ascii[:39],
-                7:'SEE conversion_metadata.json FOR COMPLETE CRS AND VALIDATION LIMITS.'})
+                7:'SEE conversion_metadata.json FOR COMPLETE AXIS, CRS AND QC LIMITS.',
+                8:f"NATIVE Z ORIGIN {meta['zstart']:.17g}; INCREMENT {meta['zinc']:.17g}",
+                9:f"NATIVE Z DOMAIN {plan['domain']}; UNIT {plan['source_vertical_unit']}",
+                10:'ZERO INTERVAL/ORIGIN HEADERS MEAN UNSPECIFIED, NOT A TIME CONVERSION.' if not plan['interval_us'] else ''})
             writer.bin.update({segyio.BinField.Interval:plan['interval_us'],segyio.BinField.IntervalOriginal:plan['interval_us'],
                                segyio.BinField.Samples:ns,segyio.BinField.SamplesOriginal:ns,segyio.BinField.Format:5,
-                               segyio.BinField.SortingCode:2,segyio.BinField.MeasurementSystem:1 if plan['horizontal_unit']=='m' else 2,
+                               segyio.BinField.SortingCode:2,segyio.BinField.MeasurementSystem:{'m':1,'ft':2}.get(plan['horizontal_unit'],0),
                                segyio.BinField.SEGYRevision:256,segyio.BinField.TraceFlag:1})
             for i,j,shape in blocks(plan['size']):
                 block=np.empty(shape,dtype=np.float32);reader.read((i,j,0),block)
@@ -178,11 +185,11 @@ def convert_zgy(source, run, options):
                         n=(i+a)*nx+j+b;xy=reader.indexToWorld((i+a,j+b))
                         writer.trace[n]=block[a,b]
                         writer.header[n]={segyio.TraceField.TRACE_SEQUENCE_LINE:n+1,segyio.TraceField.TRACE_SEQUENCE_FILE:n+1,
-                            segyio.TraceField.TraceIdentificationCode:1,
+                            segyio.TraceField.TraceIdentificationCode:1 if plan['domain']=='time' else (25 if plan['domain'] in ('depth','length') else 0),
                             segyio.TraceField.INLINE_3D:plan['inline'][0]+(i+a)*plan['inline'][1],
                             segyio.TraceField.CROSSLINE_3D:plan['crossline'][0]+(j+b)*plan['crossline'][1],
                             segyio.TraceField.CDP_X:round(xy[0]*scale),segyio.TraceField.CDP_Y:round(xy[1]*scale),
-                            segyio.TraceField.SourceGroupScalar:-scale,segyio.TraceField.CoordinateUnits:1,
+                            segyio.TraceField.SourceGroupScalar:-scale,segyio.TraceField.CoordinateUnits:1 if plan['horizontal_unit']!='unknown' else 0,
                             segyio.TraceField.TRACE_SAMPLE_COUNT:ns,segyio.TraceField.TRACE_SAMPLE_INTERVAL:plan['interval_us'],
                             segyio.TraceField.DelayRecordingTime:plan['origin_ms']}
                 done+=shape[0]*shape[1];progress.items('Writing traces',done,ni*nx,phase_start,'traces')
@@ -315,9 +322,7 @@ def main():
                 if answer not in ('','n','no','y','yes'):raise InputError('Enter Y or N for conversion')
                 args.report_only=answer in ('n','no')
             if not args.report_only:
-                if meta['zunit_dimension']=='unknown' and not args.domain:args.domain=input('Verified domain (time/depth): ').strip()
-                if not meta['zunit_name'] and not args.vertical_unit:args.vertical_unit=input('Verified vertical unit (s/ms/us for time): ').strip()
-                if not meta['horizontal_unit'] and not args.horizontal_unit:args.horizontal_unit=input('Verified horizontal unit (m/ft): ').strip()
+                if meta['zunit_dimension']=='unknown':display.message('Unknown domain is retained. Import the exact native axis from the metadata sidecar; no time/depth unit is guessed.')
                 if not args.crs:args.crs=input('CRS identifier [Enter keeps unknown]: ').strip() or 'unknown'
         if not args.output_root and args.interactive:
             args.output_root=input('Output root [Enter for your user folder/Petrel_Conversions]: ').strip().strip('"')

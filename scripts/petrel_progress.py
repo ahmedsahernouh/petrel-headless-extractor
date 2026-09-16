@@ -24,6 +24,7 @@ from pathlib import Path
 EVENT_PREFIX = 'PETREL_PROGRESS:'
 _reporter = None
 _batch = None
+_phase_override = None
 
 
 def duration(seconds):
@@ -52,7 +53,16 @@ def set_reporter(reporter):
 
 def phase(number, label):
     if isinstance(_reporter, ConsoleProgress):
-        _reporter.phase(number, label)
+        _reporter.phase(_phase_override if _phase_override is not None else number, label)
+
+
+@contextmanager
+def keep_stage(number):
+    """Keep a nested converter within its parent project's final stage."""
+    global _phase_override
+    previous=_phase_override;_phase_override=number
+    try:yield
+    finally:_phase_override=previous
 
 
 def items(label, done, total, started, unit='items'):
@@ -94,6 +104,7 @@ def hash_file(path):
         metric['file'] = path.name
         metric['file_bytes'] = path.stat().st_size
     digest = hashlib.sha256()
+    started=time.monotonic()
     with path.open('rb') as stream:
         for block in iter(lambda: stream.read(1048576), b''):
             digest.update(block)
@@ -103,6 +114,9 @@ def hash_file(path):
     if metric is not None:
         metric['files_done'] += 1
         _reporter.update(metric)
+    if path.stat().st_size>=64*1024*1024:
+        from geoviewer_diagnostics import event
+        event('hash_completed',path=str(path),bytes=path.stat().st_size,seconds=round(time.monotonic()-started,3),algorithm='SHA-256')
     return digest.hexdigest()
 
 
@@ -184,6 +198,8 @@ class ConsoleProgress:
             print(*values, file=file or sys.stdout, flush=flush)
 
     def phase(self, number, label):
+        from geoviewer_diagnostics import event
+        event('stage',number=number,label=label,previous_stage_seconds=round(time.monotonic()-self.phase_started,3))
         with self.lock:
             self.number, self.label = number, label
             self.phase_started = time.monotonic()
@@ -248,6 +264,8 @@ def run_pipeline(command, cwd, log_path, timeout):
     else:
         env.pop('PETREL_PROGRESS_EVENTS', None)
     errors = []
+    from geoviewer_diagnostics import event
+    event('child_start',command=command,cwd=str(cwd),log_path=str(log_path),timeout_seconds=timeout)
     with log_path.open('w', encoding='utf-8') as log:
         proc = subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, errors='replace')
@@ -257,6 +275,9 @@ def run_pipeline(command, cwd, log_path, timeout):
                 for line in proc.stdout:
                     log.write(line)
                     log.flush()
+                    if line.startswith('OBJECT_RESULT '):
+                        event('native_object_outcome',**json.loads(line[len('OBJECT_RESULT '):]))
+                    else:event('child_output',line=line.rstrip())
                     if isinstance(_reporter, ConsoleProgress):
                         _reporter.child_line(line.rstrip())
             except Exception as exc:
@@ -277,4 +298,5 @@ def run_pipeline(command, cwd, log_path, timeout):
             reader.join()
         if errors:
             raise errors[0]
+        event('child_exit',exit_code=proc.returncode)
         return proc.returncode

@@ -535,12 +535,12 @@ def main() -> int:
     # A source directory can contain more than one Petrel project. Never treat
     # a neighboring .pet file or any .ptd store as an ordinary companion: that
     # would mix native stores from different projects in one evidence package.
-    petrel_project_files = sorted(
-        path.resolve() for path in project_root.rglob("*.pet") if path.is_file()
-    )
-    petrel_store_roots = sorted(
-        path.resolve() for path in project_root.rglob("*.ptd") if path.is_dir()
-    )
+    from geoviewer_paths import project_files
+    pruned_toolkit_roots=[]
+    walked_files=list(project_files(project_root,pruned_toolkit_roots))
+    petrel_project_files=sorted(path.resolve() for path in walked_files if path.suffix.lower()=='.pet')
+    petrel_store_roots=sorted({parent.resolve() for path in walked_files for parent in path.parents
+                              if parent.suffix.lower()=='.ptd' and is_relative_to(parent,project_root)})
     neighbor_project_files = [path for path in petrel_project_files if path != project_file]
     neighbor_store_roots = [path for path in petrel_store_roots if path != ptd_root]
 
@@ -576,6 +576,8 @@ def main() -> int:
         else []
     )
     toolkit_excluded_files = {launcher_file.resolve()} if launcher_file.is_file() else set()
+    toolkit_excluded_roots.extend(path.resolve() for path in pruned_toolkit_roots)
+    if pruned_toolkit_roots:co_located_toolkit_detected=True
     if co_located_toolkit_detected:
         toolkit_excluded_files.update(
             (project_root / name).resolve() for name in toolkit_file_names if (project_root / name).is_file()
@@ -599,7 +601,7 @@ def main() -> int:
     source_copy_root = export_package / "09_source_companions"
     converted_root = export_package / "10_converted_ascii"
 
-    for source in sorted(project_root.rglob("*")):
+    for source in sorted(walked_files):
         if not source.is_file():
             continue
         source_resolved = source.resolve()
