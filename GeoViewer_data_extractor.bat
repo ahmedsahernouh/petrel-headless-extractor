@@ -220,6 +220,10 @@ if not exist "%APP_ROOT%scripts\launch_standalone_petrel.ps1" goto incomplete_st
 if not exist "%APP_ROOT%scripts\repair_standalone_dependencies.ps1" goto incomplete_standalone
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%APP_ROOT%scripts\launch_standalone_petrel.ps1" %*
 set "STANDALONE_EXIT=%errorlevel%"
+if "%STANDALONE_EXIT%"=="10" (
+    echo Completed with gaps. Open the report and diagnostics for the affected objects.
+    exit /b 10
+)
 if not "%STANDALONE_EXIT%"=="0" (
     echo.
     echo ERROR: The extractor could not finish. Read the error above.

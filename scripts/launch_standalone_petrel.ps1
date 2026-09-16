@@ -49,7 +49,7 @@ try {
         Write-Output 'Or: GeoViewer_data_extractor.bat --check -NoPause'
         exit 0
     }
-    Write-Output "GeoViewer_data_extractor 0.8.0 - standalone, read-only"
+    Write-Output "GeoViewer_data_extractor 0.8.1 - standalone, read-only"
     if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy' -or $Inspect -or $Capabilities) {
         $pauseAtEnd=$false
         Invoke-ZgyInput

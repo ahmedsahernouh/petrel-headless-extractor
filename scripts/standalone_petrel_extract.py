@@ -20,6 +20,7 @@ from pathlib import Path
 
 import petrel_geoscience_tools as g
 import petrel_progress as progress
+import geoviewer_io as gio
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ('numpy', 'lasio', 'openpyxl', 'pandas', 'shapefile', 'zmapio', 'zfpy', 'pyzgy', 'segyio', 'matplotlib', 'PIL')
@@ -89,6 +90,8 @@ def main():
     report_path = None
     display = progress.ConsoleProgress(stages=1 if args.check else 12).start()
     success = False
+    end_status = None
+    stages = []
     try:
         display.message('Checking bundled runtime and file hashes...', flush=True)
         doctor = preflight()
@@ -110,12 +113,24 @@ def main():
         report_path = output / (stem + '_REPORT.html')
         run = output / (stem + '_data')
         run.mkdir(parents=True, exist_ok=False)
+        gio.output_probe(run)
         from geoviewer_diagnostics import Diagnostics
         from geoviewer_metadata import inspect_project
-        from geoviewer_delivery import partial_report, publish_exports, decorate
+        from geoviewer_delivery import partial_report, publish_exports, decorate, diagnostics_section
         log_path=output/(stem+'_LOG.txt');event_path=output/(stem+'_EVENTS.jsonl')
         diagnostics=Diagnostics(log_path,event_path)
         diagnostics.event('started',request=vars(args),preflight=doctor)
+        def optional(category, action):
+            try:
+                return action()
+            except Exception as exc:
+                if gio.systemic(exc): raise
+                gio.output_probe(run)
+                details=gio.error_details(exc,category=category)
+                stages.append(dict(category=category,status='partial',reason=str(exc)))
+                diagnostics.event('optional_operation_failed',severity='error',**details)
+                display.message(category+' incomplete: '+str(exc)+'; continuing independent work.',flush=True)
+                return None
         bootstrap=os.environ.get('GEOVIEWER_BOOTSTRAP_LOG')
         if bootstrap:
             diagnostics.event('bootstrap_log',path=bootstrap)
@@ -124,7 +139,7 @@ def main():
             except OSError as exc:diagnostics.event('bootstrap_log_copy_unavailable',reason=str(exc))
         context=inspect_project(source)
         diagnostics.event('native_preflight',layout=context['layout'],saved_version=context['saved_version'],findings=context['findings'])
-        partial_report(report_path,context,'Extraction in progress','Metadata inventory is ready. Converted files and final QC are not ready yet.',log_path)
+        optional('initial_report',lambda:partial_report(report_path,context,'Extraction in progress','Metadata inventory is ready. Converted files and final QC are not ready yet.',log_path))
         display.message('REPORT (updates as extraction completes): '+str(report_path),flush=True)
         g.write_json(run/'preflight.json',doctor)
         g.write_json(run/'request.json',vars(args))
@@ -136,6 +151,8 @@ def main():
         if audit['status'] != 'passed':
             raise RuntimeError('Extraction receipt failed: ' + repr(audit))
         package = extraction['summary']['export_package']
+        stage_path=Path(package)/'01_project_metadata/pipeline_stages.json'
+        if stage_path.is_file(): stages.extend(g.read_json(stage_path))
         display.message('Checking package hashes, well names, logs and trajectory evidence...', flush=True)
         progress.phase(11, 'Package quality control')
         qc = g.dispatch('qc_data_package', {**common,'export_package':package,'output_dir':str(run/'qc')})
@@ -144,13 +161,18 @@ def main():
         if qc_audit['status'] != 'passed':
             raise RuntimeError('QC receipt failed: ' + repr(qc_audit))
         from petrel_project_seismic import convert_project, deliver_report
-        inventory = g.read_json(Path(package)/'01_project_metadata/project_seismic_inventory.json')
+        inventory_path=Path(package)/'01_project_metadata/project_seismic_inventory.json'
+        inventory = g.read_json(inventory_path) if inventory_path.is_file() else {'objects':[],'counts':{}}
         inventory['full_seismic_hash']=args.full_hash
+        base_report=Path(package)/'PROJECT_REPORT.html'
+        if not base_report.is_file():
+            base_report=run/'REPORT_BASE.html'
+            partial_report(base_report,context,'Partial report','The full visual report was not generated. Accepted exports and the metadata inventory remain available.',log_path)
         def update_report(complete=False):
-            g.write_json(run/'seismic_results.json',inventory)
-            deliver_report(Path(package)/'PROJECT_REPORT.html',report_path,inventory,complete)
+            gio.atomic_json(run/'seismic_results.json',inventory)
+            optional('report_update',lambda:deliver_report(base_report,report_path,inventory,complete))
         update_report()
-        display.message('FULL REPORT (ready now): ' + str(report_path),flush=True)
+        if report_path.is_file():display.message('REPORT (available; conversion results still updating): ' + str(report_path),flush=True)
         progress.phase(12,'Project seismic conversion and report completion')
         enabled=not args.report_only and args.mode=='convert'
         with progress.keep_stage(12):
@@ -158,52 +180,73 @@ def main():
         update_report(complete=True)
         progress.phase(12,'Publishing converted-file index and final report')
         destination=output/(stem+'_EXPORTS')
-        export_index=publish_exports(package,inventory,destination) if enabled else None
+        export_index=optional('export_index',lambda:publish_exports(package,inventory,destination)) if enabled else None
         workflow_receipt=Path(package)/'01_project_metadata/workflow_recovery.json'
         if workflow_receipt.is_file():context['workflows']=g.read_json(workflow_receipt)
-        decorate(report_path,context,export_index,destination,log_path,event_path)
+        optional('report_decoration',lambda:decorate(report_path,context,export_index,destination,log_path,event_path))
         for row in inventory.get('objects',[]):
             diagnostics.event('seismic_outcome',object_id=row['id'],status=row['status'],reason=row.get('reason'),result=row.get('result'))
         for evidence in ('07_workflows_reports/native_recovery/native_recovery_report.json','07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json'):
             path=Path(package)/evidence
             if path.is_file():
-                for row in g.read_json(path).get('objects',[]):diagnostics.event('native_object_outcome',**row)
-        result = {'status':'passed','toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
+                for row in g.read_json(path).get('objects',[]):
+                    diagnostics.event('native_object_outcome',**row)
+        seismic_gaps=enabled and any(row.get('status') not in ('converted','virtual') for row in inventory.get('objects',[]))
+        if seismic_gaps:stages.append(dict(category='seismic',status='partial',reason='Some seismic objects could not be converted; consult their individual availability and conversion reasons.'))
+        if export_index and export_index.get('findings'):stages.append(dict(category='delivery',status='partial',reason='; '.join(export_index['findings'])))
+        if any(e['event'] in ('preview_failed','child_log_lost','malformed_child_event') for e in diagnostics.problems):
+            stages.append(dict(category='optional_output_or_diagnostics',status='partial',reason='A preview or diagnostic stream was incomplete; details are in the diagnostic summary.'))
+        optional('run_log_pointer',lambda:gio.atomic_text(run/'RUN_LOG.txt','Elapsed: '+progress.duration(display.elapsed)+'\nDetailed log: '+str(diagnostics.text_path)+'\nStructured events: '+str(diagnostics.events_path)+'\n'))
+        end_status='completed_with_gaps' if any(row.get('status') in ('failed','partial') for row in stages) else 'completed'
+        optional('diagnostic_report',lambda:diagnostics_section(report_path,end_status,stages,diagnostics.summary_path,diagnostics.text_path,diagnostics.events_path))
+        if any(row.get('status') in ('failed','partial') for row in stages):end_status='completed_with_gaps'
+        result = {'status':end_status,'toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
                   'extraction_audit':audit,'qc':qc,'qc_audit':qc_audit,
                   'source_mutated':False,'petrel_process_launched':False,
-                  'report_included':True,'dataset_conversion_enabled':not args.report_only and args.mode=='convert',
+                  'report_included':report_path.is_file(),'dataset_conversion_enabled':not args.report_only and args.mode=='convert',
                   'full_report':str(report_path),'seismic':inventory,'full_seismic_hash':args.full_hash,
                   'scientific_acceptance':'not_established','project_context':context,
-                  'file_index':str(destination/'FILE_INDEX.csv') if enabled else None,
-                  'process_log':str(log_path),'structured_events':str(event_path)}
-        g.write_json(run/'RUN_RESULT.json',result)
-        diagnostics.event('completed',elapsed_seconds=round(display.elapsed,3),package=package,report=str(report_path),qc=qc_audit)
-        (run/'RUN_LOG.txt').write_text('Elapsed: '+progress.duration(display.elapsed)+'\nDetailed log: '+str(log_path)+'\nStructured events: '+str(event_path)+'\n',encoding='utf-8')
+                  'file_index':str(destination/'FILE_INDEX.csv') if export_index is not None else None,
+                  'process_log':str(diagnostics.text_path),'structured_events':str(diagnostics.events_path),
+                  'diagnostic_summary':str(diagnostics.summary_path),'category_outcomes':stages}
+        if any(row.get('status') in ('failed','partial') for row in stages):end_status='completed_with_gaps'
+        result['status']=end_status
+        gio.atomic_json(run/'RUN_RESULT.json',result)
+        diagnostics.event('completed',status=end_status,elapsed_seconds=round(display.elapsed,3),package=package,report=str(report_path),qc=qc_audit)
         success = True
-        display.message('SUCCESS: report and package QC completed. See per-dataset conversion and integrity results.', flush=True)
+        display.message('COMPLETED WITH GAPS: validated exports are available; see report diagnostics.' if end_status=='completed_with_gaps' else 'SUCCESS: report and package QC completed. See per-dataset conversion and integrity results.', flush=True)
         display.message('Run folder: ' + str(run))
-        display.message('HTML report: ' + str(report_path))
+        display.message('HTML report: ' + str(report_path) if report_path.is_file() else 'HTML report unavailable; open the diagnostic summary: '+str(diagnostics.summary_path))
         display.message('Process log: ' + str(log_path))
-        if enabled:display.message('Extracted file index: ' + str(destination/'FILE_INDEX.csv'))
+        if export_index is not None:display.message('Extracted file index: ' + str(destination/'FILE_INDEX.csv'))
         display.message('Seismic outcomes: ' + json.dumps(inventory.get('counts',{})))
         display.message('QC report: ' + qc['report_path'])
         display.message('Read QC findings and unresolved CRS/units before using the data.')
-        return 0
+        return 10 if end_status=='completed_with_gaps' else 0
     except (Exception,KeyboardInterrupt) as exc:
-        failure = {'status':'failed','error':str(exc),'elapsed_seconds':round(display.elapsed, 3),'traceback':traceback.format_exc()}
+        end_status='cancelled' if isinstance(exc,KeyboardInterrupt) else 'failed'
+        failure = {'status':end_status,'error':gio.error_details(exc),'elapsed_seconds':round(display.elapsed, 3),'traceback':traceback.format_exc(),
+                   'source_integrity':'See completed receipts; uncompleted checks are not a claim of unchanged sources.'}
+        if diagnostics:diagnostics.event(end_status,severity='error',**failure)
         if run is not None and run.exists():
-            g.write_json(run/'RUN_RESULT.json',failure)
-            (run/'RUN_LOG.txt').write_text(failure['traceback'],encoding='utf-8')
-            if diagnostics:diagnostics.event('failed',**failure)
+            try:
+                gio.atomic_json(run/'RUN_RESULT.json',failure)
+                gio.atomic_text(run/'RUN_LOG.txt',failure['traceback'])
+            except OSError as secondary:
+                if diagnostics:diagnostics.event('failure_receipt_unavailable',severity='error',**gio.error_details(secondary))
+                display.message('Could not write run receipt: '+str(secondary),file=sys.stderr)
             if report_path:
                 from geoviewer_delivery import partial_report
-                partial_report(report_path,context,'Extraction failed — partial metadata report',str(exc),log_path if diagnostics else None)
-                display.message('PARTIAL REPORT: '+str(report_path))
+                try:
+                    partial_report(report_path,context,'Extraction '+end_status+' — retained partial report',str(exc),diagnostics.text_path if diagnostics else None,preserve=True)
+                    display.message('PARTIAL REPORT: '+str(report_path))
+                except OSError as secondary:
+                    if diagnostics:diagnostics.event('failure_report_unavailable',severity='error',**gio.error_details(secondary))
             display.message('Failure evidence: ' + str(run/'RUN_RESULT.json'))
         display.message('ERROR: ' + str(exc),file=sys.stderr)
         return 130 if isinstance(exc,KeyboardInterrupt) else 1
     finally:
-        display.close(success=success)
+        display.close(success=success,status=end_status.replace('_',' ') if end_status else None)
         if diagnostics:diagnostics.close()
 
 

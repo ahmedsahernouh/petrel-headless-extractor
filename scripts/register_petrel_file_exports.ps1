@@ -343,6 +343,11 @@ foreach ($target in $exportTargets) {
 
     $files = @(Get-ChildItem -LiteralPath $folderPath -File -Recurse)
     foreach ($fileItem in $files) {
+        $ownedRelative = Get-RelativePath -BasePath $packageRoot -PathValue $fileItem.FullName
+        if ($ownedRelative -match '(^|[\\/])native_data[\\/].*\.partial[\\/]') {
+            $skipped += [pscustomobject]@{ file = $ownedRelative; reason = 'uncommitted_native_staging' }
+            continue
+        }
         if ($fileItem.Name -ieq "cli_variable_probe.csv") {
             $skipped += [pscustomobject]@{ file = Get-RelativePath -BasePath $packageRoot -PathValue $fileItem.FullName; reason = "owned_by_workflow_artifact_registrar" }
             continue

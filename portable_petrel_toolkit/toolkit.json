@@ -1,6 +1,6 @@
 {
   "name": "GeoViewer_data_extractor",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -32,7 +32,7 @@
       "input": "ZGY",
       "output": "SEG-Y",
       "entrypoint": "GeoViewer_data_extractor.bat",
-      "status": "beta_time_or_explicit_unspecified_axis",
+      "status": "validated_supported_profiles",
       "whole_project_integration": true,
       "discovery": "selected store plus exact native UUID links and external reference inventory"
     }

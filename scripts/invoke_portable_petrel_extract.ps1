@@ -25,6 +25,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 if ($ReportOnly) { $CompanionMode = 'inventory'; $SkipAudit = $false }
 
 function Test-IsWithinPath {
@@ -124,6 +125,10 @@ if (-not $nativeContext.native_decoders_applicable) {
     Write-Output "Native numeric decoding unavailable for storage layout: $($nativeContext.layout). Inventory and report will continue."
     $SkipNativeSpatialExtraction = $true
     $SkipNativeBinaryRecovery = $true
+    if ($CompanionMode -eq 'convert') {
+        & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category native_compatibility --code 10 --report (Join-Path $exportPackage '01_project_metadata\native_compatibility.json')
+        if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
+    }
 }
 if ($ReferenceSeismic) {
     & $pythonExe (Join-Path $scriptDir 'petrel_project_seismic.py') --project-file $projectFileResolved --output (Join-Path $exportPackage '01_project_metadata\project_seismic_inventory.json')
@@ -139,7 +144,8 @@ if (-not $SkipSemanticExtraction) {
         --export-package $exportPackage `
         --no-validate
     $semanticCode = Get-PetrelMcpLastExitCode
-    if ($semanticCode -ne 0) { exit $semanticCode }
+    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category semantic_metadata --code $semanticCode
+    if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
 } else {
     Write-Output "Stage 2/6: skipped by request"
 }
@@ -156,7 +162,8 @@ if (-not $SkipCompanionExtraction) {
         --mode $CompanionMode `
         --max-file-bytes $MaxCompanionFileBytes @seismicArgs
     $companionCode = Get-PetrelMcpLastExitCode
-    if ($companionCode -ne 0) { exit $companionCode }
+    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category companions --code $companionCode
+    if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
 } else {
     Write-Output "Stage 3/6: skipped by request"
 }
@@ -165,7 +172,8 @@ if ((-not $SkipNativeSpatialExtraction) -and $CompanionMode -eq "convert") {
     Write-Output "Stage 4/6: evidence-gated native well-head, polygon, point, trajectory, and calibrated well-top decode"
     & $pythonExe $nativeSpatialExporter --export-package $exportPackage
     $nativeSpatialCode = Get-PetrelMcpLastExitCode
-    if ($nativeSpatialCode -ne 0) { exit $nativeSpatialCode }
+    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category spatial --code $nativeSpatialCode --report (Join-Path $exportPackage '07_workflows_reports\native_spatial_zero_gui\native_spatial_decode_report.json')
+    if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
 } elseif ($SkipNativeSpatialExtraction) {
     Write-Output "Stage 4/6: skipped by request"
 } else {
@@ -173,10 +181,11 @@ if ((-not $SkipNativeSpatialExtraction) -and $CompanionMode -eq "convert") {
 }
 
 if ((-not $SkipNativeBinaryRecovery) -and $CompanionMode -eq "convert") {
-    Write-Output "Recovering validated native well logs and surfaces into LAS/CSV/XYZ"
+    Write-Output "Stage 4/6: native well-log and surface recovery into LAS/CSV/XYZ"
     & $pythonExe $nativeBinaryExporter --export-package $exportPackage
     $nativeBinaryCode = Get-PetrelMcpLastExitCode
-    if ($nativeBinaryCode -ne 0) { exit $nativeBinaryCode }
+    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category logs_surfaces --code $nativeBinaryCode --report (Join-Path $exportPackage '07_workflows_reports\native_recovery\native_recovery_report.json')
+    if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
 }
 
 $prunedBeforeAudit = Remove-EmptyPackageDirectories -PackageRoot $exportPackage
@@ -211,7 +220,8 @@ if (-not $SkipAudit) {
     $auditOutput = @(& $pythonExe $auditReporter --export-package $exportPackage --title "$ProjectName portable read-only extraction audit")
     $auditCode = Get-PetrelMcpLastExitCode
     $auditOutput | ForEach-Object { Write-Output $_ }
-    if ($auditCode -ne 0) { exit $auditCode }
+    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category visual_report --code $auditCode
+    if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
     $dashboardLine = @($auditOutput | Where-Object { $_ -match '^Dashboard:' } | Select-Object -First 1)
     if ($dashboardLine.Count -gt 0) { $htmlReport = ($dashboardLine[0] -replace '^Dashboard:\s*', '').Trim() }
 } else {

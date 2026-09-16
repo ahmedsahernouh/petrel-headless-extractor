@@ -80,7 +80,9 @@ class ReleaseTests(unittest.TestCase):
             root=Path(folder);log=Diagnostics(root/'log.txt',root/'events.jsonl')
             try:
                 log.event('started',elapsed_seconds=1.5)
-                self.assertEqual(json.loads((root/'events.jsonl').read_text())['elapsed_seconds'],1.5)
+                entry=json.loads((root/'events.jsonl').read_text())
+                self.assertEqual(entry['reported_elapsed_seconds'],1.5)
+                self.assertGreaterEqual(entry['elapsed_seconds'],0)
             finally:log.close()
 
     def test_nested_toolkit_pruned_without_hiding_project_folder(self):

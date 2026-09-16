@@ -20,6 +20,8 @@ import re
 from urllib.parse import quote
 
 from geoviewer_metadata import PRODUCT, VERSION, write_json
+from geoviewer_io import atomic_text, atomic_json, systemic
+from geoviewer_diagnostics import event
 
 
 def read(path, default=None):
@@ -44,21 +46,26 @@ def publish_exports(package, inventory, destination):
     records=[]; findings=[]
     def link(source, category, identity, name, label, qc, unit='unknown', digest=None):
         source=Path(source)
-        if not source.is_file(): raise ValueError('Accepted export is missing: '+str(source))
+        if not source.is_file():
+            findings.append('Accepted export is missing: '+str(source))
+            event('delivery_failed',severity='error',object_id=identity,source=str(source),reason=findings[-1])
+            return
         if not source.resolve().is_relative_to(package.resolve()) and category!='seismic':
             raise ValueError('Export escaped the validated package')
         stem=slug(name)+'_'+slug(identity)[:36]+'_'+slug(source.stem)
         target=destination/category/(stem+source.suffix.lower())
-        target.parent.mkdir(parents=True,exist_ok=True)
         layout='single_physical_copy_hardlink'
         try:
+            target.parent.mkdir(parents=True,exist_ok=True)
             if target.exists():
                 if not os.path.samefile(source,target):raise ValueError('Export name collision: '+str(target))
             else:os.link(source,target)
             if not os.path.samefile(source,target):raise ValueError('Hard-link identity check failed')
-        except OSError as exc:
+        except (OSError,ValueError) as exc:
+            if systemic(exc):raise
             target=source;layout='original_path_filesystem_cannot_hardlink'
             findings.append('Shallow link unavailable; original validated file retained: '+str(exc))
+            event('delivery_fallback',severity='warning',object_id=identity,source=str(source),reason=findings[-1])
         records.append(dict(object_id=identity,name=name,category=category,format=label,
             label=source.stem.replace('_',' ')+' ('+label+')',
             path=os.path.relpath(target,destination).replace('\\','/'),bytes=target.stat().st_size,
@@ -83,31 +90,56 @@ def publish_exports(package, inventory, destination):
             ('02_wells/trajectories/native_well_trajectory_records.csv','trajectories')]:
         source=package/relative
         if not source.is_file():continue
-        handles={};writers={};counts={}
+        handles={};writers={};counts={};failed=set();complete=False
+        def split_failed(identity,exc):
+            if systemic(exc):raise exc
+            failed.add(identity)
+            findings.append('Spatial delivery incomplete for '+identity+': '+str(exc))
+            event('delivery_failed',severity='error',object_id=identity,source=str(source),reason=str(exc))
         try:
             with source.open(encoding='utf-8-sig',newline='') as stream:
                 reader=csv.DictReader(stream)
                 for row in reader:
                     identity=row.get('object_id','')
-                    if identity not in accepted:continue
-                    if identity not in writers:
-                        name=names.get(identity) or row.get('well_name') or row.get('object_name') or identity
-                        target=destination/category/(slug(name)+'_'+slug(identity)+'.csv')
-                        target.parent.mkdir(parents=True,exist_ok=True)
-                        # Rebuilding this derived table is allowed only inside the owned destination.
-                        handles[identity]=target.open('w',encoding='utf-8',newline='')
-                        writers[identity]=csv.DictWriter(handles[identity],fieldnames=reader.fieldnames)
-                        writers[identity].writeheader();counts[identity]=[target,name,0]
-                    writers[identity].writerow(row);counts[identity][2]+=1
+                    if identity not in accepted or identity in failed:continue
+                    try:
+                        if identity not in writers:
+                            name=names.get(identity) or row.get('well_name') or row.get('object_name') or identity
+                            target=destination/category/(slug(name)+'_'+slug(identity)+'.csv')
+                            target.parent.mkdir(parents=True,exist_ok=True)
+                            import uuid
+                            pending=target.with_name(target.name+'.'+uuid.uuid4().hex[:8]+'.partial')
+                            handles[identity]=pending.open('x',encoding='utf-8',newline='')
+                            writers[identity]=csv.DictWriter(handles[identity],fieldnames=reader.fieldnames)
+                            writers[identity].writeheader();counts[identity]=[target,pending,name,0]
+                        writers[identity].writerow(row);counts[identity][3]+=1
+                    except OSError as exc:split_failed(identity,exc)
+            complete=True
+        except (OSError,csv.Error) as exc:
+            split_failed('shared_'+category,exc)
         finally:
-            for handle in handles.values():handle.close()
-        for identity,(target,name,count) in counts.items():
-            with target.open(encoding='utf-8',newline='') as check:
-                if sum(1 for _ in csv.DictReader(check))!=count:raise ValueError('Split CSV record count mismatch')
-            records.append(dict(object_id=identity,name=name,category=category,format='CSV',
-                path=target.relative_to(destination).as_posix(),bytes=target.stat().st_size,status='exported',
-                numerical_qc='native_decoder; row-preserving split; count checked',units='unknown',
-                sha256='',integrity='derived_from_validated_shared_CSV',storage='object_table',record_count=count))
+            for identity,handle in handles.items():
+                try:handle.close()
+                except OSError as exc:split_failed(identity,exc)
+        if not complete:continue
+        for identity,(target,pending,name,count) in counts.items():
+            if identity in failed:continue
+            try:
+                with pending.open(encoding='utf-8',newline='') as check:
+                    if sum(1 for _ in csv.DictReader(check))!=count:raise ValueError('Split CSV record count mismatch')
+                from geoviewer_io import retry_io, sha256, contained
+                contained(destination,target);contained(destination,pending)
+                def promote():
+                    if target.exists():
+                        if sha256(target)!=sha256(pending):raise FileExistsError('Existing delivery file differs; retained both: '+str(target))
+                        pending.unlink()
+                    else:pending.rename(target)
+                retry_io(promote,operation='finalize_spatial_delivery',source=pending,destination=target,context={'object_id':identity})
+                records.append(dict(object_id=identity,name=name,category=category,format='CSV',
+                    path=target.relative_to(destination).as_posix(),bytes=target.stat().st_size,status='exported',
+                    numerical_qc='native_decoder; row-preserving split; count checked',units='unknown',
+                    sha256='',integrity='derived_from_validated_shared_CSV',storage='object_table',record_count=count))
+            except (OSError,ValueError,csv.Error) as exc:split_failed(identity,exc)
     # Well-head tables are complete open tables; labels stay explicit if not a per-well export.
     heads=package/'02_wells/well_headers/native_well_heads.csv'
     if heads.is_file() and spatial.get('model_well_head_decode',{}).get('status')!='failed_closed':
@@ -127,12 +159,14 @@ def publish_exports(package, inventory, destination):
             link(source,'seismic',item['id'],item['name'],source.suffix[1:].upper(),
                 'every_amplitude_and_trace_geometry',result['summary']['profile']['source_vertical_unit'],artifact.get('sha256'))
     fields=['object_id','name','category','format','label','path','bytes','status','numerical_qc','units','sha256','integrity','storage','record_count']
-    with (destination/'FILE_INDEX.csv').open('w',encoding='utf-8-sig',newline='') as stream:
-        writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader();writer.writerows(records)
+    import io
+    stream=io.StringIO(newline='')
+    writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader();writer.writerows(records)
+    atomic_text(destination/'FILE_INDEX.csv','\ufeff'+stream.getvalue())
     result=dict(product=PRODUCT,version=VERSION,files=records,findings=list(dict.fromkeys(findings)),
         scope='Accepted decoded/converted objects only. Full project inventory is a separate report section.',
         storage_note='Large accepted files use hard links: one physical copy with a shallow user path and validated package compatibility path. Copying the entire run to another filesystem may duplicate hard-linked bytes. Keep the report, EXPORTS and data directories together.')
-    write_json(destination/'FILE_INDEX.json',result)
+    atomic_json(destination/'FILE_INDEX.json',result)
     return result
 
 
@@ -200,14 +234,29 @@ def decorate(report, context, index, destination, log_path=None, event_path=None
     text=text.replace('<main>','<main>'+extra,1)
     if '<main>' not in text:text=text.replace('<body>','<body>'+extra,1)
     text=text.replace('not_registered','not listed in package manifest (not a decode failure)')
-    temporary=report.with_suffix('.html.tmp');temporary.write_text(text,encoding='utf-8');temporary.replace(report)
+    atomic_text(report,text)
 
 
-def partial_report(report, context, status, reason, log_path=None):
+def partial_report(report, context, status, reason, log_path=None, preserve=False):
+    if preserve and Path(report).is_file():
+        text=Path(report).read_text(encoding='utf-8')
+        banner='<section role="alert" style="border:2px solid #ba6711;padding:16px"><h2>'+escape(status)+'</h2><p>'+escape(reason)+'</p><p>Previously generated content is retained; consult the final run result for completeness.</p></section>'
+        atomic_text(report,text.replace('<main>','<main>'+banner,1))
+        return
     groups={}
     for item in context.get('objects',[]):groups.setdefault(item['category'],[]).append(item)
     tree=''.join('<details><summary>'+escape(kind)+' ('+str(len(items))+')</summary><ul>'+''.join('<li>'+escape(x['name'])+' <small>'+escape(x['object_id'])+'</small></li>' for x in items)+'</ul></details>' for kind,items in sorted(groups.items()))
     text='<!doctype html><html><head><meta charset="utf-8"><title>'+PRODUCT+' report</title><style>body{font:16px system-ui;max-width:1200px;margin:40px auto;padding:20px;background:#f5f8fc;color:#172638}table{border-collapse:collapse}td{padding:8px;border-bottom:1px solid #ccc}pre{white-space:pre-wrap}details{margin:12px}</style></head><body><main><h1>'+PRODUCT+'</h1><h2>'+escape(status)+'</h2><p>'+escape(reason)+'</p>'+metadata_section(context)+'<h2>Native project inventory (metadata)</h2>'+tree
     if log_path:text+='<p><a href="'+href(log_path,report)+'">Process log</a></p>'
     text+='</main></body></html>'
-    temporary=Path(report).with_suffix('.html.tmp');temporary.write_text(text,encoding='utf-8');temporary.replace(report)
+    atomic_text(report,text)
+
+
+def diagnostics_section(report, status, stages, summary, log_path, events_path):
+    """Update status independently of figures; preserve any completed report content."""
+    report=Path(report)
+    rows=''.join('<tr><td>'+escape(str(r.get('category','')))+ '</td><td>'+escape(str(r.get('status','')))+ '</td><td>'+escape(str(r.get('reason') or 'See per-object outcomes'))+'</td></tr>' for r in stages)
+    section='<section id="run-diagnostics"><h2>Run status: '+escape(status.replace('_',' '))+'</h2><p><a href="'+href(summary,report)+'">Readable diagnostic summary</a> · <a href="'+href(log_path,report)+'">Full process log</a> · <a href="'+href(events_path,report)+'">Structured events</a></p><p>Validated exports remain available when an independent object or optional figure fails. Pending files are excluded from the converted-data index. Receipt integrity and extraction coverage are separate checks.</p><table><tr><th>Category</th><th>Outcome</th><th>Reason</th></tr>'+rows+'</table></section>'
+    text=report.read_text(encoding='utf-8')
+    text=re.sub(r'<section id="run-diagnostics">.*?</section>','',text,flags=re.S)
+    atomic_text(report,text.replace('<main>','<main>'+section,1))

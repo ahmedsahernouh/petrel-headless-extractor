@@ -389,7 +389,8 @@ def gather_file_inventory(package: Path) -> dict:
     records = []
     by_extension: dict[str, int] = {}
     total_bytes = 0
-    for path in sorted((item for item in package.rglob("*") if item.is_file()), key=lambda item: str(item).casefold()):
+    from geoviewer_io import pending_output
+    for path in sorted((item for item in package.rglob("*") if not pending_output(item) and item.is_file()), key=lambda item: str(item).casefold()):
         relative = path.relative_to(package).as_posix()
         size = path.stat().st_size
         suffix = path.suffix.lower() or "[no extension]"
@@ -430,9 +431,10 @@ def png_dimensions(path: Path) -> tuple[int | None, int | None]:
 
 
 def gather_media(package: Path, max_embed_bytes: int = 12 * 1024 * 1024) -> dict:
+    from geoviewer_io import pending_output
     image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
     items = []
-    for path in sorted((item for item in package.rglob("*") if item.is_file()), key=lambda item: str(item).casefold()):
+    for path in sorted((item for item in package.rglob("*") if not pending_output(item) and item.is_file()), key=lambda item: str(item).casefold()):
         if path.suffix.lower() not in image_extensions:
             continue
         relative = path.relative_to(package).as_posix()
@@ -1019,7 +1021,7 @@ def render_spatial_svg(overview: dict) -> str:
 
     polygons = []
     for item in overview.get("polylines", []):
-        coords = " ".join(f"{px:.2f},{py:.2f}" for px, py in (project(float(x), float(y)) for x, y in item["points"]))
+        coords = " ".join(f"{px:.10g},{py:.10g}" for px, py in (project(float(x), float(y)) for x, y in item["points"]))
         polygons.append(
             f'<polyline data-polygon-object="{esc(item["object_id"])}" data-segment-id="{esc(item.get("segment_id", item["part_index"]))}" points="{coords}"><title>Polygon {esc(item.get("object_name") or item["object_id"][:8])}, part {esc(item["part_index"])}, segment {esc(item.get("segment_id", item["part_index"]))}, '
             f'{item["source_vertex_count"]} source vertices</title></polyline>'
@@ -1027,21 +1029,21 @@ def render_spatial_svg(overview: dict) -> str:
     points = []
     for x, y in overview.get("points", []):
         px, py = project(float(x), float(y))
-        points.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="1.65"/>')
+        points.append(f'<circle cx="{px:.10g}" cy="{py:.10g}" r="1"/>')
     well_nodes = []
-    label_wells = len(overview.get("well_heads", [])) <= 30
+    label_wells = True
     for row in overview.get("well_heads", []):
         px, py = project(float(row["x"]), float(row["y"]))
         well_nodes.append(
-            f'<circle class="well-dot" cx="{px:.2f}" cy="{py:.2f}" r="4.2"><title>{esc(row["well_name"])} — '
+            f'<circle class="well-dot" data-name="{esc(row["well_name"])}" data-id="{esc(row.get("object_id") or row.get("well_id") or row["well_name"])}" data-native-x="{float(row["x"]):.17g}" data-native-y="{float(row["y"]):.17g}" cx="{px:.10g}" cy="{py:.10g}" r="4"><title>{esc(row["well_name"])} — '
             f'X {float(row["x"]):.3f}, Y {float(row["y"]):.3f}</title></circle>'
         )
         if label_wells:
-            well_nodes.append(f'<text class="well-label" x="{px + 6:.2f}" y="{py - 6:.2f}">{esc(row["well_name"])}</text>')
+            well_nodes.append(f'<text class="well-label" data-x="{px:.10g}" data-y="{py:.10g}" x="{px + 6:.10g}" y="{py - 6:.10g}">{esc(row["well_name"])}</text>')
 
     return (
         '<div class="map-shell"><svg id="spatial-map" viewBox="0 0 1000 620" data-original-viewbox="0 0 1000 620" '
-        'role="img" aria-label="Native XY spatial overview">'
+        f'data-native-scale="{scale:.17g}" data-x0="{x0:.17g}" data-y0="{y0:.17g}" data-min-x="{min_x:.17g}" data-max-y="{max_y:.17g}" role="img" aria-label="Native XY spatial overview">'
         '<rect class="map-bg" x="0" y="0" width="1000" height="620"/>'
         f'<g class="map-grid">{"".join(grid)}</g>'
         f'<g id="layer-polygons" class="map-polygons">{"".join(polygons)}</g>'
@@ -1176,6 +1178,8 @@ def render_html(audit: dict, title: str) -> str:
         '<button type="button" data-map-action="zoom-in">＋</button><button type="button" data-map-action="zoom-out">−</button>'
         '<button type="button" data-map-action="reset">Reset view</button></div>'
     )
+    import geoviewer_map
+    map_controls += geoviewer_map.CONTROLS
     bbox = overview.get("bbox", {})
     map_note = (
         f'Display extent ({overview.get("display_extent_basis", "native coordinates")}) X {fmt_num(bbox.get("min_x"), 1)} to {fmt_num(bbox.get("max_x"), 1)}; '
@@ -1302,42 +1306,11 @@ def render_html(audit: dict, title: str) -> str:
       document.querySelectorAll('[data-tree-action]').forEach(button => button.addEventListener('click', () => {
         if (!tree) return; const open = button.dataset.treeAction === 'expand'; tree.querySelectorAll('details').forEach(item => item.open = open);
       }));
-      const svg = document.getElementById('spatial-map');
-      if (svg) {
-        let box = [0,0,1000,620], drag = null;
-        const apply = () => svg.setAttribute('viewBox', box.join(' '));
-        const polygonFilter = document.getElementById('polygon-object-filter');
-        if (polygonFilter) polygonFilter.addEventListener('change', () => {
-          const selected = [];
-          svg.querySelectorAll('[data-polygon-object]').forEach(line => {
-            const visible = !polygonFilter.value || line.dataset.polygonObject === polygonFilter.value;
-            line.style.display = visible ? '' : 'none';
-            if (visible) selected.push(line);
-          });
-          box = [0,0,1000,620];
-          if (polygonFilter.value && selected.length) {
-            const bounds = selected.map(line => line.getBBox());
-            const x = Math.min(...bounds.map(b => b.x)), y = Math.min(...bounds.map(b => b.y));
-            const w = Math.max(1, Math.max(...bounds.map(b => b.x+b.width))-x);
-            const h = Math.max(1, Math.max(...bounds.map(b => b.y+b.height))-y);
-            box = [x-w*.08,y-h*.08,w*1.16,h*1.16];
-          }
-          apply();
-        });
-        const zoom = factor => { const nw=box[2]*factor, nh=box[3]*factor; box=[box[0]+(box[2]-nw)/2,box[1]+(box[3]-nh)/2,nw,nh]; apply(); };
-        document.querySelectorAll('[data-map-action]').forEach(button => button.addEventListener('click', () => {
-          const action=button.dataset.mapAction; if(action==='zoom-in') zoom(.8); else if(action==='zoom-out') zoom(1.25); else {box=[0,0,1000,620];apply();}
-        }));
-        svg.addEventListener('wheel', event => { event.preventDefault(); zoom(event.deltaY < 0 ? .88 : 1.14); }, {passive:false});
-        svg.addEventListener('pointerdown', event => { drag={x:event.clientX,y:event.clientY,box:[...box]}; svg.setPointerCapture(event.pointerId); });
-        svg.addEventListener('pointermove', event => { if(!drag) return; const rect=svg.getBoundingClientRect(); box[0]=drag.box[0]-(event.clientX-drag.x)*drag.box[2]/rect.width; box[1]=drag.box[1]-(event.clientY-drag.y)*drag.box[3]/rect.height; apply(); });
-        svg.addEventListener('pointerup', () => drag=null); svg.addEventListener('pointercancel', () => drag=null);
-      }
     })();
     """
 
-    style += visual.STYLE
-    script += visual.SCRIPT
+    style += visual.STYLE + geoviewer_map.STYLE
+    script += visual.SCRIPT + geoviewer_map.SCRIPT
     nav = "".join(
         f'<a href="#{section_id}">{label}</a>'
         for section_id, label in (

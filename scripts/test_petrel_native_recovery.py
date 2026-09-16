@@ -311,8 +311,12 @@ class RecoveryTests(unittest.TestCase):
     def test_partial_output_never_renamed_success(self):
         package = self.fixture()
         with patch.object(r, 'write_las', side_effect=r.NativeError('Injected read-back failure')), redirect_stdout(io.StringIO()): report = r.run(package)
-        self.assertEqual(report['objects'][0]['status'], 'unsupported_layout')
-        self.assertEqual(report['objects'][0]['artifacts'], [])
+        record=report['objects'][0]
+        self.assertEqual(record['status'], 'decoded')
+        self.assertEqual(record['las_status'], 'failed')
+        self.assertTrue(report['has_gaps'])
+        self.assertTrue(any(a['path'].endswith('samples.csv') for a in record['artifacts']))
+        self.assertFalse(any(a['path'].endswith('.las') for a in record['artifacts']))
         self.assertTrue(list(package.rglob('*.partial')))
 
     def test_length_framing_not_marker_scan(self):

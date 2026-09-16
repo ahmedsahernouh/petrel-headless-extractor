@@ -1,5 +1,20 @@
 # Release requirements and implementation status
 
+## Next maintenance update: robustness, diagnostics and map usability
+
+Registered **2026-09-16**, following the supplied 0.8.0 Windows finalization failure and oversized overlapping well-marker screenshot. **Implementation authorized 2026-09-16 for 0.8.1; implemented and validated; see the version-specific validation record.** The user explicitly prioritizes robustness. The detailed [correction plan](ROBUSTNESS_LOGGING_MAP_PLAN.md) contains failure policy, bounded retries, checkpoint/partial-result handling, logging contracts, map controls and acceptance gates. It takes priority over new RESCUE development; the existing RESCUE plan remains deferred.
+
+| ID | Priority | Planned scope |
+|---|---|---|
+| NEXT-22 | P0 | Safe finalization; isolate object/category failures; continue independent recovery; stop honestly for systemic/integrity failures; preserve validated partial outputs/report/index. |
+| NEXT-23 | P0 | Comprehensive lifecycle/error/process logs; top-level diagnostic summary; retries/OS details; resilient log collection; clear aggregate and per-format outcomes. |
+| NEXT-24 | P1, next-maintenance gate | Constant screen-size well/point markers with independent size/opacity controls, readable labels, coincident-object selection, fit-visible controls and stable grid/axes. |
+| NEXT-25 | P1, follow-on | Explicit checkpoint reconciliation and resume/retry of unfinished work after identity/integrity checks; deeper diagnostics and manual support bundle. Durable checkpoints belong in NEXT-22/23 first. |
+
+The incident demonstrates incomplete filesystem-failure isolation and missing primary-error propagation in 0.8.0. Existing NEXT-14/NEXT-17 delivery below describes implemented pieces, not comprehensive robustness. The subsequent user instruction authorized implementation. See [the 0.8.1 guide](GEOVIEWER_0_8_1.md) for delivered scope; full resume and redacted support bundles remain follow-on work.
+
+User clarification: **routine isolated errors must not block the application**. NEXT-22 requires automatic bounded recovery or an explicit local failure while independent exports and report/index delivery continue without an intervention prompt. Error counts or child exit codes alone must not trigger a whole-run abort. Acceptance scenario R00 in the correction plan makes this behavior mandatory. Shared storage/integrity failures retain the controlled-stop boundary.
+
 ## Next version after v0.7.0: registered requests and recommendations
 
 Registered **2026-09-15** from the user's report review and follow-up instructions. **Implementation authorized 2026-09-16 for version 0.8.0**, with Petrel 2024 analysis the primary priority. This supersedes the earlier registration-only instruction. The original requirements below are retained as the scope record; the status table identifies delivered behavior and remaining work.

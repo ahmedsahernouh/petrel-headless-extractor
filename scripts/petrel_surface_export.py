@@ -136,7 +136,32 @@ def write_surface(output, info, i, j, x, y, z, valid, cells, compact=False, nati
         index=np.arange(len(cells));nx=info['node_size'][0]
         table(output/'cells.csv','cell_index,i,j,defined',[index,index%(nx-1),index//(nx-1),cells],['%d']*4)
         info['node_table_scope']='all native node positions'
-    if info['blob_type']=='RegValGrid2':info.update(write_zmap(output/'surface.zmap',z,valid,info))
+    import geoviewer_io as gio
+    from geoviewer_diagnostics import event
+    if info['blob_type']=='RegValGrid2':
+        zmap_pending=output/'zmap.partial'
+        try:
+            zmap_pending.mkdir()
+            info.update(write_zmap(zmap_pending/'surface.zmap',z,valid,info))
+            if (zmap_pending/'surface.zmap').is_file():
+                gio.retry_io(lambda:(zmap_pending/'surface.zmap').rename(output/'surface.zmap'),
+                             operation='finalize_zmap',source=zmap_pending/'surface.zmap',destination=output/'surface.zmap')
+            try:zmap_pending.rmdir()
+            except OSError as exc:event('staging_cleanup_deferred',severity='warning',path=str(zmap_pending),reason=str(exc))
+        except Exception as exc:
+            if gio.systemic(exc):raise
+            info.update(zmap_status='failed',zmap_reason=str(exc),export_status='partial')
+            event('format_failed',severity='error',object_id=info.get('object_id'),name=info['name'],format='ZMAP',**gio.error_details(exc))
     else:info.update(zmap_status='not_applicable',zmap_reason='Explicit XYZ mesh is not asserted to be an axis-aligned regular grid; use XYZ/CSV')
-    info.update(preview(output/'grid_preview.npz',x,y,z,valid,cells,info))
+    preview_pending = output/'preview.partial'
+    try:
+        preview_pending.mkdir()
+        info.update(preview(preview_pending/'grid_preview.npz',x,y,z,valid,cells,info))
+        (preview_pending/'grid_preview.npz').rename(output/'grid_preview.npz')
+        try:preview_pending.rmdir()
+        except OSError as exc:event('staging_cleanup_deferred',severity='warning',path=str(preview_pending),reason=str(exc))
+    except Exception as exc:
+        if gio.systemic(exc): raise
+        info.update(preview_status='failed',preview_reason=str(exc))
+        event('preview_failed',severity='warning',object_id=info.get('object_id'),name=info['name'],**gio.error_details(exc))
     info['topology_boundary']='Native node and cell definitions retained; display decimation masks gaps; no fault connections inferred'

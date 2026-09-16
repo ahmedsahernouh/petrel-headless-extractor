@@ -245,58 +245,95 @@ class ConsoleProgress:
         return (prefix + f'{bar(fraction)} {100 * fraction:.1f}% | Hash ETA ~{eta}'
                 f' | {size(done)}/{size(total)} | {metric["files_done"]}/{metric["files_total"]} files | {metric["label"]}')
 
-    def close(self, success=False):
+    def close(self, success=False, status=None):
         self.stop.set()
         if self.thread is not None:
             self.thread.join()
         with self.lock:
             completed = self.stages if success else self.number - 1
             self._write(f'Overall {bar(completed / self.stages)} {completed}/{self.stages} stages complete'
-                        f' | {"Complete" if success else "Stopped before completion"} | Elapsed {duration(self.elapsed)}')
+                        f' | {status or ("Complete" if success else "Stopped before completion")} | Elapsed {duration(self.elapsed)}')
         set_reporter(None)
 
 
 def run_pipeline(command, cwd, log_path, timeout):
-    """Drain merged child output live, preserve its log, and stop our tree on timeout."""
+    """Drain both streams; diagnostic faults never break the producer's pipe."""
     env = os.environ.copy()
     if isinstance(_reporter, ConsoleProgress):
         env['PETREL_PROGRESS_EVENTS'] = '1'
     else:
         env.pop('PETREL_PROGRESS_EVENTS', None)
-    errors = []
-    from geoviewer_diagnostics import event
+    env['PYTHONUTF8'] = '1'
+    from geoviewer_diagnostics import event, PREFIX
+    import tempfile
     event('child_start',command=command,cwd=str(cwd),log_path=str(log_path),timeout_seconds=timeout)
-    with log_path.open('w', encoding='utf-8') as log:
-        proc = subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, errors='replace')
-
-        def drain():
-            try:
-                for line in proc.stdout:
-                    log.write(line)
-                    log.flush()
-                    if line.startswith('OBJECT_RESULT '):
-                        event('native_object_outcome',**json.loads(line[len('OBJECT_RESULT '):]))
-                    else:event('child_output',line=line.rstrip())
-                    if isinstance(_reporter, ConsoleProgress):
-                        _reporter.child_line(line.rstrip())
-            except Exception as exc:
-                errors.append(exc)
-            finally:
-                proc.stdout.close()
-
-        reader = threading.Thread(target=drain, daemon=True)
-        reader.start()
+    log = None; log_lock = threading.Lock(); fallback_used = False
+    try: log = log_path.open('w', encoding='utf-8')
+    except OSError as exc: event('child_log_unavailable',severity='warning',reason=str(exc),path=str(log_path))
+    try:
+        proc = subprocess.Popen(command,cwd=cwd,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                text=True,encoding='utf-8',errors='replace')
+    except OSError:
+        if log is not None:log.close()
+        raise
+    def drain(pipe, stream_name):
+        nonlocal log, fallback_used
         try:
-            proc.wait(timeout=timeout)
-        except BaseException:
-            # Terminate only this owned process tree, including PowerShell children.
-            subprocess.run(['taskkill.exe', '/PID', str(proc.pid), '/T', '/F'], capture_output=True)
-            proc.wait()
-            raise
-        finally:
-            reader.join()
-        if errors:
-            raise errors[0]
-        event('child_exit',exit_code=proc.returncode)
-        return proc.returncode
+            while True:
+                line = pipe.readline(65536)
+                if not line: break
+                with log_lock:
+                    try:
+                        if log is not None:
+                            log.write(('STDERR: ' if stream_name=='stderr' else '')+line); log.flush()
+                    except (OSError,ValueError) as exc:
+                        try: log.close()
+                        except OSError: pass
+                        log = None
+                        event('child_log_write_failed',severity='warning',reason=str(exc),pid=proc.pid)
+                    if log is None and not fallback_used:
+                        fallback_used = True
+                        try:
+                            log = tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',prefix='GeoViewer_child_',suffix='.log',delete=False)
+                            log.write(line); log.flush()
+                            event('child_log_fallback',severity='warning',path=log.name,pid=proc.pid)
+                        except OSError as exc: event('child_log_lost',severity='error',reason=str(exc))
+                try:
+                    if line.startswith(PREFIX):
+                        data=json.loads(line[len(PREFIX):]); kind=data.pop('event')
+                        if not isinstance(kind,str): raise ValueError('Event name must be text')
+                        event(kind,**data)
+                    elif line.startswith('OBJECT_RESULT '):
+                        event('native_object_outcome',**json.loads(line[len('OBJECT_RESULT '):]))
+                    else: event('child_output',line=line.rstrip(),stream=stream_name,pid=proc.pid)
+                except (ValueError,TypeError,KeyError) as exc:
+                    event('malformed_child_event',severity='warning',reason=str(exc),line=line.rstrip(),stream=stream_name,pid=proc.pid)
+                if isinstance(_reporter,ConsoleProgress): _reporter.child_line(line.rstrip())
+        except OSError as exc:
+            event('child_pipe_error',severity='error',reason=str(exc),stream=stream_name,pid=proc.pid)
+        finally: pipe.close()
+    readers=[threading.Thread(target=drain,args=(pipe,name),daemon=True) for pipe,name in
+             ((proc.stdout,'stdout'),(proc.stderr,'stderr'))]
+    for reader in readers: reader.start()
+    try:
+        proc.wait(timeout=timeout)
+    except BaseException as exc:
+        event('child_interrupted',severity='error',exception_type=type(exc).__name__,reason=str(exc),pid=proc.pid)
+        try: subprocess.run(['taskkill.exe','/PID',str(proc.pid),'/T','/F'],capture_output=True,timeout=10)
+        except (OSError,subprocess.TimeoutExpired) as cleanup: event('child_cleanup_failed',severity='error',reason=str(cleanup),pid=proc.pid)
+        if proc.poll() is None:
+            proc.kill()
+            try: proc.wait(timeout=5)
+            except subprocess.TimeoutExpired: event('child_stop_unconfirmed',severity='error',pid=proc.pid)
+        raise
+    finally:
+        for reader in readers:
+            reader.join(timeout=10)
+            if reader.is_alive(): event('child_drain_timeout',severity='error',pid=proc.pid)
+        with log_lock:
+            if log is not None:
+                try: log.close()
+                except OSError as exc: event('child_log_close_failed',severity='warning',reason=str(exc))
+                log = None
+        event('child_exit',exit_code=proc.returncode,pid=proc.pid)
+    return proc.returncode

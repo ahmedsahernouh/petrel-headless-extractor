@@ -123,7 +123,7 @@ def discover(project):
         if path.suffix.lower() not in SEISMIC_SUFFIXES or not path.is_file(): continue
         if any(parent in neighboring for parent in path.resolve().parents): continue
         add(path,'unlinked_companion')
-    return dict(version='0.8.0', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
+    return dict(version='0.8.1', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
                 discovery_boundary='Selected store and explicit XML or supported BXML file/path fields only. Unlinked companions need an exact-file run. Unparsed references are not inferred.')
 
 
@@ -157,6 +157,10 @@ def convert_project(inventory, output, enabled, full_hash=False, on_update=None,
             if full_hash:
                 row.update(sha256=result['source_hashes_before'].get(str(Path(row['source']).resolve())),hash_status='sha256')
         except Exception as exc:
+            from geoviewer_io import systemic, error_details
+            from geoviewer_diagnostics import event
+            event('seismic_failed',severity='error',object_id=row['id'],**error_details(exc))
+            if systemic(exc):raise
             row.update(status='conversion_failed', reason=str(exc))
             if full_hash and row.get('file_state') and not row.get('sha256'):
                 try:
@@ -189,9 +193,19 @@ def single_file_run(source, output, options):
     stem=(re.sub(r'[^A-Za-z0-9_-]+','_',source.stem)[:64] or 'Seismic')+'_'+datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:6]
     data=output/(stem+'_data');data.mkdir(parents=True,exist_ok=False)
     package=data/'report';report=output/(stem+'_REPORT.html')
-    from geoviewer_delivery import decorate,publish_exports,partial_report
+    from geoviewer_delivery import decorate,publish_exports,partial_report,diagnostics_section
+    from geoviewer_io import output_probe,systemic,error_details,atomic_json
     from geoviewer_diagnostics import Diagnostics
     logs=Diagnostics(output/(stem+'_LOG.txt'),output/(stem+'_EVENTS.jsonl'))
+    output_probe(data)
+    stages=[]
+    def optional(category,action):
+        try:return action()
+        except Exception as exc:
+            if systemic(exc):raise
+            output_probe(data)
+            stages.append(dict(category=category,status='partial',reason=str(exc)))
+            logs.event('optional_operation_failed',severity='error',**error_details(exc,category=category))
     logs.event('started',source=str(source),options=options,mode='exact_ZGY_file')
     inventory=dict(objects=[dict(id=stem,name=source.name,source=str(source),format='.zgy',
                     association='explicit_file_selection',status='inventoried',file_state=file_state(source),
@@ -202,24 +216,35 @@ def single_file_run(source, output, options):
         rendered=subprocess.run([sys.executable,'-B',str(script),'--export-package',str(package),'--title',source.stem+' seismic report'],capture_output=True,text=True)
         (data/'report_build.log').write_text(rendered.stdout+'\n'+rendered.stderr,encoding='utf-8')
         logs.event('report_builder',exit_code=rendered.returncode,stdout=rendered.stdout,stderr=rendered.stderr)
-        if rendered.returncode: raise RuntimeError('Seismic report failed; see '+str(data/'report_build.log'))
+        base_report=package/'PROJECT_REPORT.html'
+        if rendered.returncode:
+            stages.append(dict(category='visual_report',status='partial',reason='Visual report failed; see report_build.log'))
+            base_report=data/'REPORT_BASE.html'
+            partial_report(base_report,{},'Partial seismic report','The figure report failed. Conversion results will still be listed.',logs.text_path)
         def update(complete=False):
             write_json(data/'seismic_results.json',inventory)
-            deliver_report(package/'PROJECT_REPORT.html',report,inventory,complete)
+            optional('report_update',lambda:deliver_report(base_report,report,inventory,complete))
         update();print('FULL REPORT (ready now): '+str(report),flush=True)
         enabled=not options.get('report_only',False)
         convert_project(inventory,data/'seismic',enabled,options.get('full_hash',False),update,options)
         update(True)
         destination=output/(stem+'_EXPORTS')
-        index=publish_exports(package,inventory,destination) if enabled else None
-        decorate(report,{'findings':['Exact ZGY file mode; no Petrel project metadata was supplied.']},index,destination,logs.text_path,logs.events_path)
+        index=optional('export_index',lambda:publish_exports(package,inventory,destination)) if enabled else None
+        optional('report_decoration',lambda:decorate(report,{'findings':['Exact ZGY file mode; no Petrel project metadata was supplied.']},index,destination,logs.text_path,logs.events_path))
         failed=any(row['status'] in ('unavailable','conversion_failed','unsupported','missing') for row in inventory['objects'])
-        logs.event('completed',success=not failed,outcomes=inventory)
-        print(('Conversion failed; see report: ' if failed else 'SUCCESS: ')+str(report),flush=True)
-        return not failed
+        if failed:stages.append(dict(category='seismic',status='partial',reason='Requested conversion did not complete; see the dataset reason.'))
+        if index and index.get('findings'):stages.append(dict(category='delivery',status='partial',reason='; '.join(index['findings'])))
+        status='completed_with_gaps' if stages else 'completed'
+        optional('diagnostic_report',lambda:diagnostics_section(report,status,stages,logs.summary_path,logs.text_path,logs.events_path))
+        status='completed_with_gaps' if stages else 'completed'
+        atomic_json(data/'RUN_RESULT.json',dict(status=status,seismic=inventory,category_outcomes=stages,full_report=str(report),diagnostic_summary=str(logs.summary_path)))
+        logs.event('completed',status=status,outcomes=inventory)
+        print(('COMPLETED WITH GAPS: ' if stages else 'SUCCESS: ')+str(report),flush=True)
+        return not stages
     except (Exception,KeyboardInterrupt) as exc:
         logs.event('failed',error=str(exc),exception=type(exc).__name__)
-        partial_report(report,{},'Seismic extraction failed',str(exc),logs.text_path)
+        try:partial_report(report,{},'Seismic extraction failed',str(exc),logs.text_path,preserve=True)
+        except OSError as secondary:logs.event('failure_report_unavailable',severity='error',**error_details(secondary))
         raise
     finally:logs.close()
 

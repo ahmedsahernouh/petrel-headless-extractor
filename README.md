@@ -8,7 +8,7 @@ I built this as a read-only way to inspect and recover supported data from a Pet
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-The current release is **0.8.0**. Its modern-project recovery path was tested on one project recording Petrel 2024.5.0. That run supports the stated fixture; it is not a blanket claim for every Petrel version or object type. [Read the current capabilities and limits](docs/GEOVIEWER_0_8.md).
+The current release is **0.8.1**. It adds isolated-failure recovery, readable diagnostic summaries and adjustable constant-size map markers. Modern recovery is tested on one project recording Petrel 2024.5.0; this is not a blanket claim for every Petrel version or object type. [Read the current capabilities and limits](docs/GEOVIEWER_0_8_1.md).
 
 Supported paths include [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md), plus [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic found in the selected store or explicitly referenced by the project. Unsupported objects remain visible in the inventory instead of being presented as converted. See the [coverage notes and roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 

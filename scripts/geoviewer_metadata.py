@@ -21,7 +21,7 @@ import petrel_native_binary as binary
 from petrel_native_binary import Node, Array
 
 PRODUCT = 'GeoViewer_data_extractor'
-VERSION = '0.8.0'
+VERSION = '0.8.1'
 
 
 def write_json(path, value):

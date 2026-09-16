@@ -67,9 +67,12 @@ def is_link(path: Path) -> bool:
     return path.is_symlink() or bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)
 
 
-def safe_files(directory: Path, exclude_toolkits=False) -> list[Path]:
+def safe_files(directory: Path, exclude_toolkits=False, exclude_pending=False) -> list[Path]:
     result = []
     for base, dirs, names in os.walk(directory, followlinks=False):
+        if exclude_pending:
+            from geoviewer_io import pending_output
+            dirs[:] = [d for d in dirs if not pending_output(Path(base)/d)]
         if exclude_toolkits:
             from geoviewer_paths import is_toolkit
             dirs[:]=[d for d in dirs if not is_toolkit(Path(base)/d)]
@@ -162,7 +165,7 @@ class Run:
         if changed:
             raise RuntimeError("Source changed during processing: " + repr(changed))
         write_json(self.output / "result.json", result)
-        files = safe_files(self.output)
+        files = safe_files(self.output, exclude_pending=True)
         with progress.hash_batch("Hashing output artifacts", files):
             artifacts = [{"path":p.relative_to(self.output).as_posix(),"sha256":sha256(p),"bytes":p.stat().st_size}
                          for p in files]
@@ -231,7 +234,7 @@ def qc_depth(values) -> dict:
 def qc_data_package(args: dict) -> dict:
     import numpy as np
     package = path_arg(args, "export_package", directory=True)
-    files = safe_files(package)
+    files = safe_files(package, exclude_pending=True)
     las_files = sorted((package / "02_wells/well_logs_las").rglob("*.las"))
     if las_files:
         import lasio

@@ -23,7 +23,7 @@ import numpy as np
 import petrel_progress as progress
 from petrel_seismic_integrity import file_state, readonly_source
 
-VERSION = '0.8.0'
+VERSION = '0.8.1'
 ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES = [
     dict(id='zgy-to-segy', input='Petrel ZGY binary seismic cube', output='SEG-Y + metadata JSON', status='beta',
@@ -162,7 +162,7 @@ def convert_zgy(source, run, options):
         with segyio.create(str(pending),spec) as writer:
             crs_ascii=plan['crs'].encode('ascii','replace').decode().replace('\n',' ').replace('\r',' ')
             writer.text[0]=segyio.tools.create_text_header({
-                1:'GeoViewer_data_extractor 0.8.0 - https://saherlabs.dev/',
+                1:'GeoViewer_data_extractor 0.8.1 - https://saherlabs.dev/',
                 2:'NEW CUBE EXCHANGE FILE. ORIGINAL ACQUISITION HEADERS NOT RECOVERED.',
                 3:'TIME AXIS: DT MICROSECONDS, ORIGIN MILLISECONDS.' if plan['interval_us'] else 'PHYSICAL AXIS UNSPECIFIED. SET NATIVE AXIS ON IMPORT; SEE BELOW.',
                 4:'IEEE FLOAT32 BIG ENDIAN; INLINE 189; CROSSLINE 193; CDP X/Y 181/185.',
@@ -332,7 +332,7 @@ def main():
             if answer not in ('','n','no','y','yes'): raise InputError('Enter Y or N for full hashing')
             args.full_hash=answer in ('y','yes')
         from petrel_project_seismic import single_file_run
-        success=single_file_run(source,output,vars(args));return 0 if success else 1
+        success=single_file_run(source,output,vars(args));return 0 if success else 10
     except (Exception,KeyboardInterrupt) as exc:
         display.message('ERROR: '+(str(exc) or 'Cancelled'));return 130 if isinstance(exc,KeyboardInterrupt) else 1
     finally:display.close(success)

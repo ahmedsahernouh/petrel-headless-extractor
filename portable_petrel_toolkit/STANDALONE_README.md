@@ -66,3 +66,7 @@ Run logs and receipts are inside the result data folder. Per-dataset conversion 
 The console shows elapsed time and stage progress. Conversion/QC uses measured trace counts. When full hashing is selected, byte progress and Hash ETA apply to that hash pass, not the whole job. Report-only still reads the bounded data needed for figures. No ETAs are invented for unknown stages.
 
 The current shapefile GeoJSON derivative retains source coordinates without reprojection; projected coordinates are not RFC 7946 WGS84 GeoJSON. See the backlog for that separate correction.
+
+## Maintenance update 0.8.1
+
+Open `GEOVIEWER_0_8_1.md` for the new failure handling, diagnostic summary, partial-completion exit code 10, and map controls. Start with the top-level report; its converted-file index and diagnostics links lead directly to accepted data and process evidence. Full resume and complete RESCUE export remain future work.

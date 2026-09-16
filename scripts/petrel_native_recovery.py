@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import collections
 from contextlib import closing
+from contextvars import ContextVar
 import csv
 import hashlib
 import json
@@ -17,6 +18,8 @@ import re
 import sqlite3
 import sys
 import uuid
+import geoviewer_io as gio
+from geoviewer_diagnostics import event
 
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -24,7 +27,15 @@ import petrel_native_binary as binary
 import time
 from petrel_native_binary import NativeError, Node
 
-VERSION = '0.8.0'
+VERSION = '0.8.1'
+_operation = ContextVar('native_operation', default=None)
+
+
+def phase(operation, **fields):
+    context = _operation.get()
+    if context is not None:
+        context.update(operation=operation, **fields)
+        event('object_phase', **context)
 TYPES = ('FloatWellLog', 'IntWellLog', 'RegValGrid2', 'ValGrid2')
 PROFILES = {
     'FloatWellLog': [1, 3, 0, 2, 0, 1],
@@ -312,8 +323,14 @@ def safe_name(value):
 def object_output(directory, info):
     final = directory/(safe_name(info['name'])[:8]+'_'+uuid.UUID(info['object_id']).hex)
     pending = final.with_name(final.name+'.partial')
+    if pending.exists():
+        pending = final.with_name(final.name+'.'+uuid.uuid4().hex[:6]+'.partial')
     if len(str(pending/'metadata.json')) >= 250:
         raise QCError('Output path is too long for Windows file tools; choose a shorter output root')
+    gio.contained(directory, pending); gio.contained(directory, final)
+    if final.exists():
+        raise FileExistsError('Existing object output requires verified resume: '+str(final))
+    phase('create_staging', pending_path=str(pending), destination=str(final))
     pending.mkdir(parents=True, exist_ok=False)
     return final, pending
 
@@ -367,6 +384,7 @@ def write_las(path, md, values, missing, info):
 
 
 def recover_object(blob, tag, kind, metadata, directory, preview_only=False):
+    phase('decode_payload')
     node = binary.object_document(blob)
     versions = [PROFILES[kind]] + ([REGULAR_GRID_V0] if kind == 'RegValGrid2' else [])
     if node.name != 'data' or node.attrs.get('Type') != kind or node.attrs.get('Version') not in versions:
@@ -374,6 +392,7 @@ def recover_object(blob, tag, kind, metadata, directory, preview_only=False):
     if node.attrs.get('xmlns') != NAMESPACE:
         raise NativeError('Unsupported object serialization namespace')
     model, info = metadata.resolve(tag, kind)
+    phase('resolve_metadata', name=info['name'], well=info.get('well'))
     info.update(blob_type=kind, object_version=node.attrs['Version'], blob_sha256=hashlib.sha256(blob).hexdigest())
     if kind.endswith('WellLog'):
         md, values, missing, details = decode_log(node, kind)
@@ -381,15 +400,34 @@ def recover_object(blob, tag, kind, metadata, directory, preview_only=False):
         if not len(md): return dict(info, status='empty_supported_object', artifacts=[])
         final_output, output = object_output(directory, info)
         csv_path = output/'samples.csv'
+        phase('write_csv', path=str(csv_path))
         expected = np.column_stack([np.arange(len(md)), md, values, missing.astype(int)])
         csv_write(csv_path, ['sample_index', 'md', 'raw_value', 'is_null'],
                   ([int(k), number(d), number(v), int(m)] for k, d, v, m in expected))
-        check_csv(csv_path, expected)
+        phase('validate_csv', path=str(csv_path)); check_csv(csv_path, expected)
+        info['format_results'] = {'CSV': {'status':'validated','file':'samples.csv'}}
         info['las_status'] = 'not_written'
         if (not details['interval_records'] and kind == 'FloatWellLog' and len(md) >= 2
                 and np.all(np.diff(md) > 0) and info['unit'] is not None and info['depth_unit'] is not None):
-            write_las(output/'curve.las', md, values, missing, info)
-            info['las_status'] = 'written_verified'
+            # Keep an optional LAS failure out of the accepted CSV bundle.
+            las_pending = output/'las.partial'
+            try:
+                las_pending.mkdir()
+                phase('write_validate_las', path=str(las_pending/'curve.las'))
+                write_las(las_pending/'curve.las', md, values, missing, info)
+                gio.retry_io(lambda:(las_pending/'curve.las').rename(output/'curve.las'),
+                             operation='finalize_las',source=las_pending/'curve.las',destination=output/'curve.las',
+                             context={'object_id':tag,'name':info['name']})
+                info['las_status'] = 'written_verified'
+                info['format_results']['LAS'] = {'status':'validated','file':'curve.las'}
+                try: las_pending.rmdir()
+                except OSError as exc:event('staging_cleanup_deferred',severity='warning',path=str(las_pending),reason=str(exc))
+            except Exception as exc:
+                if gio.systemic(exc): raise
+                info['las_status'] = 'failed'; info['export_status'] = 'partial'
+                info['format_results']['LAS'] = dict(status='failed',**gio.error_details(exc))
+                event('format_failed',severity='error',object_id=tag,name=info['name'],format='LAS',
+                      operation='write_validate_las',**gio.error_details(exc))
         else:
             info['las_reason'] = 'Requires continuous float curve, resolved units and increasing MD; CSV preserves original records'
         info['category_labels_status'] = 'not_decoded' if kind == 'IntWellLog' else 'not_applicable'
@@ -430,6 +468,7 @@ def recover_object(blob, tag, kind, metadata, directory, preview_only=False):
             raise MissingMetadata('Regular grid without coordinate context requires exact independent model bounds')
         final_output, output = object_output(directory, info)
         from petrel_surface_export import write_surface, preview
+        phase('write_validate_surface', path=str(output))
         compact = node.child('node_defs', required=False) is not None and node.child('node_defs').child('bools', required=False) is not None
         try:
             if preview_only:
@@ -445,11 +484,15 @@ def recover_object(blob, tag, kind, metadata, directory, preview_only=False):
     if info['status'] != 'decoded':
         info['reason'] = 'Numeric payload recovered to open files; units unresolved. Not counted as a unit-resolved decoded object.'
     info['numeric_round_trip'] = 'exact'
+    phase('write_metadata', path=str(output/'metadata.json'))
     write_json(output/'metadata.json', info)
-    output.rename(final_output)
-    output = final_output
-    info['artifacts'] = [dict(path=p.relative_to(directory).as_posix(), sha256=sha(p), bytes=p.stat().st_size)
+    phase('hash_artifacts')
+    info['artifacts'] = [dict(path=(final_output/p.name).relative_to(directory).as_posix(), sha256=sha(p), bytes=p.stat().st_size)
                          for p in sorted(output.iterdir()) if p.is_file()]
+    gio.atomic_json(output/'_commit.json',dict(schema='geoviewer.object/1',tool_version=VERSION,record=info))
+    phase('finalize_directory')
+    gio.finalize_directory(output, final_output, context={'object_id':tag,'name':info['name'],
+                           'well':info.get('well'),'blob_type':kind,'decoder_profile':node.attrs.get('Version')})
     return info
 
 
@@ -484,15 +527,15 @@ def read_blob(db, pk):
     return b''.join(bytes(r[0]) for r in db.execute('SELECT blob_data FROM blob_parts WHERE data_fk=? ORDER BY part', (pk,)))
 
 
-def run(package, *, grids_only=False, preview_only=False):
+def run(package, *, grids_only=False, preview_only=False, resume=False):
     package = Path(package).resolve(strict=True)
     native = package/'08_native_project'
     output = package/'07_workflows_reports/native_recovery'
-    output.mkdir(parents=True, exist_ok=False)
+    output.mkdir(parents=True, exist_ok=resume)
     report = dict(tool_version=VERSION, operation='native_logs_surfaces', objects=[], status='running',
                   runtime_gui_used=False, petrel_process_launched=False)
     report_path = output/'native_recovery_report.json'
-    sources = []
+    sources = []; before = None; journal = None
     try:
         projects = list((native/'project_file').glob('*.pet'))
         if len(projects) != 1: raise MissingMetadata('Expected exactly one preserved project file')
@@ -505,29 +548,74 @@ def run(package, *, grids_only=False, preview_only=False):
             raise NativeError('SQLite has transaction sidecars; use a stable preserved snapshot')
         before = {p.relative_to(package).as_posix(): sha(p) for p in sources}
         report['source_hashes_before'] = before
+        if resume:
+            previous = json.loads(report_path.read_text(encoding='utf-8'))
+            if previous.get('tool_version') != VERSION or previous.get('source_hashes_before') != before:
+                raise NativeError('Resume rejected: source or decoder identity changed')
+        gio.atomic_json(report_path, report)
+        journal = gio.Journal(output/'objects.jsonl')
         metadata_error = None
         try: metadata = Metadata(sources[0], sources[1])
         except (NativeError, UnicodeError, OSError) as exc: metadata_error = str(exc)
-        directory = package/'native_data'; directory.mkdir(exist_ok=False)
+        directory = package/'native_data'; directory.mkdir(exist_ok=resume)
         with closing(sqlite3.connect(binary.sqlite_readonly_uri(dbpath), uri=True)) as db:
             db.execute('PRAGMA query_only=ON')
             db.execute('BEGIN')
             objects = select_objects(db)
             if grids_only: objects = [row for row in objects if row[4] in ('RegValGrid2','ValGrid2')]
             report['object_type_counts'] = dict(collections.Counter(r[4] for r in objects))
+            consecutive_io_failures=0
             for index, (pk, tag, name, version, kind) in enumerate(objects):
                 object_started=time.monotonic()
-                record = dict(object_id=tag, blob_type=kind, data_pk=pk, registry_version=version, artifacts=[])
+                context = dict(object_id=tag,name=name or tag,blob_type=kind,object_index=index+1,object_total=len(objects),operation='read_blob')
+                token = _operation.set(context)
+                record = dict(object_id=tag, name=name or tag, blob_type=kind, data_pk=pk, registry_version=version, artifacts=[])
+                event('object_started',**context)
                 try:
                     if metadata_error: raise MissingMetadata(metadata_error)
                     blob = read_blob(db, pk)
                     options = dict(preview_only=True) if preview_only else {}
-                    record.update(recover_object(blob, tag, kind, metadata, directory, **options))
+                    reused = None
+                    if resume:
+                        for candidate in directory.glob('*_'+uuid.UUID(tag).hex+'/_commit.json'):
+                            saved = json.loads(candidate.read_text(encoding='utf-8'))
+                            item = saved['record']
+                            if saved.get('tool_version') != VERSION or item.get('blob_sha256') != hashlib.sha256(blob).hexdigest():
+                                raise NativeError('Committed object source/profile changed')
+                            for artifact in item.get('artifacts',[]):
+                                path = gio.contained(directory,directory/artifact['path'])
+                                if not path.is_file() or sha(path) != artifact['sha256']:
+                                    raise NativeError('Committed artifact integrity mismatch')
+                            reused = item
+                    record.update(reused or recover_object(blob, tag, kind, metadata, directory, **options))
+                    if reused: record['reused_committed_output'] = True
+                    consecutive_io_failures=0
                 except (NativeError, UnicodeError, ValueError, KeyError, TypeError) as exc:
                     state = 'missing_metadata' if isinstance(exc, MissingMetadata) else 'conversion_failed' if isinstance(exc, QCError) else 'unsupported_layout'
-                    record.update(status=state, reason=str(exc))
+                    record.update(status=state,name=context['name'],well=context.get('well'),reason=str(exc),error=gio.error_details(exc,**context))
+                except Exception as exc:
+                    consecutive_io_failures+=1
+                    record.update(status='finalization_failed' if context['operation']=='finalize_directory' else 'write_failed',
+                                  name=context['name'],well=context.get('well'),
+                                  reason=str(exc),error=getattr(exc,'geoviewer_context',gio.error_details(exc,**context)))
+                    if gio.systemic(exc):
+                        report['objects'].append(record); journal.append(record)
+                        event('object_failed',severity='error',**record)
+                        raise
+                    if consecutive_io_failures>=3:
+                        event('output_health_probe',consecutive_io_failures=consecutive_io_failures,path=str(directory))
+                        try:gio.output_probe(directory)
+                        except OSError:
+                            report['objects'].append(record);journal.append(record)
+                            raise
+                finally:
+                    _operation.reset(token)
                 report['objects'].append(record)
                 record['elapsed_seconds']=round(time.monotonic()-object_started,3)
+                journal.append(record)
+                event('object_committed' if record.get('artifacts') else 'object_failed',
+                      severity='info' if record.get('artifacts') or record['status']=='empty_supported_object' else 'error',
+                      **{key:record.get(key) for key in ('object_id','name','blob_type','status','reason','error','elapsed_seconds')})
                 print('OBJECT_RESULT '+json.dumps({key:record.get(key) for key in ('object_id','name','blob_type','status','reason','elapsed_seconds')},ensure_ascii=True),flush=True)
                 if grids_only:
                     write_json(report_path, report)
@@ -545,10 +633,26 @@ def run(package, *, grids_only=False, preview_only=False):
         report.update(status='not_available', reason=str(exc))
     except (NativeError, sqlite3.Error, UnicodeError) as exc:
         report.update(status='failed' if report.get('source_unchanged') is False else 'unsupported_layout', reason=str(exc))
-    except OSError as exc:
-        report.update(status='failed', reason=str(exc))
+    except (OSError,MemoryError) as exc:
+        report.update(status='failed', reason=str(exc),error=gio.error_details(exc))
     finally:
-        write_json(report_path, report)
+        if before is not None and 'source_unchanged' not in report:
+            try:
+                report['source_hashes_after'] = {p.relative_to(package).as_posix():sha(p) for p in sources}
+                report['source_unchanged'] = before == report['source_hashes_after']
+                if not report['source_unchanged']: report.update(status='failed',reason='Native sources changed during recovery')
+            except OSError as exc:
+                report['source_integrity'] = 'not_completed'; report['source_integrity_reason'] = str(exc)
+        if journal: journal.close()
+        report['object_status_counts'] = dict(collections.Counter(r['status'] for r in report['objects']))
+        report['has_gaps'] = any((r['status'] not in ('decoded','empty_supported_object','missing_metadata') or
+                                  (r['status']=='missing_metadata' and not r.get('artifacts')) or
+                                  r.get('export_status')=='partial') for r in report['objects'])
+        gio.atomic_json(report_path, report)
+    if report.get('reason'):
+        print('Native recovery '+report['status']+': '+report['reason'],flush=True)
+        event('category_outcome',severity='error' if report['status']=='failed' else 'warning',
+              category='native_logs_surfaces',status=report['status'],reason=report['reason'])
     print('Native recovery report: '+str(report_path), flush=True)
     return report
 
@@ -558,10 +662,11 @@ def main():
     parser.add_argument('--export-package', type=Path, required=True)
     parser.add_argument('--grids-only', action='store_true', help='Recover native surface/grid objects only into a new recovery directory')
     args = parser.parse_args()
-    result = run(args.export_package, grids_only=args.grids_only)
+    with gio.run_lock(args.export_package):
+        result = run(args.export_package, grids_only=args.grids_only)
     # Unsupported metadata/layouts are explicit partial extraction, not fatal
     # to preservation and the other independent project decoders.
-    return 1 if result['status'] == 'failed' else 0
+    return 1 if result['status'] == 'failed' else 10 if result.get('has_gaps') or result['status'] in ('not_available','unsupported_layout') else 0
 
 
 if __name__ == '__main__':

@@ -1,5 +1,40 @@
 # Release validation
 
+## GeoViewer_data_extractor 0.8.1
+
+A modern project recording **Petrel 2024.5.0** was tested through the actual BAT
+with deliberate Windows output locks. A persistent directory lock exhausted five
+delayed retries, recorded one isolated finalization failure and continued the
+remaining **319 log/grid objects**, the report, accepted-file index and SEG-Y
+conversion. The affected object never entered the accepted-file index.
+
+A separate transient file lock reproduced **WinError 5**. Finalization recovered
+on attempt five without decoding or writing the dataset again. All **306 logs,
+69 grids, 111 spatial objects and 18 well headers** were recovered. All **799
+native CSV/XYZ/ZMAP/LAS artifacts** matched the prior successful baseline byte
+for byte. Native source hashes and extraction/QC receipt verification passed.
+The available seismic volume converted with every amplitude and trace geometry
+checked. Four unavailable external references remain explicit gaps; they do not
+invalidate the available conversion. The report links **1,290 accepted files**
+in **489 export groups**.
+
+The exact final ZIP passed **157 packaged regression tests**, offline bootstrap,
+actual-BAT conversion/report-only checks and an independent ZMAP readback.
+Additional CLI and dependency-repair evidence, artifact hashes and the small
+final launcher change are distinguished by tested ZIP identity in the release's
+`VALIDATION.json`. No second physical machine or physically disconnected-network
+claim is made.
+
+Headless Edge tests used the actual report markup. Eighteen well markers stayed
+within one CSS pixel of the selected diameter during repeated zooming, fitting
+and resizing; well labels and grid text retained their screen sizes. A separate
+exact-overlap fixture kept both wells individually selectable. Real-project
+screenshots, paths, object identities and raw logs remain private.
+
+Full cross-run resume, manual support-bundle redaction and complete 3D RESCUE
+export remain follow-on work. The release does not expand the native decoder's
+claimed version coverage. [Usage and remaining boundaries](GEOVIEWER_0_8_1.md).
+
 ## GeoViewer_data_extractor 0.8.0
 
 The modern fixture records **Petrel 2024.5.0** in native metadata. Its complete standalone run recovered **306 logs, 69 surface grids, 66 polygon payloads, 26 point payloads, 19 trajectory providers and 18 well headers**, plus one readable saved workflow definition. The available ZGY converted to SEG-Y with every decoded amplitude and trace geometry checked. Four external SEG-Y references were absent from the supplied store; they are reported separately from the five base and two virtual seismic object definitions. Native numeric readback does not establish geological correctness or resolve unknown units.

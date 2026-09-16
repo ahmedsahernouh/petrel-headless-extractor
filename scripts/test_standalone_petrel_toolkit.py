@@ -59,7 +59,7 @@ def main():
         proc=subprocess.run(command_line,cwd=relocated,env=env,
                             **stdin_args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
         (evidence/(label+'.txt')).write_text(proc.stdout,encoding='utf-8')
-        passed=(proc.returncode==expected) if expected==0 else proc.returncode!=0
+        passed=proc.returncode==expected
         checks.append({'name':label,'passed':passed,'exit_code':proc.returncode,'log':label+'.txt'})
         print(label,proc.returncode,flush=True)
         if not passed:raise AssertionError(label+'\n'+proc.stdout[-4000:])
@@ -128,7 +128,7 @@ def main():
     launcher=package/'scripts/launch_standalone_petrel.ps1';launcher_bytes=launcher.read_bytes()
     try:
         launcher.unlink()
-        message=run('reject_incomplete_extraction',['--check','-NoPause'],expected=1)
+        message=run('reject_incomplete_extraction',['--check','-NoPause'],expected=2)
         assert 'This standalone extraction is incomplete' in message
         assert 'Path too long' in message
     finally:launcher.write_bytes(launcher_bytes)
@@ -138,24 +138,24 @@ def main():
         db.executescript('CREATE TABLE data (data_pk INTEGER, droid TEXT, name TEXT, version INTEGER, blob_type TEXT, time_stamp TEXT); CREATE TABLE blob_parts (data_fk INTEGER, part INTEGER, blob_data BLOB);')
     (source/'checkshots.txt').write_text('Well\tMD\tTWT\nTEST\t100\t25\n')
     output=relocated/'Extracted Results';original={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
-    progress_output=run('bat_convert_spaces',[project,output,'convert','-NoPause'])
-    assert '12/12 stages complete | Complete | Elapsed' in progress_output
-    assert progress_output.index('SUCCESS:') < progress_output.index('12/12 stages complete')
+    progress_output=run('bat_convert_spaces',[project,output,'convert','-NoPause'],expected=10)
+    assert '12/12 stages complete | completed with gaps | Elapsed' in progress_output
+    assert progress_output.index('COMPLETED WITH GAPS:') < progress_output.index('12/12 stages complete')
     assert all('Stage '+str(n)+'/12:' in progress_output for n in range(1,13))
     result=next(output.rglob('RUN_RESULT.json'));payload=json.loads(result.read_text())
-    assert payload['status']=='passed' and payload['source_mutated'] is False
+    assert payload['status']=='completed_with_gaps' and payload['source_mutated'] is False
     assert payload['extraction_audit']['status']=='passed' and payload['qc_audit']['status']=='passed'
     assert payload['elapsed_seconds'] > 0
     assert 'Elapsed:' in (result.parent/'RUN_LOG.txt').read_text()
     assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha for p,sha in original.items())
-    prompted=run('interactive_project_prompt',[],input_text=str(project)+'\n'+str(relocated/'Prompted Results')+'\n\n\n\n')
+    prompted=run('interactive_project_prompt',[],expected=10,input_text=str(project)+'\n'+str(relocated/'Prompted Results')+'\n\n\n\n')
     # ConsoleHost omits Read-Host labels when redirected; verify the inputs were
     # actually consumed and produced a valid run in the requested destination.
-    assert 'SUCCESS:' in prompted
+    assert 'COMPLETED WITH GAPS:' in prompted
     prompt_result=next((relocated/'Prompted Results').rglob('RUN_RESULT.json'))
     prompt_payload=json.loads(prompt_result.read_text())
     prompt_request=json.loads((prompt_result.parent/'request.json').read_text())
-    assert prompt_payload['status']=='passed' and prompt_payload['source_mutated'] is False
+    assert prompt_payload['status']=='completed_with_gaps' and prompt_payload['source_mutated'] is False
     assert prompt_request['project_file']==str(project)
     assert prompt_request['output_root']==str(relocated/'Prompted Results')
     assert prompt_request['report_only'] is False
@@ -166,8 +166,8 @@ def main():
     unsupported=source/'Unsupported.pet';unsupported.write_text('unsupported native layout fixture')
     (source/'Unsupported.ptd').mkdir();(source/'Unsupported.ptd/Data.ptd').write_bytes(b'not a validated SQLite store')
     unsupported_output=relocated/'Unsupported Layout Results'
-    inventory_output=run('unsupported_layout_inventory_report',[unsupported,unsupported_output,'convert','-NoPause'])
-    assert '12/12 stages complete | Complete' in inventory_output
+    inventory_output=run('unsupported_layout_inventory_report',[unsupported,unsupported_output,'convert','-NoPause'],expected=10)
+    assert '12/12 stages complete | completed with gaps' in inventory_output
     context=json.loads(next(unsupported_output.rglob('project_context.json')).read_text(encoding='utf-8'))
     assert context['layout']=='unrecognized' and context['native_decoders_applicable'] is False
     index=json.loads(next(unsupported_output.glob('*_EXPORTS/FILE_INDEX.json')).read_text(encoding='utf-8'))
@@ -255,7 +255,7 @@ print(src/'Fixture.pet')
     for report_only in (False,True):
         destination=relocated/('Project Seismic Report Only' if report_only else 'Project Seismic Convert')
         options=[project,destination,'-NoPause']+(['-ReportOnly'] if report_only else [])
-        run('project_zgy_report_only' if report_only else 'project_zgy_integrated',options)
+        run('project_zgy_report_only' if report_only else 'project_zgy_integrated',options,expected=0 if report_only else 10)
         top=list(destination.glob('*_REPORT.html'));assert len(top)==1
         payload=json.loads(next(destination.glob('*_data/RUN_RESULT.json')).read_text())
         assert payload['full_report']==str(top[0]) and payload['full_seismic_hash'] is False
@@ -281,7 +281,7 @@ print(src/'Fixture.pet')
     assert 'zunit_dimension' in inspection
     conversion=run('binary_conversion_bat',[zgy,relocated/'Binary Results','-NoPause'])
     assert 'SUCCESS:' in conversion and '5/5 stages complete | Complete' in conversion
-    binary_receipt=json.loads(next((relocated/'Binary Results').rglob('RUN_RESULT.json')).read_text())
+    binary_receipt=json.loads(next((relocated/'Binary Results').glob('*_data/seismic/*/RUN_RESULT.json')).read_text())
     assert binary_receipt['status']=='passed' and binary_receipt['summary']['all_decoded_samples_exact']
     prompted_conversion=run('binary_interactive_prompt',[],input_text=str(zgy)+'\n\nunknown\n'+str(relocated/'Binary Prompt Results')+'\n\n\n')
     assert 'SUCCESS:' in prompted_conversion
