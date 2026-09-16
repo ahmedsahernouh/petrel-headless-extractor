@@ -1,16 +1,16 @@
-![FieldViewer FV](docs/assets/fv-mark.svg)
+![GeoViewer mark](docs/assets/fv-mark.svg)
 
-# GeoViewer_data_extractor
+# Petrel Headless Extractor (GeoViewer)
 
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/) · [GitHub repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
-Extract supported data and metadata from a Petrel project into a browsable, checksummed package, without opening Petrel.
+I built this as a read-only way to inspect and recover supported data from a Petrel project without opening Petrel. It leaves the source project alone and writes a separate package with open-format exports, an HTML report, checksums and QC findings.
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-**Version 0.8.0:** modern-first recovery tested on a project recording Petrel 2024.5.0; native grids and logs, typed polygon/point recovery, direct ZGY-to-SEG-Y with explicit unresolved-axis metadata, project identity and history, detailed logs and a shallow converted-data index. [Read the current usage and limits](docs/GEOVIEWER_0_8.md).
+The current release is **0.8.0**. Its modern-project recovery path was tested on one project recording Petrel 2024.5.0. That run supports the stated fixture; it is not a blanket claim for every Petrel version or object type. [Read the current capabilities and limits](docs/GEOVIEWER_0_8.md).
 
-**Purpose:** recover Petrel binary data into open formats. Version 0.4.0 adds [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md) to the normal project BAT. The main BAT also performs [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic in the selected store or explicitly referenced by the project. See the [coverage and limits](docs/BINARY_EXTRACTION_PURPOSE.md).
+Supported paths include [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md), plus [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic found in the selected store or explicitly referenced by the project. Unsupported objects remain visible in the inventory instead of being presented as converted. See the [coverage notes and roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 
 The release ZIP includes Python and all pinned runtime dependencies. No Python installation, Petrel, Ocean SDK, administrator access, or internet connection is needed to run it. Windows 10/11 x64 with built-in Windows PowerShell is the target.
 
