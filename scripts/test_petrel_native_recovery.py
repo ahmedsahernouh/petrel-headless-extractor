@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Synthetic end-to-end controls for native log/surface recovery.
 Website: https://saherlabs.dev/
 Project: https://github.com/ahmedsahernouh/petrel-headless-extractor

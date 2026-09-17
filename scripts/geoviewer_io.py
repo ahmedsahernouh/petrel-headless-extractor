@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Owned output operations and bounded Windows finalization recovery.
 
 Website: https://saherlabs.dev/

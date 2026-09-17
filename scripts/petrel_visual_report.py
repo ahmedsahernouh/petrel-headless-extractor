@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Offline figures and object catalogue from recovered Petrel evidence.
 
 Website: https://saherlabs.dev/

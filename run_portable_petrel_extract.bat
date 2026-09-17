@@ -1,4 +1,6 @@
 @echo off
+rem Copyright 2026 Ahmed Saher Nouh
+rem SPDX-License-Identifier: Apache-2.0
 rem Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
 rem Website: https://saherlabs.dev/
 rem GitHub: https://github.com/ahmedsahernouh

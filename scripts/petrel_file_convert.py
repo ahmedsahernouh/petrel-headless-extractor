@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Single-file, read-only conversions. Outputs are new directories with QC receipts.
 
 Website: https://saherlabs.dev/

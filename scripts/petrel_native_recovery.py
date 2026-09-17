@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Recover observed native well logs and surface arrays without Petrel.
 
 Website: https://saherlabs.dev/

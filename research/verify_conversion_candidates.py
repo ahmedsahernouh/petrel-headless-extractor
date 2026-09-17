@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Bounded research probes, not a released converter or SEG-Y conformance test.
 
 Website: https://saherlabs.dev/

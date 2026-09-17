@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Relocated offline BAT acceptance for native polygon/grid exports and report-only mode.
 
 Website: https://saherlabs.dev/

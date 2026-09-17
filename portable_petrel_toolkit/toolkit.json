@@ -71,5 +71,9 @@
     "fast_mode": "file state plus complete numerical conversion QC; no source SHA-256 claim",
     "raw_seismic_copied": false
   },
-  "modern_validation_priority": "2023/2024 and later through observed profiles; primary supplied fixture records 2024.5.0"
+  "modern_validation_priority": "2023/2024 and later through observed profiles; primary supplied fixture records 2024.5.0",
+  "license": "Apache-2.0",
+  "license_file": "LICENSE",
+  "notice_file": "NOTICE",
+  "copyright": "Copyright 2026 Ahmed Saher Nouh"
 }

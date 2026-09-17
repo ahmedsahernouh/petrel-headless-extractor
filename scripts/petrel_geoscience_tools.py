@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 # Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
 # Website: https://saherlabs.dev/
 # GitHub: https://github.com/ahmedsahernouh

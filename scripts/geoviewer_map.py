@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Offline native-coordinate map controls. Website: https://saherlabs.dev/
 
 Marker diameters and text sizes are CSS pixels, independent of SVG zoom.

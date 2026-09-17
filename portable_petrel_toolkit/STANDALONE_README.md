@@ -70,3 +70,14 @@ The current shapefile GeoJSON derivative retains source coordinates without repr
 ## Maintenance update 0.8.1
 
 Open `GEOVIEWER_0_8_1.md` for the new failure handling, diagnostic summary, partial-completion exit code 10, and map controls. Start with the top-level report; its converted-file index and diagnostics links lead directly to accepted data and process evidence. Full resume and complete RESCUE export remain future work.
+
+## License and author attribution
+
+GeoViewer_data_extractor is licensed under **Apache License 2.0**.
+Copyright 2026 Ahmed Saher Nouh. See `LICENSE` and `NOTICE` for the license and
+original-project author attribution, including [SaherLabs](https://saherlabs.dev/)
+and the [project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor).
+Bundled dependencies keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
+Petrel source data and extracted datasets retain their original ownership and
+permissions. Previously published releases through v0.8.1 remain MIT; see
+`LICENSING.md` in this distribution for the transition scope.

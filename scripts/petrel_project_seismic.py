@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Project ZGY discovery, optional conversion and prominent report delivery.
 
 Website: https://saherlabs.dev/

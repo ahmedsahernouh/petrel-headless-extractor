@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Local process diagnostics; no uploads. Website: https://saherlabs.dev/
 
 Writes line-oriented human and structured logs in a new caller-owned run.

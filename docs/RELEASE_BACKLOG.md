@@ -1,5 +1,33 @@
 # Release requirements and implementation status
 
+## NEXT-26: Apache-2.0 and original-author attribution
+
+Registered **2026-09-16**; implementation explicitly requested **2026-09-17**. Status: **implemented in source, report attribution and standalone packaging**. The project now uses **Apache License 2.0 with a NOTICE file** preserving attribution to **Ahmed Saher Nouh**. Previously published releases through v0.8.1 remain MIT. See [licensing and attribution](LICENSING.md).
+
+The subsequent instruction to update the license supersedes registration-only status. Both LICENSE/NOTICE copies, source copyright/SPDX headers, toolkit metadata, documentation, the report attribution section and the standalone builder are updated together. This source change does not replace existing release ZIPs or retrospectively change their licensing.
+
+The previous MIT license already required retention of its copyright and permission notice. Apache-2.0 supplies an explicit NOTICE attribution mechanism: relevant notices must accompany distributed derivatives, with permitted placement in a NOTICE file, accompanying source/documentation, or the customary notices display. It does not promise perpetual prominent credit, require an author banner on every screen/report, or make the original author the main author of someone else's subsequent contributions. NOTICE is informational and cannot add license restrictions. See [Apache-2.0, sections 4 and 6](https://www.apache.org/licenses/LICENSE-2.0).
+
+Original-project attribution included in NOTICE:
+
+```text
+GeoViewer_data_extractor
+Copyright 2026 Ahmed Saher Nouh
+
+Original project creator and principal author: Ahmed Saher Nouh
+Website: https://saherlabs.dev/
+Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
+```
+
+Implementation requirements:
+
+- Apply the unmodified Apache-2.0 text to owner-controlled project code, with the copyright/author NOTICE. Check any contributed or incorporated third-party code before changing its licensing; retain its required notices and terms. Bundled dependencies keep their own licenses.
+- Update both project LICENSE copies, documentation and report license wording together. Include LICENSE and NOTICE in source and standalone ZIP distributions and verify their presence after clean extraction. Use appropriate copyright/SPDX identifiers on owner-controlled source files. Follow the [Apache application guidance](https://www.apache.org/foundation/license-faq.html#Apply-My-Software).
+- Keep the requested website/repository-only CLI banner. Put author credit in NOTICE and the report's attribution section without imposing an additional downstream UI requirement.
+- Preserve historical MIT releases and the permissions already granted for those versions. State the effective release explicitly; do not retrospectively relabel old ZIPs or receipts.
+- Explain that Apache-2.0 permits commercial redistribution and proprietary derivatives; it does not require downstream versions to stay free of charge or publish their modifications. See the [Apache redistribution FAQ](https://www.apache.org/foundation/license-faq.html#Distribute-changes).
+- Keep FieldViewer/GeoViewer branding separate from copyright licensing; do not assert trademark registration. Do not add custom advertising or mandatory permanent-banner clauses while calling the result standard Apache-2.0.
+
 ## Next maintenance update: robustness, diagnostics and map usability
 
 Registered **2026-09-16**, following the supplied 0.8.0 Windows finalization failure and oversized overlapping well-marker screenshot. **Implementation authorized 2026-09-16 for 0.8.1; implemented and validated; see the version-specific validation record.** The user explicitly prioritizes robustness. The detailed [correction plan](ROBUSTNESS_LOGGING_MAP_PLAN.md) contains failure policy, bounded retries, checkpoint/partial-result handling, logging contracts, map controls and acceptance gates. It takes priority over new RESCUE development; the existing RESCUE plan remains deferred.

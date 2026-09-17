@@ -1,4 +1,6 @@
 @echo off
+rem Copyright 2026 Ahmed Saher Nouh
+rem SPDX-License-Identifier: Apache-2.0
 rem Website: https://saherlabs.dev/
 rem Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
 setlocal EnableExtensions DisableDelayedExpansion

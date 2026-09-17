@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Verified ASCII surface exports and bounded native-grid previews.
 
 Website: https://saherlabs.dev/

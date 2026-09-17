@@ -67,7 +67,11 @@ Licensed manuals, KB content, demonstration projects, client data, machine-local
 
 ## License and attribution
 
-MIT License, copyright 2026 Ahmed Saher Nouh. Bundled Python and dependencies retain their own license texts and notices. Releases include `THIRD_PARTY_NOTICES.md` and runtime/dependency provenance manifests.
+Licensed under the [Apache License, Version 2.0](LICENSE). Copyright 2026 Ahmed Saher Nouh. The [NOTICE](NOTICE) identifies Ahmed Saher Nouh as the original project creator and principal author, with the website and project links.
+
+This change applies to the source revision introducing Apache-2.0 on **2026-09-17** and subsequent distributions of that revision. Previously published releases through **v0.8.1** retain their MIT license and existing permissions; those download assets have not been replaced. See [licensing and attribution](docs/LICENSING.md).
+
+Bundled Python and dependencies retain their own license texts and notices. Standalone distributions include `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and runtime/dependency provenance manifests.
 
 Petrel and Ocean are trademarks of SLB. This is an independent interoperability project, not affiliated with or endorsed by SLB.
 

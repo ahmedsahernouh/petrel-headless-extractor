@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Bounded readers for observed Petrel LZ4-v1/BXML-v1 containers and NBFX data.
 
 Website: https://saherlabs.dev/

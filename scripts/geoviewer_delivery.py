@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Publish a shallow, portable index of accepted exports and enrich the HTML report.
 
 Website: https://saherlabs.dev/
@@ -192,7 +194,9 @@ def metadata_section(context):
     <table>{rows}</table><p>Version values come from native metadata when present; unknown values are not inferred from file names. A detected release is not a claim of complete support for that release.</p>
     <p>Native seismic objects: <b>{len(seismic)}</b> ({base} base, {virtual} virtual). These are object definitions, not a count of accessible ZGY files. File availability, previews and conversion outcomes are listed separately below.</p>
     <details><summary>Native payload types and recorded history</summary><pre>{escape(json.dumps(dict(payload_types=types,history=context.get('history',[]),findings=context.get('findings',[])),indent=2))}</pre></details>
-    <h3>Licenses and attribution</h3><p>GeoViewer_data_extractor: MIT license. Bundled dependency licenses are retained in the distribution; see its LICENSE and THIRD_PARTY_NOTICES.md. Petrel project data retains its original ownership and permissions.</p>
+    <h3>Licenses and attribution</h3><p>GeoViewer_data_extractor is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>. Copyright 2026 Ahmed Saher Nouh.</p>
+    <p>Original project creator and principal author: <b>Ahmed Saher Nouh</b>. <a href="https://saherlabs.dev/">Website</a> · <a href="https://github.com/ahmedsahernouh/petrel-headless-extractor">Project repository</a>. See LICENSE and NOTICE in the distribution.</p>
+    <p>Bundled dependencies retain their own licenses and attribution notices; see THIRD_PARTY_NOTICES.md. Petrel project data and extracted datasets retain their original ownership and permissions; the software license does not relicense them.</p>
     <p>Project license metadata: {'recorded fields below; these do not establish current entitlement' if has_license_value else 'no license value recorded in the inspected fields; current Petrel license and modules cannot be determined from this project' }.</p>
     <pre>{escape(json.dumps(licenses,indent=2)) if licenses else ''}</pre>
     <details><summary>Bundled dependency license metadata</summary><p>Display summaries; full license texts are retained in the installed distribution.</p><table>{dependency_rows or '<tr><td>Dependency inventory not available in this report context.</td></tr>'}</table></details>

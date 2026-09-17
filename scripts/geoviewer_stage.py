@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Record isolated category outcomes; stop only for demonstrated shared failures.
 
 Website: https://saherlabs.dev/

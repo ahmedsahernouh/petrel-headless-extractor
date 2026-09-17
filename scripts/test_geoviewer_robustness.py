@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Fault-injection checks with actual Windows handle locks and isolated fixtures.
 Website: https://saherlabs.dev/
 Project: https://github.com/ahmedsahernouh/petrel-headless-extractor

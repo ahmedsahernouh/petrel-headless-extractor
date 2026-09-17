@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 # Petrel Headless Extractor - Ahmed Saher Nouh / SaherLabs
 # Website: https://saherlabs.dev/
 # GitHub: https://github.com/ahmedsahernouh
@@ -59,6 +61,15 @@ def write_json(path, data):
     path.write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
 
 
+def copy_project_notices(package):
+    """Copy canonical license/attribution files; reject stale portable mirrors."""
+    for name in ('LICENSE', 'NOTICE'):
+        source = ROOT/name
+        if source.read_bytes() != (ROOT/'portable_petrel_toolkit'/name).read_bytes():
+            raise ValueError('Portable licensing file differs from repository: '+name)
+        shutil.copy2(source, package/name)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime-archive',type=Path,required=True)
@@ -74,6 +85,7 @@ def main():
     zip_name='GeoViewer-'+VERSION+'-win64.zip'
     package=args.output_root.resolve()/name
     package.mkdir(parents=True,exist_ok=False)
+    copy_project_notices(package)
     scripts=package/'scripts';scripts.mkdir()
     manifests=package/'00_manifest';manifests.mkdir()
     runtime=package/'runtime';runtime.mkdir()
@@ -96,7 +108,7 @@ def main():
         assert unused.resolve().is_relative_to(package.resolve())
         shutil.rmtree(unused)
     for file in SCRIPTS:shutil.copy2(ROOT/'scripts'/file,scripts/file)
-    for file in ['AGENTS.md','LICENSE','requirements-core.txt','requirements-geodata.txt']:
+    for file in ['AGENTS.md','requirements-core.txt','requirements-geodata.txt']:
         shutil.copy2(ROOT/'portable_petrel_toolkit'/file,package/file)
     shutil.copy2(lock,package/'requirements-standalone-lock.txt')
     launcher=package.parent/'GeoViewer_data_extractor.bat'
@@ -109,7 +121,7 @@ def main():
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'fv-mark.svg')
     (package/'assets').mkdir()
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'assets/fv-mark.svg')
-    for document in ('GEOVIEWER_0_8.md','GEOVIEWER_0_8_1.md','RESCUE_EXPORT_PLAN.md'):
+    for document in ('GEOVIEWER_0_8.md','GEOVIEWER_0_8_1.md','RESCUE_EXPORT_PLAN.md','LICENSING.md'):
         shutil.copy2(ROOT/'docs'/document,package/document)
     shutil.copy2(ROOT/'docs/NATIVE_POLYGONS.md',package/'NATIVE_POLYGONS.md')
     shutil.copy2(ROOT/'portable_petrel_toolkit/STANDALONE_README.md',package/'README.md')

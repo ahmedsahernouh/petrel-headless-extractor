@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Read-only native project identity, compatibility, object and workflow evidence.
 
 Website: https://saherlabs.dev/

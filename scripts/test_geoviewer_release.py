@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Release contracts: native identity, output navigation, diagnostics and path safety."""
 import csv
 import io

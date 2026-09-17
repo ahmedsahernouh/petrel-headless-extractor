@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Native grid controls, independent ZMAP readback, topology and report checks.
 Website: https://saherlabs.dev/
 Project: https://github.com/ahmedsahernouh/petrel-headless-extractor

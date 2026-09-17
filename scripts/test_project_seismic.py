@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Seismic integration and delivery controls. https://saherlabs.dev/"""
 import hashlib
 import json

@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Explicit seismic integrity levels; website: https://saherlabs.dev/.
 
 Fast checks record filesystem identity and metadata, never a fabricated SHA-256.

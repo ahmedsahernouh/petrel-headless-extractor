@@ -1,3 +1,5 @@
+# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
 """Numeric, provenance, inventory completeness and offline-link report controls.
 Website: https://saherlabs.dev/
 Project: https://github.com/ahmedsahernouh/petrel-headless-extractor
