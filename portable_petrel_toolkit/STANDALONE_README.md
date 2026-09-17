@@ -1,8 +1,6 @@
-# GeoViewer_data_extractor 0.8.0
+# GeoViewer_data_extractor 1.0.0 — Initial public release
 
-Read GEOVIEWER_0_8.md for the current layout, modern profiles and unknown-axis seismic import instructions.
-
-# GeoViewer_data_extractor 0.8.0 usage
+Read GEOVIEWER_1_0.md for capabilities, output layout, diagnostics and unknown-axis seismic import instructions.
 
 [Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
@@ -59,7 +57,7 @@ Windows 10/11 x64 with Windows PowerShell is the target. The BAT installs/repair
 
 Keep the whole release together. If extraction is incomplete or Windows reports Path too long, cancel and extract again to a shorter writable directory without skipping files. Missing application scripts or a damaged repair cache require re-extraction. A running older release is not updated by unpacking a new one.
 
-Run logs and receipts are inside the result data folder. Per-dataset conversion failures stay in the report while other supported cubes continue. Partial SEG-Y files are not accepted outputs. Exit zero for a project means the extraction/report/QC workflow completed, not that every proprietary object converted. Receiving-software import, CRS, geological acceptance and untested Petrel versions remain separate.
+The diagnostic summary, process log and structured events sit beside the report; receipts are inside the result data folder. Per-dataset conversion failures stay in the report while other supported cubes continue. Partial SEG-Y files are not accepted outputs. Exit 0 means completion; exit 10 means completed with gaps; exit 1 indicates a fatal run failure. Package QC does not establish complete recovery of every proprietary object. Receiving-software import, CRS, geological acceptance and untested Petrel versions remain separate.
 
 ## Progress and timer
 
@@ -67,9 +65,9 @@ The console shows elapsed time and stage progress. Conversion/QC uses measured t
 
 The current shapefile GeoJSON derivative retains source coordinates without reprojection; projected coordinates are not RFC 7946 WGS84 GeoJSON. See the backlog for that separate correction.
 
-## Maintenance update 0.8.1
+## Recovery, diagnostics and map controls
 
-Open `GEOVIEWER_0_8_1.md` for the new failure handling, diagnostic summary, partial-completion exit code 10, and map controls. Start with the top-level report; its converted-file index and diagnostics links lead directly to accepted data and process evidence. Full resume and complete RESCUE export remain future work.
+Open `GEOVIEWER_1_0.md` for the new failure handling, diagnostic summary, partial-completion exit code 10, and map controls. Start with the top-level report; its converted-file index and diagnostics links lead directly to accepted data and process evidence. Full resume and complete RESCUE export remain future work.
 
 ## License and author attribution
 
@@ -79,5 +77,6 @@ original-project author attribution, including [SaherLabs](https://saherlabs.dev
 and the [project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor).
 Bundled dependencies keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
 Petrel source data and extracted datasets retain their original ownership and
-permissions. Previously published releases through v0.8.1 remain MIT; see
+permissions. This 1.0.0 package includes Apache-2.0 LICENSE and author NOTICE.
+Earlier development releases through v0.8.1 remain MIT; see
 `LICENSING.md` in this distribution for the transition scope.

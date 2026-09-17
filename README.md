@@ -8,7 +8,7 @@ I built this as a read-only way to inspect and recover supported data from a Pet
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-The current release is **0.8.1**. It adds isolated-failure recovery, readable diagnostic summaries and adjustable constant-size map markers. Modern recovery is tested on one project recording Petrel 2024.5.0; this is not a blanket claim for every Petrel version or object type. [Read the current capabilities and limits](docs/GEOVIEWER_0_8_1.md).
+The initial public release is **1.0.0**, licensed under **Apache 2.0** with an original-author **NOTICE**. It includes native data recovery, isolated-failure handling, readable diagnostic summaries and adjustable map markers. Modern recovery has been tested on an observed Petrel 2024.5.0 project; this is not a blanket claim for every Petrel version or object type. [Read the current capabilities and limits](docs/GEOVIEWER_1_0.md).
 
 Supported paths include [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md), plus [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic found in the selected store or explicitly referenced by the project. Unsupported objects remain visible in the inventory instead of being presented as converted. See the [coverage notes and roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 
@@ -24,7 +24,7 @@ The release ZIP includes Python and all pinned runtime dependencies. No Python i
 
 Keep the whole extracted release together: the BAT alone is a launcher, not the application. Choose an output folder outside your source project.
 
-**Windows "Path too long" during extraction:** cancel the incomplete extraction and use **v0.2.1 or newer**. These releases use short ZIP and folder names. Extract to a short destination and do not skip files. Version 0.2.0's long repeated folder names could interrupt Windows Explorer extraction and leave the BAT without its scripts.
+**Windows "Path too long" during extraction:** cancel the incomplete extraction and extract the complete ZIP to a short writable destination. Do not skip files. The 1.0.0 ZIP uses a short package name and keeps the runtime compressed until the BAT installs it.
 
 ```bat
 GeoViewer_data_extractor.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert
@@ -69,12 +69,12 @@ Licensed manuals, KB content, demonstration projects, client data, machine-local
 
 Licensed under the [Apache License, Version 2.0](LICENSE). Copyright 2026 Ahmed Saher Nouh. The [NOTICE](NOTICE) identifies Ahmed Saher Nouh as the original project creator and principal author, with the website and project links.
 
-This change applies to the source revision introducing Apache-2.0 on **2026-09-17** and subsequent distributions of that revision. Previously published releases through **v0.8.1** retain their MIT license and existing permissions; those download assets have not been replaced. See [licensing and attribution](docs/LICENSING.md).
+The **1.0.0 standalone ZIP and source** both include Apache-2.0 and the author NOTICE. Earlier development releases through **v0.8.1** retain their MIT license and existing permissions. See [licensing and attribution](docs/LICENSING.md).
 
 Bundled Python and dependencies retain their own license texts and notices. Standalone distributions include `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and runtime/dependency provenance manifests.
 
 Petrel and Ocean are trademarks of SLB. This is an independent interoperability project, not affiliated with or endorsed by SLB.
 
-## Version 0.8.0
+## Initial public release 1.0.0
 
-Start with [the updated usage and capability guide](docs/GEOVIEWER_0_8.md). Modern-first native recovery, shallow file index, project version/save evidence, detailed diagnostics and explicit unknown-axis seismic export. Complete 3D RESCUE remains [planned](docs/RESCUE_EXPORT_PLAN.md).
+Start with [the usage and capability guide](docs/GEOVIEWER_1_0.md). This release brings the tested development functionality together under the 1.0.0 version and Apache-2.0 license: modern native recovery, shallow export folders, project version/save evidence, detailed diagnostics and explicit unknown-axis seismic export. Complete 3D RESCUE remains [planned](docs/RESCUE_EXPORT_PLAN.md).

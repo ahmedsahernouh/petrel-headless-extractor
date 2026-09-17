@@ -47,6 +47,13 @@ def main():
     (evidence/'windows_extraction.txt').write_text(unzipped.stdout,encoding='utf-8')
     assert unzipped.returncode==0,unzipped.stdout
     package=extraction_root/'GeoViewer';bat=extraction_root/'GeoViewer_data_extractor.bat'
+    # Check the distributed license/version, not just the repository copies.
+    shipped_metadata=json.loads((package/'toolkit.json').read_text(encoding='utf-8'))
+    assert args.zip.name=='GeoViewer-'+shipped_metadata['version']+'-win64.zip'
+    assert shipped_metadata['license']=='Apache-2.0'
+    assert b'Apache License' in (package/'LICENSE').read_bytes()
+    assert b'Original project creator and principal author: Ahmed Saher Nouh' in (package/'NOTICE').read_bytes()
+    assert (package/'LICENSING.md').is_file() and (package/'GEOVIEWER_1_0.md').is_file()
     env=os.environ.copy();win=Path(os.environ['SystemRoot'])
     env.update(PATH=str(win/'System32')+';'+str(win/'System32/WindowsPowerShell/v1.0'),
                PYTHONHOME=str(relocated/'NONEXISTENT_SYSTEM_PYTHON'),PYTHONPATH=str(relocated/'FORBIDDEN_IMPORTS'),
@@ -78,6 +85,11 @@ def main():
     assert 'ZFP compression check passed' in first
     assert "No module named 'sdglue'" not in first and "No module named 'zfpy'" not in first
     manifest=json.loads((package/'00_manifest/toolkit_files.json').read_text())
+    assert manifest['version']==shipped_metadata['version']
+    assert 'GeoViewer_data_extractor '+shipped_metadata['version'] in first
+    for name in ('LICENSE','NOTICE','LICENSING.md','GEOVIEWER_1_0.md'):
+        row=next(item for item in manifest['files'] if item['path']==name)
+        assert row['sha256']==hashlib.sha256((package/name).read_bytes()).hexdigest()
     installed_path_length=max(len(str(package/row['path'])) for row in manifest['files'])
     assert installed_path_length<240,installed_path_length
     runtime_files={row['path']:row for row in manifest['files'] if row['path'].startswith('runtime/')}
@@ -215,6 +227,10 @@ print(src/'Fixture.pet')
         assert visual['figures'] and visual['inventory']['node_count'] > 0
         html=next(native_results.rglob('PROJECT_REPORT.html')).read_text(encoding='utf-8')
         assert 'Complete data inventory tree' in html and 'data:image/png;base64,' in html
+        top_report=next(native_results.glob('*_REPORT.html')).read_text(encoding='utf-8')
+        assert 'FieldViewer family · '+shipped_metadata['version'] in top_report
+        assert 'Apache License, Version 2.0' in top_report and 'MIT license' not in top_report
+        assert 'Original project creator and principal author: <b>Ahmed Saher Nouh</b>' in top_report
         assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in original_native.items())
         if fixture_kind=='log':
             report_results=relocated/'Report Only Results'

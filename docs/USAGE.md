@@ -1,4 +1,4 @@
-# GeoViewer_data_extractor 0.8.0 usage
+# GeoViewer_data_extractor 1.0.0 usage
 
 Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).
 
@@ -19,10 +19,14 @@ Results appear directly in the selected output root:
 
 ```text
 Example_<run>_REPORT.html        open this full report
-Example_<run>_data/              datasets, figures, snapshots, logs and receipts
+Example_<run>_EXPORTS/           files to import, organized by category + FILE_INDEX.csv
+Example_<run>_data/              supporting evidence, figures and receipts
+Example_<run>_DIAGNOSTICS.txt     readable run summary
+Example_<run>_LOG.txt             detailed process log
+Example_<run>_EVENTS.jsonl        structured events
 ```
 
-The report is a full HTML document, not a redirect. It becomes available before seismic conversion and is refreshed after each dataset; reload it to see updates. Keep the report and its matching data folder together when moving results. Source seismic references need access to the original files; converted SEG-Y and figures are in the result data folder.
+The report is a full HTML document, not a redirect. It becomes available before seismic conversion and is refreshed after each dataset; reload it to see updates. Keep the report and both matching folders together when moving results. Use the report links or _EXPORTS category folders to load converted files into other software. Source seismic references need access to the original files.
 
 ## Commands
 
@@ -61,3 +65,7 @@ Run logs and receipts are inside the result data folder. Per-dataset conversion 
 The console shows elapsed time and stage progress. Conversion/QC uses measured trace counts. When full hashing is selected, byte progress and Hash ETA apply to that hash pass, not the whole job. Report-only still reads the bounded data needed for figures. No ETAs are invented for unknown stages.
 
 The current shapefile GeoJSON derivative retains source coordinates without reprojection; projected coordinates are not RFC 7946 WGS84 GeoJSON. See the backlog for that separate correction.
+
+## License
+
+Version 1.0.0 ships under Apache License 2.0 with a NOTICE crediting Ahmed Saher Nouh as original project creator and principal author. See [licensing and attribution](LICENSING.md); bundled dependencies retain their own terms.

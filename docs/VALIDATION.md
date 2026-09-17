@@ -1,5 +1,34 @@
 # Release validation
 
+## GeoViewer_data_extractor 1.0.0 — Initial public release
+
+Validated **2026-09-17** against the exact standalone ZIP:
+`b0e6431d54768e64c559065b62c32bef08302b3e283d083585ca65e4bb8bd4fe`
+(`GeoViewer-1.0.0-win64.zip`, 59,329,445 bytes).
+
+- **157 packaged regression tests**, **36 standalone acceptance checks**, and
+  **7 polygon/grid checks** passed. The latter include an independent ZMAP readback.
+- Actual BAT runs exercised offline installation, missing/corrupt dependency and
+  Python repair, cache failures, an active runtime, incomplete extraction,
+  paths containing spaces, unsupported layout reporting, log/grid extraction,
+  report-only mode, project-linked and direct ZGY conversion, interactive entry,
+  tamper rejection and restored-bundle integrity checks.
+- The extracted package's metadata, CLI and generated report identified 1.0.0.
+  LICENSE and NOTICE matched the source copies and their manifest hashes. The
+  report displayed Apache License 2.0 and Ahmed Saher Nouh's original-author credit.
+  The current guide and licensing document were verified inside the ZIP.
+- Synthetic source hashes stayed unchanged. Tests used relocated directories on
+  the same Windows host, unavailable network proxies and an intentionally invalid
+  system-Python environment; no second-machine or physically disconnected-network
+  claim is made. Runtime/dependency preflight also passed.
+
+This release changes version identity, licensing, documentation and packaging;
+changed production Python decoders/converters differ only in version literals.
+The earlier real-project evidence below remains development-version evidence;
+no new complete private-project extraction was performed for this release.
+Complete RESCUE export and broader native profile coverage are not introduced.
+The release's `VALIDATION.json` provides a sanitized check list and artifact identity.
+
 ## GeoViewer_data_extractor 0.8.1
 
 A modern project recording **Petrel 2024.5.0** was tested through the actual BAT

@@ -25,7 +25,7 @@ import numpy as np
 import petrel_progress as progress
 from petrel_seismic_integrity import file_state, readonly_source
 
-VERSION = '0.8.1'
+VERSION = '1.0.0'
 ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES = [
     dict(id='zgy-to-segy', input='Petrel ZGY binary seismic cube', output='SEG-Y + metadata JSON', status='beta',
@@ -164,7 +164,7 @@ def convert_zgy(source, run, options):
         with segyio.create(str(pending),spec) as writer:
             crs_ascii=plan['crs'].encode('ascii','replace').decode().replace('\n',' ').replace('\r',' ')
             writer.text[0]=segyio.tools.create_text_header({
-                1:'GeoViewer_data_extractor 0.8.1 - https://saherlabs.dev/',
+                1:'GeoViewer_data_extractor 1.0.0 - https://saherlabs.dev/',
                 2:'NEW CUBE EXCHANGE FILE. ORIGINAL ACQUISITION HEADERS NOT RECOVERED.',
                 3:'TIME AXIS: DT MICROSECONDS, ORIGIN MILLISECONDS.' if plan['interval_us'] else 'PHYSICAL AXIS UNSPECIFIED. SET NATIVE AXIS ON IMPORT; SEE BELOW.',
                 4:'IEEE FLOAT32 BIG ENDIAN; INLINE 189; CROSSLINE 193; CDP X/Y 181/185.',

@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.8.1'
+VERSION = '1.0.0'
 PACKAGE_FOLDER = 'GeoViewer'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -121,7 +121,7 @@ def main():
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'fv-mark.svg')
     (package/'assets').mkdir()
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'assets/fv-mark.svg')
-    for document in ('GEOVIEWER_0_8.md','GEOVIEWER_0_8_1.md','RESCUE_EXPORT_PLAN.md','LICENSING.md'):
+    for document in ('GEOVIEWER_1_0.md','RESCUE_EXPORT_PLAN.md','LICENSING.md'):
         shutil.copy2(ROOT/'docs'/document,package/document)
     shutil.copy2(ROOT/'docs/NATIVE_POLYGONS.md',package/'NATIVE_POLYGONS.md')
     shutil.copy2(ROOT/'portable_petrel_toolkit/STANDALONE_README.md',package/'README.md')

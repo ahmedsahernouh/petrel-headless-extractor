@@ -1,6 +1,6 @@
 {
   "name": "portable-petrel-project-extractor",
-  "version": "0.8.1",
+  "version": "1.0.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -46,5 +46,9 @@
     "mode": "convert",
     "status": "beta_validated_profiles",
     "docs": "NATIVE_LOGS_SURFACES.md"
-  }
+  },
+  "license": "Apache-2.0",
+  "license_file": "LICENSE",
+  "notice_file": "NOTICE",
+  "copyright": "Copyright 2026 Ahmed Saher Nouh"
 }

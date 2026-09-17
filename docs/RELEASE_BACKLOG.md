@@ -1,5 +1,9 @@
 # Release requirements and implementation status
 
+## 1.0.0 initial public release
+
+Requested **2026-09-17**: publish the current tested functionality as the **1.0.0 initial public release**, with matching application, CLI, report, receipt and package version labels. Include Apache-2.0 LICENSE, original-author NOTICE and current licensing/usage documentation in the rebuilt standalone ZIP. Earlier 0.x development tags and assets retain their historical terms. This release identity and packaging update does not add RESCUE support or broaden validated Petrel decoding profiles.
+
 ## NEXT-26: Apache-2.0 and original-author attribution
 
 Registered **2026-09-16**; implementation explicitly requested **2026-09-17**. Status: **implemented in source, report attribution and standalone packaging**. The project now uses **Apache License 2.0 with a NOTICE file** preserving attribution to **Ahmed Saher Nouh**. Previously published releases through v0.8.1 remain MIT. See [licensing and attribution](LICENSING.md).

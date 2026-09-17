@@ -125,7 +125,7 @@ def discover(project):
         if path.suffix.lower() not in SEISMIC_SUFFIXES or not path.is_file(): continue
         if any(parent in neighboring for parent in path.resolve().parents): continue
         add(path,'unlinked_companion')
-    return dict(version='0.8.1', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
+    return dict(version='1.0.0', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
                 discovery_boundary='Selected store and explicit XML or supported BXML file/path fields only. Unlinked companions need an exact-file run. Unparsed references are not inferred.')
 
 

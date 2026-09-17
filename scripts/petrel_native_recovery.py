@@ -29,7 +29,7 @@ import petrel_native_binary as binary
 import time
 from petrel_native_binary import NativeError, Node
 
-VERSION = '0.8.1'
+VERSION = '1.0.0'
 _operation = ContextVar('native_operation', default=None)
 
 

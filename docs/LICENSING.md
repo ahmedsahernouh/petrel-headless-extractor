@@ -17,8 +17,9 @@ The owner requested this change on **2026-09-17**. Apache-2.0 applies from the
 source revision introducing this document and to subsequent distributions of
 that revision. Previously published releases **through v0.8.1** remain MIT;
 their ZIPs, license files, tags and previously granted permissions are unchanged.
-The source update is not a replacement binary release. The next published
-binary must use a new version and include the updated licensing files.
+The **1.0.0 initial public release** includes the updated `LICENSE`, `NOTICE`
+and this document in its standalone Windows ZIP as well as in source. Earlier
+development release assets are not replaced or retrospectively relicensed.
 
 ## What attribution requires
 
