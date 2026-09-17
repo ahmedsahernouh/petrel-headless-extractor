@@ -193,7 +193,8 @@ def main():
             if path.is_file():
                 for row in g.read_json(path).get('objects',[]):
                     diagnostics.event('native_object_outcome',**row)
-        seismic_gaps=enabled and any(row.get('status') not in ('converted','virtual') for row in inventory.get('objects',[]))
+        seismic_gaps=enabled and any(row.get('status') in ('unavailable','conversion_failed','unsupported','missing')
+                                    for row in inventory.get('objects',[]) if row.get('association')!='unlinked_companion')
         if seismic_gaps:stages.append(dict(category='seismic',status='partial',reason='Some seismic objects could not be converted; consult their individual availability and conversion reasons.'))
         if export_index and export_index.get('findings'):stages.append(dict(category='delivery',status='partial',reason='; '.join(export_index['findings'])))
         if any(e['event'] in ('preview_failed','child_log_lost','malformed_child_event') for e in diagnostics.problems):

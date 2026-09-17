@@ -23,6 +23,65 @@ import export_petrel_native_spatial_zero_gui as spatial
 
 
 class ReleaseTests(unittest.TestCase):
+    def metadata_fixture(self):
+        fixture=fixtures.RecoveryTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        package=fixture.fixture()
+        native=package/'08_native_project'
+        project=fixture.root/'test.pet'
+        shutil.copy2(native/'project_file/test.pet',project)
+        shutil.copytree(native/'ptd_store',project.with_suffix('.ptd'))
+        return fixture,package,project
+
+    def test_ambiguous_model_record_does_not_disable_other_decoders(self):
+        fixture,package,project=self.metadata_fixture()
+        model=project.with_suffix('.ptd')/'Model.ptd'
+        docs=[body for names,body in binary.documents(binary.decompress(model.read_bytes()))]
+        ambiguous=element('LocalPrincipalVectorPropertySubject',children=[
+            element('unique_tag','11111111-1111-1111-1111-111111111111'),
+            element('unique_tag','22222222-2222-2222-2222-222222222222')])
+        docs[-1]=docs[-1][:-1]+element('version_string','2018.2')+b'\x01'
+        seismic=element('SeismicSubject',children=[element('unique_tag','33333333-3333-3333-3333-333333333333'),
+            element('name','Synthetic seismic'),element('file','cube.zgy')])
+        model.write_bytes(fixtures.envelope(frame(ambiguous,*docs,seismic)))
+        result=metadata.inspect_project(project)
+        self.assertTrue(result['model_readable']);self.assertTrue(result['native_decoders_applicable'])
+        self.assertFalse(result['model_metadata_complete']);self.assertEqual(result['model_record_error_count'],1)
+        self.assertEqual(result['saved_version']['value'],'2018.2')
+        self.assertEqual(result['seismic_objects'][0]['name'],'Synthetic seismic')
+        self.assertTrue(result['seismic_inventory_complete'])
+        issue=result['model_record_errors'][0]
+        self.assertEqual(len(issue['candidate_object_ids']),2)
+        self.assertFalse(set(issue['candidate_object_ids']) & {x['object_id'] for x in result['objects']})
+        self.assertIn('unresolved metadata',metadata.compatibility(result)['reason'])
+        with self.assertRaises(binary.NativeError):
+            next(binary.read_documents(frame(ambiguous))).get('unique_tag')
+        # Run the actual numeric reader against this model, not a mocked success.
+        shutil.copy2(model,package/'08_native_project/ptd_store/Model.ptd')
+        report=fixtures.r.run(package)
+        self.assertEqual(report['objects'][0]['status'],'decoded')
+        self.assertTrue(list((package/'native_data').rglob('curve.las')))
+        rendered=delivery.metadata_section(result)
+        self.assertIn('Metadata limitations',rendered);self.assertIn('expected one unique_tag',rendered)
+        self.assertIn('2018.2',rendered)
+
+    def test_malformed_model_container_still_blocks_native_gate(self):
+        _,_,project=self.metadata_fixture()
+        model=project.with_suffix('.ptd')/'Model.ptd'
+        model.write_bytes(fixtures.envelope(binary.decompress(model.read_bytes())+b'\xff'))
+        result=metadata.inspect_project(project)
+        self.assertFalse(result['model_readable']);self.assertFalse(result['native_decoders_applicable'])
+        self.assertIn('Unsupported BXML framing token',result['reason'])
+        self.assertFalse(result['seismic_inventory_complete'])
+        self.assertIn('total unknown (metadata incomplete)',delivery.metadata_section(result))
+
+    def test_legacy_layout_reports_reason_without_inventing_support(self):
+        _,_,project=self.metadata_fixture()
+        store=project.with_suffix('.ptd')
+        (store/'Model.ptd').unlink();(store/'Data.ptd').unlink();(store/'legacy.ptd').write_bytes(b'legacy')
+        result=metadata.inspect_project(project)
+        self.assertFalse(result['native_decoders_applicable'])
+        self.assertIn('No Data.ptd',metadata.compatibility(result)['reason'])
+
     def test_project_progress_does_not_restart_during_seismic(self):
         import petrel_progress as progress
         stream=io.StringIO();display=progress.ConsoleProgress(stages=12,stream=stream).start()

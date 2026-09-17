@@ -1,4 +1,4 @@
-# GeoViewer_data_extractor 1.0.0 — Initial public release
+# GeoViewer_data_extractor 1.0.1 — Initial public release
 
 Read GEOVIEWER_1_0.md for capabilities, output layout, diagnostics and unknown-axis seismic import instructions.
 
@@ -77,6 +77,6 @@ original-project author attribution, including [SaherLabs](https://saherlabs.dev
 and the [project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor).
 Bundled dependencies keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
 Petrel source data and extracted datasets retain their original ownership and
-permissions. This 1.0.0 package includes Apache-2.0 LICENSE and author NOTICE.
+permissions. This 1.0.1 package includes Apache-2.0 LICENSE and author NOTICE.
 Earlier development releases through v0.8.1 remain MIT; see
 `LICENSING.md` in this distribution for the transition scope.

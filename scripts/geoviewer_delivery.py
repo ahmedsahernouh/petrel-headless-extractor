@@ -181,18 +181,28 @@ def metadata_section(context):
     has_license_value=any(x.get('value') not in ('',None) for x in licenses)
     types=context.get('payload_type_counts',{})
     seismic=context.get('seismic_objects',[])
+    complete=context.get('seismic_inventory_complete',context.get('model_readable',False))
+    seismic_count=str(len(seismic)) if complete else f'{len(seismic)} discovered; total unknown (metadata incomplete)'
+    metadata_findings=context.get('findings',[])
+    metadata_note=('<div class="note"><strong>Metadata limitations:</strong><ul>'+''.join(
+        '<li>'+escape(str(item))+'</li>' for item in metadata_findings)+'</ul></div>') if metadata_findings else ''
+    record_errors=context.get('model_record_errors',[])
+    metadata_note+=('<details><summary>'+str(len(record_errors))+' unresolved model records — reasons and candidate identities</summary><pre>'+
+                    escape(json.dumps(record_errors,indent=2))+'</pre></details>') if record_errors else ''
     base=sum(not x.get('virtual') for x in seismic);virtual=sum(bool(x.get('virtual')) for x in seismic)
     rows=''.join('<tr><td>'+escape(k)+'</td><td>'+escape(str(v))+'</td></tr>' for k,v in [
         ('Latest saved Petrel version',value('saved_version')),('Original Petrel version',value('original_version')),
         ('Recorded build label',context.get('build_label') or 'unknown'),
         ('Native last save',str(saved.get('value','unknown'))+'; timezone '+str(saved.get('timezone','unknown'))),
         ('Filesystem last write (different evidence)',context.get('filesystem_last_write_utc','unknown')),
-        ('Storage family',context.get('layout','unknown')),('Saved by (recorded)',context.get('saved_by') or 'unknown')])
+        ('Storage family',context.get('layout','unknown')),('Saved by (recorded)',context.get('saved_by') or 'unknown'),
+        ('Project hierarchy inventory','complete' if context.get('object_inventory_complete') else 'incomplete / unavailable'),
+        ('Model metadata','complete' if context.get('model_metadata_complete') else 'incomplete / unavailable')])
     workflow_rows=''.join('<details><summary>'+escape(w.get('name','Workflow'))+' — '+str(w.get('command_count',0))+' serialized entries</summary><ol>'+''.join('<li>'+escape(c)+'</li>' for c in w.get('command_types',[]))+'</ol></details>' for w in context.get('workflows',{}).get('objects',[]))
     dependency_rows=''.join('<tr><td>'+escape(str(d.get('name','')))+' '+escape(str(d.get('version','')))+'</td><td>'+escape(str(d.get('license','unspecified'))[:300])+'</td></tr>' for d in context.get('software_licenses',[]))
     return f'''<section id="project-identity"><h2>Project identity and compatibility</h2>
     <table>{rows}</table><p>Version values come from native metadata when present; unknown values are not inferred from file names. A detected release is not a claim of complete support for that release.</p>
-    <p>Native seismic objects: <b>{len(seismic)}</b> ({base} base, {virtual} virtual). These are object definitions, not a count of accessible ZGY files. File availability, previews and conversion outcomes are listed separately below.</p>
+    {metadata_note}<p>Native seismic objects: <b>{seismic_count}</b> ({base} base, {virtual} virtual discovered). These are object definitions, not a count of accessible ZGY files. File availability, previews and conversion outcomes are listed separately below.</p>
     <details><summary>Native payload types and recorded history</summary><pre>{escape(json.dumps(dict(payload_types=types,history=context.get('history',[]),findings=context.get('findings',[])),indent=2))}</pre></details>
     <h3>Licenses and attribution</h3><p>GeoViewer_data_extractor is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>. Copyright 2026 Ahmed Saher Nouh.</p>
     <p>Original project creator and principal author: <b>Ahmed Saher Nouh</b>. <a href="https://saherlabs.dev/">Website</a> · <a href="https://github.com/ahmedsahernouh/petrel-headless-extractor">Project repository</a>. See LICENSE and NOTICE in the distribution.</p>

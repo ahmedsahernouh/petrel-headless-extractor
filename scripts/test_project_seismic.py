@@ -28,6 +28,13 @@ class ProjectSeismicTests(unittest.TestCase):
         original=self.fixture.fixture(**kwargs)
         target=self.store/original.name;shutil.move(str(original),target);return target
 
+    def test_nested_neighboring_project_is_not_discovered_or_previewed(self):
+        selected=self.internal_zgy(name='selected')
+        other=self.fixture.inputs/'nested/client/Other.ptd';other.mkdir(parents=True)
+        unrelated=other/'foreign.zgy';shutil.copy2(selected,unrelated)
+        result=project_seismic.discover(self.project)
+        self.assertEqual([row['source'] for row in result['objects']],[str(selected.resolve())])
+
     def test_fast_conversion_does_not_hash_seismic(self):
         source=self.internal_zgy();digest=hashlib.sha256(source.read_bytes()).hexdigest()
         original=progress.hash_file

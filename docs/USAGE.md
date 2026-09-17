@@ -1,4 +1,4 @@
-# GeoViewer_data_extractor 1.0.0 usage
+# GeoViewer_data_extractor 1.0.1 usage
 
 Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).
 
@@ -68,4 +68,4 @@ The current shapefile GeoJSON derivative retains source coordinates without repr
 
 ## License
 
-Version 1.0.0 ships under Apache License 2.0 with a NOTICE crediting Ahmed Saher Nouh as original project creator and principal author. See [licensing and attribution](LICENSING.md); bundled dependencies retain their own terms.
+Version 1.0.1 ships under Apache License 2.0 with a NOTICE crediting Ahmed Saher Nouh as original project creator and principal author. See [licensing and attribution](LICENSING.md); bundled dependencies retain their own terms.

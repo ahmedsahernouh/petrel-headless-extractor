@@ -124,9 +124,11 @@ if ($CompanionMode -eq 'convert') { $workflowArgs = @('--workflow-output', (Join
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $nativeContext = Get-Content -Raw -LiteralPath (Join-Path $exportPackage '01_project_metadata\native_compatibility.json') | ConvertFrom-Json
 if (-not $nativeContext.native_decoders_applicable) {
-    Write-Output "Native numeric decoding unavailable for storage layout: $($nativeContext.layout). Inventory and report will continue."
+    Write-Output "Native numeric decoding unavailable: $($nativeContext.reason). Inventory and report will continue."
     $SkipNativeSpatialExtraction = $true
     $SkipNativeBinaryRecovery = $true
+}
+if (-not $nativeContext.native_decoders_applicable -or -not $nativeContext.model_metadata_complete) {
     if ($CompanionMode -eq 'convert') {
         & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category native_compatibility --code 10 --report (Join-Path $exportPackage '01_project_metadata\native_compatibility.json')
         if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
@@ -235,7 +237,7 @@ $manifestRows = @(Import-Csv -LiteralPath $manifestPath)
 $summaryRoot = Join-Path $exportPackage "07_workflows_reports\portable_extractor"
 New-Item -ItemType Directory -Path $summaryRoot -Force | Out-Null
 $summaryPath = Join-Path $summaryRoot "portable_extraction_run_summary.json"
-$toolkitVersion = "1.0.0"
+$toolkitVersion = "1.0.1"
 $toolkitMetadataPath = Join-Path $toolkitRoot "toolkit.json"
 if (Test-Path -LiteralPath $toolkitMetadataPath -PathType Leaf) {
     $toolkitVersion = (Get-Content -Raw -LiteralPath $toolkitMetadataPath | ConvertFrom-Json).version

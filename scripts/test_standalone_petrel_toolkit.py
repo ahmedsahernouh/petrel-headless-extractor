@@ -195,7 +195,7 @@ def main():
     native_fixture_script.write_text('''import sys,shutil,sqlite3
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-from test_petrel_native_recovery import RecoveryTests, chunked_envelope
+from test_petrel_native_recovery import RecoveryTests, chunked_envelope, element, frame, envelope
 import petrel_native_binary as binary
 root=Path(sys.argv[2]);root.mkdir()
 t=RecoveryTests();t.setUp();t.root=root
@@ -205,6 +205,11 @@ if sys.argv[3]=='chunked_log':
     model=p/'08_native_project/ptd_store/Model.ptd'
     payload=binary.decompress(model.read_bytes())
     model.write_bytes(chunked_envelope(payload[:11],payload[11:]))
+if sys.argv[3]=='ambiguous_model':
+    model=p/'08_native_project/ptd_store/Model.ptd'
+    payload=binary.decompress(model.read_bytes())
+    bad=element('LocalPropertySubject',children=[element('unique_tag','11111111-1111-1111-1111-111111111111'),element('unique_tag','22222222-2222-2222-2222-222222222222')])
+    model.write_bytes(envelope(frame(bad)+payload[5:]))
 src=root/'source';src.mkdir()
 shutil.copyfile(p/'08_native_project/project_file/test.pet',src/'Fixture.pet')
 shutil.copytree(p/'08_native_project/ptd_store',src/'Fixture.ptd')
@@ -212,12 +217,12 @@ db=sqlite3.connect(src/'Fixture.ptd/Data.ptd')
 db.execute('ALTER TABLE data ADD COLUMN time_stamp TEXT');db.commit();db.close()
 print(src/'Fixture.pet')
 ''',encoding='utf-8')
-    for fixture_kind, expected_type in [('log','FloatWellLog'),('surface','RegValGrid2'),('chunked_log','FloatWellLog')]:
+    for fixture_kind, expected_type in [('log','FloatWellLog'),('surface','RegValGrid2'),('chunked_log','FloatWellLog'),('ambiguous_model','FloatWellLog')]:
         made=subprocess.run([str(py),'-B',str(native_fixture_script),str(package/'scripts'),str(relocated/('Native '+fixture_kind)),fixture_kind],env=env,capture_output=True,text=True,check=True)
         native_project=Path(made.stdout.strip().splitlines()[-1])
         original_native={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in native_project.parent.rglob('*') if p.is_file()}
         native_results=relocated/('Native Results '+fixture_kind)
-        run('native_'+fixture_kind+'_actual_bat',[native_project,native_results,'convert','-NoPause'])
+        run('native_'+fixture_kind+'_actual_bat',[native_project,native_results,'convert','-NoPause'],expected=10 if fixture_kind=='ambiguous_model' else 0)
         native_report=json.loads(next(native_results.rglob('native_recovery_report.json')).read_text(encoding='utf-8'))
         assert native_report['status']=='completed' and native_report['source_unchanged']
         assert native_report['object_status_counts']=={'decoded':1}
@@ -231,6 +236,10 @@ print(src/'Fixture.pet')
         assert 'FieldViewer family · '+shipped_metadata['version'] in top_report
         assert 'Apache License, Version 2.0' in top_report and 'MIT license' not in top_report
         assert 'Original project creator and principal author: <b>Ahmed Saher Nouh</b>' in top_report
+        if fixture_kind=='ambiguous_model':
+            context=json.loads(next(native_results.rglob('project_context.json')).read_text(encoding='utf-8'))
+            assert context['native_decoders_applicable'] and context['model_record_error_count']==1
+            assert 'Metadata limitations' in top_report and 'expected one unique_tag' in top_report
         assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in original_native.items())
         if fixture_kind=='log':
             report_results=relocated/'Report Only Results'

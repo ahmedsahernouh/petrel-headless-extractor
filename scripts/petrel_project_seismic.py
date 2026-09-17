@@ -119,13 +119,12 @@ def discover(project):
         except (ET.ParseError, ValueError, OSError) as exc:
             findings.append('External project reference discovery unavailable: '+str(exc))
     else: findings.append('Project XML exceeds the 64 MiB reference-discovery limit')
-    neighboring={p.resolve() for p in project.parent.glob('*.ptd') if p.resolve()!=store}
     from geoviewer_paths import project_files
     for path in sorted(project_files(project.parent)):
         if path.suffix.lower() not in SEISMIC_SUFFIXES or not path.is_file(): continue
-        if any(parent in neighboring for parent in path.resolve().parents): continue
+        if any(parent.suffix.lower()=='.ptd' and parent!=store for parent in path.resolve().parents): continue
         add(path,'unlinked_companion')
-    return dict(version='1.0.0', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
+    return dict(version='1.0.1', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
                 discovery_boundary='Selected store and explicit XML or supported BXML file/path fields only. Unlinked companions need an exact-file run. Unparsed references are not inferred.')
 
 

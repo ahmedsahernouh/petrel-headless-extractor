@@ -1,5 +1,36 @@
 # Release validation
 
+## GeoViewer_data_extractor 1.0.1 — Metadata failure isolation
+
+Validated **2026-09-17**. Final standalone ZIP: `17572acc4066b533a6f69d74398a7cc283c2cb5c5b9f14c0088504010946abe9`
+(`GeoViewer-1.0.1-win64.zip`, 59,332,240 bytes).
+
+- **161 packaged regression tests**, **37 standalone acceptance checks**,
+  and **7 polygon/grid checks** passed, including independent ZMAP readback.
+- A new actual-BAT fixture places a model subject with two different identity
+  fields before valid log metadata. The record remains unresolved, later metadata
+  is read, and LAS/CSV export completes. Malformed model framing still blocks
+  native decoding. Nested foreign-project seismic stores are excluded.
+- An actual main-BAT run on a project recording **Petrel 2018.2** exported
+  **233 log CSVs, 179 LAS files, 50 grids (46 ZMAP), 64 polygon objects, six point
+  sets, 27 trajectories, 67 well headers and two SEG-Y volumes**. All **1,028**
+  indexed files exist. Its report has **118 figures**, with **3,275 local links**
+  checked and no missing targets. Source integrity and extraction/QC receipts pass.
+- The real run completed with explicit gaps: 117 ambiguous local-property metadata
+  records, eight empty logs and 23 grids outside current geometry/size profiles.
+  These did not prevent independent supported exports. Full 3D export is unchanged.
+- The supplied **2024.5.0** project passed corrected metadata preflight without
+  model-record errors. This is a preflight regression check, not a fresh complete
+  modern-project extraction or a blanket version-support claim.
+- Full tests and the real run used the candidate ZIP; the final ZIP changes only
+  a documentation hyperlink and its manifest hash. Every executable, runtime
+  cache and other archive member is byte-identical. Final archive manifest checks
+  and fresh-extraction offline bootstrap/preflight passed. `VALIDATION.json`
+  records both artifact identities and the exact two-member documentation delta.
+- Tests used the same Windows host and relocated paths. No second-machine or
+  physically disconnected-network claim is made. Apache-2.0 and author NOTICE
+  are included. Legacy distributed-PTD numeric decoding remains unsupported.
+
 ## GeoViewer_data_extractor 1.0.0 — Initial public release
 
 Validated **2026-09-17** against the exact standalone ZIP:

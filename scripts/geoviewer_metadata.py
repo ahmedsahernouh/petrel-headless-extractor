@@ -23,7 +23,7 @@ import petrel_native_binary as binary
 from petrel_native_binary import Node, Array
 
 PRODUCT = 'GeoViewer_data_extractor'
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 
 
 def write_json(path, value):
@@ -67,6 +67,66 @@ def native_models(project):
     return binary.read_documents(binary.decompress(binary.read_bounded(project.with_suffix('.ptd')/'Model.ptd')))
 
 
+def merge_model_record(n, result, stubs):
+    """Interpret one framed subject; ambiguous fields never select a first value."""
+    tag=str(n.get('unique_tag') or '')
+    if tag and tag!='0':
+        name=str(n.get('name') or tag)
+        row=stubs.setdefault(tag,dict(object_id=tag,category=n.name,name=name,
+                                     parent_id='',status='metadata_only'))
+        row['model_version']=n.attrs.get('Version')
+        if n.get('name'): row['name']=name
+    if n.name=='ProjectSubject':
+        for field,out in [('version_string','saved_version'),('original_version_string','original_version')]:
+            val=n.get(field)
+            result[out]=dict(status='recorded' if val else 'unknown',value=val,
+                             source='Model.ptd/ProjectSubject/'+field)
+        result['build_label']=n.get('version_build')
+        result['saved_by']=n.get('version_user')
+        result['project_comments']=n.get('comments')
+        result['history_reference']=n.child('history').get('name_tag') if n.child('history',False) else None
+        style=n.child('style',False)
+        if style:
+            units=style.child('units_style',False)
+            result['display_units']={k:units.get('temp_'+k+'_unit') for k in ('xy','z','time')} if units else {}
+        for child in walk(n):
+            if re.search('licen[cs]e', child.name, re.I) and not child.children:
+                result['license_evidence'].append(dict(field=child.name,value=child.scalar(),scope='recorded metadata; not current entitlement'))
+    if n.name in ('SeismicSubject','VirtualSeismicSubject'):
+        references=[]
+        def scan(node, path=''):
+            here=path+'/'+node.name
+            if node.name in ('history','import_info','update_info'): return
+            if not node.children:
+                val=node.scalar()
+                if isinstance(val,str) and val.lower().endswith(('.zgy','.sgy','.segy')):
+                    references.append(dict(field=here,value=val))
+            for child in node.children:
+                if isinstance(child,Node):scan(child,here)
+        scan(n)
+        result['seismic_objects'].append(dict(object_id=tag,name=n.get('name') or tag,
+            subject_type=n.name,virtual=n.name=='VirtualSeismicSubject',references=references))
+
+
+def model_record_error(node, index, error):
+    candidates=[]
+    for child in node.children:
+        if isinstance(child,Node) and child.name=='unique_tag':
+            try:
+                value=child.scalar()
+                if isinstance(value,str) and value:candidates.append(value)
+            except ValueError:pass
+    return dict(record_index=index,category=node.name,candidate_object_ids=candidates,
+                status='metadata_unresolved',reason=str(error))
+
+
+def compatibility(context):
+    """Keep failure reasons with the pipeline gate instead of a bare Boolean."""
+    return {key:context[key] for key in ('layout','native_decoders_applicable','model_readable',
+        'model_metadata_complete','model_records_read','model_record_error_count',
+        'object_inventory_complete','reason','findings')}
+
+
 def inspect_project(project):
     project=Path(project).resolve(strict=True); store=project.with_suffix('.ptd')
     if not store.is_dir(): raise ValueError('Matching .ptd directory is missing')
@@ -75,7 +135,8 @@ def inspect_project(project):
                 last_native_save=dict(status='unknown'), original_version=dict(status='unknown'),
                 filesystem_last_write_utc=datetime.fromtimestamp(project.stat().st_mtime, timezone.utc).isoformat(),
                 layout='unrecognized', model_readable=False, object_inventory_complete=False,
-                objects=[], findings=[], seismic_objects=[], license_evidence=[], history=[])
+                objects=[], findings=[], seismic_objects=[], license_evidence=[], history=[],
+                model_metadata_complete=False,model_records_read=0,model_record_errors=[])
     stubs={}
     try:
         roots=list(binary.read_documents(binary.project_payload(binary.read_bounded(project,64*1024*1024))))
@@ -93,44 +154,14 @@ def inspect_project(project):
     except (ValueError,OSError,UnicodeError) as exc:
         result['findings'].append('Project hierarchy incomplete: '+str(exc))
     try:
-        for n in native_models(project):
-            tag=str(n.get('unique_tag') or '')
-            if tag and tag!='0':
-                row=stubs.setdefault(tag,dict(object_id=tag,category=n.name,name=str(n.get('name') or tag),
-                                               parent_id='',status='metadata_only'))
-                row['model_version']=n.attrs.get('Version')
-                if n.get('name'): row['name']=str(n.get('name'))
-            if n.name=='ProjectSubject':
-                for field,out in [('version_string','saved_version'),('original_version_string','original_version')]:
-                    val=n.get(field)
-                    result[out]=dict(status='recorded' if val else 'unknown',value=val,
-                                     source='Model.ptd/ProjectSubject/'+field)
-                result['build_label']=n.get('version_build')
-                result['saved_by']=n.get('version_user')
-                result['project_comments']=n.get('comments')
-                result['history_reference']=n.child('history').get('name_tag') if n.child('history',False) else None
-                style=n.child('style',False)
-                if style:
-                    units=style.child('units_style',False)
-                    result['display_units']={k:units.get('temp_'+k+'_unit') for k in ('xy','z','time')} if units else {}
-                for child in walk(n):
-                    if re.search('licen[cs]e', child.name, re.I) and not child.children:
-                        result['license_evidence'].append(dict(field=child.name,value=child.scalar(),scope='recorded metadata; not current entitlement'))
-            if n.name in ('SeismicSubject','VirtualSeismicSubject'):
-                references=[]
-                def scan(node, path=''):
-                    here=path+'/'+node.name
-                    # Import history is not an active storage reference.
-                    if node.name in ('history','import_info','update_info'): return
-                    if not node.children:
-                        val=node.scalar()
-                        if isinstance(val,str) and val.lower().endswith(('.zgy','.sgy','.segy')):
-                            references.append(dict(field=here,value=val))
-                    for child in node.children:
-                        if isinstance(child,Node):scan(child,here)
-                scan(n)
-                result['seismic_objects'].append(dict(object_id=tag,name=n.get('name') or tag,
-                    subject_type=n.name,virtual=n.name=='VirtualSeismicSubject',references=references))
+        for index,n in enumerate(native_models(project)):
+            result['model_records_read']+=1
+            try:merge_model_record(n,result,stubs)
+            except (ValueError,UnicodeError) as exc:
+                result['model_record_errors'].append(model_record_error(n,index,exc))
+        # This flag describes complete container/framing readability. An isolated
+        # subject interpretation error must not disable unrelated numeric readers.
+        if not result['model_records_read']:raise ValueError('Model container has no subject records')
         result['model_readable']=True
     except (ValueError,OSError,UnicodeError) as exc:
         result['findings'].append('Model metadata incomplete: '+str(exc))
@@ -170,7 +201,17 @@ def inspect_project(project):
         result['findings'].append('No Data.ptd; native numeric decoding is unsupported for this storage family')
     result['objects']=list(stubs.values())
     result['object_type_counts']=dict(Counter(r['category'] for r in result['objects']))
+    result['model_record_error_count']=len(result['model_record_errors'])
+    result['model_metadata_complete']=result['model_readable'] and not result['model_record_errors']
+    result['seismic_inventory_complete']=result['model_readable'] and not any(
+        row['category'] in ('SeismicSubject','VirtualSeismicSubject') for row in result['model_record_errors'])
     result['native_decoders_applicable']=result['layout']=='model_sqlite_bxml' and result['model_readable']
+    if result['model_record_errors']:
+        result['findings'].append(f"{result['model_record_error_count']} model records have unresolved metadata; "
+                                  'independent supported decoders remain eligible when their inputs are readable')
+    result['reason']=('; '.join(result['findings']) or
+        ('Native container and database readable; object-specific validation remains required'
+         if result['native_decoders_applicable'] else 'Native container/database profile is not supported'))
     return result
 
 
@@ -216,7 +257,11 @@ def main():
     parser.add_argument('--workflow-output',type=Path)
     args=parser.parse_args();context=inspect_project(args.project)
     write_json(args.output,context)
-    write_json(args.output.with_name('native_compatibility.json'),{k:context[k] for k in ('layout','native_decoders_applicable','model_readable')})
+    write_json(args.output.with_name('native_compatibility.json'),compatibility(context))
+    from geoviewer_diagnostics import event
+    for issue in context['model_record_errors']:
+        event('model_metadata_unresolved',severity='warning',**issue)
+    if context['findings']:print('Native metadata: '+context['reason'],flush=True)
     if args.workflow_output:
         receipt=export_workflows(args.project,args.workflow_output,context)
         write_json(args.output.with_name('workflow_recovery.json'),receipt)

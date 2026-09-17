@@ -1684,7 +1684,7 @@ def run(args: argparse.Namespace) -> int:
     report_path = report_root / "native_spatial_decode_report.json"
     summary = {
         "tool": "export_petrel_native_spatial_zero_gui.py",
-        "tool_version": "1.0.0-typed-spatial",
+        "tool_version": "1.0.1-typed-spatial",
         "completed_at_utc": utc_now(),
         "source_data_file": str(data_file),
         "source_open_mode": "sqlite_uri_mode_ro",

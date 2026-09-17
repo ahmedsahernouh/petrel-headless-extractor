@@ -1,5 +1,14 @@
 # Release requirements and implementation status
 
+## 1.0.1 metadata isolation correction
+
+Requested **2026-09-17** following diagnosis of missing native exports. Isolate
+ambiguous model-subject metadata without disabling independent native decoders;
+retain per-record reasons and candidate IDs in logs/report; distinguish readable
+containers from complete metadata. Correct nested-project seismic discovery and
+conversion-gap accounting. Legacy storage and complete 3D RESCUE remain separate
+capability work. See [maintenance scope](GEOVIEWER_1_0_1.md).
+
 ## 1.0.0 initial public release
 
 Requested **2026-09-17**: publish the current tested functionality as the **1.0.0 initial public release**, with matching application, CLI, report, receipt and package version labels. Include Apache-2.0 LICENSE, original-author NOTICE and current licensing/usage documentation in the rebuilt standalone ZIP. Earlier 0.x development tags and assets retain their historical terms. This release identity and packaging update does not add RESCUE support or broaden validated Petrel decoding profiles.
