@@ -25,7 +25,7 @@ import numpy as np
 import petrel_progress as progress
 from petrel_seismic_integrity import file_state, readonly_source
 
-VERSION = '1.0.1'
+VERSION = '1.0.0'
 ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES = [
     dict(id='zgy-to-segy', input='Petrel ZGY binary seismic cube', output='SEG-Y + metadata JSON', status='beta',
@@ -164,7 +164,7 @@ def convert_zgy(source, run, options):
         with segyio.create(str(pending),spec) as writer:
             crs_ascii=plan['crs'].encode('ascii','replace').decode().replace('\n',' ').replace('\r',' ')
             writer.text[0]=segyio.tools.create_text_header({
-                1:'GeoViewer_data_extractor 1.0.1 - https://saherlabs.dev/',
+                1:'GeoViewer_data_extractor 1.0.0 - https://saherlabs.dev/',
                 2:'NEW CUBE EXCHANGE FILE. ORIGINAL ACQUISITION HEADERS NOT RECOVERED.',
                 3:'TIME AXIS: DT MICROSECONDS, ORIGIN MILLISECONDS.' if plan['interval_us'] else 'PHYSICAL AXIS UNSPECIFIED. SET NATIVE AXIS ON IMPORT; SEE BELOW.',
                 4:'IEEE FLOAT32 BIG ENDIAN; INLINE 189; CROSSLINE 193; CDP X/Y 181/185.',
@@ -292,7 +292,9 @@ def main():
     parser.add_argument('--horizontal-unit',choices=['m','ft']);parser.add_argument('--crs')
     parser.add_argument('--inspect',action='store_true');parser.add_argument('--capabilities',action='store_true')
     parser.add_argument('--interactive',action='store_true')
-    parser.add_argument('--full-hash',action='store_true',help='Optional full seismic SHA-256 before/after; off by default')
+    hashing=parser.add_mutually_exclusive_group()
+    hashing.add_argument('--full-hash',dest='full_hash',action='store_true',default=True,help='Full seismic SHA-256 before/after (default)')
+    hashing.add_argument('--no-full-hash',dest='full_hash',action='store_false',help='Skip full seismic SHA-256; retain numerical QC')
     parser.add_argument('--report-only',action='store_true')
     args=parser.parse_args()
     display=progress.ConsoleProgress(stages=1 if args.inspect or args.capabilities else 5).start();success=False
@@ -329,13 +331,15 @@ def main():
         if not args.output_root and args.interactive:
             args.output_root=input('Output root [Enter for your user folder/Petrel_Conversions]: ').strip().strip('"')
         output=args.output_root or str(Path.home()/'Petrel_Conversions')
-        if args.interactive and not args.full_hash:
-            answer=input('Calculate full seismic SHA-256? [y/N; Enter = No]: ').strip().lower()
+        if args.interactive and not any(x in sys.argv for x in ('--full-hash','--no-full-hash')):
+            answer=input('Calculate full seismic SHA-256? [Y/n; Enter = Yes]: ').strip().lower()
             if answer not in ('','n','no','y','yes'): raise InputError('Enter Y or N for full hashing')
-            args.full_hash=answer in ('y','yes')
+            args.full_hash=answer not in ('n','no')
         from petrel_project_seismic import single_file_run
         success=single_file_run(source,output,vars(args));return 0 if success else 10
     except (Exception,KeyboardInterrupt) as exc:
+        import traceback
+        traceback.print_exc()
         display.message('ERROR: '+(str(exc) or 'Cancelled'));return 130 if isinstance(exc,KeyboardInterrupt) else 1
     finally:display.close(success)
 

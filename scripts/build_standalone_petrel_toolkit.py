@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '1.0.1'
+VERSION = '1.0.0'
 PACKAGE_FOLDER = 'GeoViewer'
 PYTHON_VERSION = '3.13.15'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip'
@@ -33,6 +33,7 @@ PYTHON_SHA256 = '791ada5e20aba24524f8d939cdeb069976d632a699fe5cb65274b23f4545e68
 OFFICIAL_MANIFEST = 'https://www.python.org/ftp/python/3.13.15/windows-3.13.15.json'
 SCRIPTS = [
     'geoviewer_metadata.py','geoviewer_delivery.py','geoviewer_diagnostics.py','geoviewer_paths.py',
+    'geoviewer_support.py','geoviewer_support.ps1','test_geoviewer_support.py',
     'test_geoviewer_release.py', 'geoviewer_io.py','geoviewer_stage.py','geoviewer_map.py','test_geoviewer_robustness.py',
     'doctor_portable_petrel_toolkit.ps1', 'invoke_portable_petrel_extract.ps1',
     'test_portable_petrel_toolkit.ps1', 'test_petrel_native_spatial_zero_gui.py',
@@ -121,7 +122,7 @@ def main():
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'fv-mark.svg')
     (package/'assets').mkdir()
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'assets/fv-mark.svg')
-    for document in ('GEOVIEWER_1_0.md','GEOVIEWER_1_0_1.md','RESCUE_EXPORT_PLAN.md','LICENSING.md'):
+    for document in ('GEOVIEWER_1_0.md','GEOVIEWER_1_0_1.md','SUPPORT_LOGS.md','RESCUE_EXPORT_PLAN.md','LICENSING.md'):
         shutil.copy2(ROOT/'docs'/document,package/document)
     shutil.copy2(ROOT/'docs/NATIVE_POLYGONS.md',package/'NATIVE_POLYGONS.md')
     shutil.copy2(ROOT/'portable_petrel_toolkit/STANDALONE_README.md',package/'README.md')

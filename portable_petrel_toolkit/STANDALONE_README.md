@@ -1,4 +1,4 @@
-# GeoViewer_data_extractor 1.0.1 — Initial public release
+# GeoViewer_data_extractor 1.0.0 — Initial public release
 
 Read GEOVIEWER_1_0.md for capabilities, output layout, diagnostics and unknown-axis seismic import instructions.
 
@@ -13,7 +13,7 @@ GeoViewer/                 application, scripts and offline runtime cache
 
 Double-click the BAT and enter your exact `.pet` or `.zgy` path, or drag the file onto it. Keep the BAT beside its support folder; it need not be beside the project. For `.pet`, keep the complete same-name `.ptd` folder beside the project. Close the project in Petrel during the read.
 
-The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **off by default**: press Enter at `Calculate full seismic SHA-256? [y/N]`, or type `y` for thorough checksums.
+The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **on by default**: press Enter at `Calculate full seismic SHA-256? [Y/n; Enter = Yes]`. Type `n` or add `-NoFullHash` to skip the full seismic reads; conversion and numerical QC remain available.
 
 Supported native surface grids are included in the same run: XYZ/CSV, plus ZMAP for regular grids, with maps under the report's **Surfaces** filter. Every discovered grid remains searchable in the inventory. The object catalogue links to its files and metadata. Native unit labels remain unresolved where they cannot be verified; no automatic unit conversion is performed. ASCII output can be much larger than the binary project, so select an output drive with enough free space. See [native grid profiles and ZMAP registration](NATIVE_LOGS_SURFACES.md).
 
@@ -77,6 +77,8 @@ original-project author attribution, including [SaherLabs](https://saherlabs.dev
 and the [project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor).
 Bundled dependencies keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
 Petrel source data and extracted datasets retain their original ownership and
-permissions. This 1.0.1 package includes Apache-2.0 LICENSE and author NOTICE.
+permissions. This 1.0.0 package includes Apache-2.0 LICENSE and author NOTICE.
 Earlier development releases through v0.8.1 remain MIT; see
 `LICENSING.md` in this distribution for the transition scope.
+
+Each finished run writes one compressed `*_SUPPORT.zip` beside its report. Send that one file for debugging; it contains logs, settings, errors and recovery receipts, with recognized identifiers replaced. No source stores, exports or figures are collected, and nothing is uploaded. Startup failures print a support ZIP path even if Python cannot run. Review the sharing copy; fallback startup ZIPs are explicitly unredacted. See [support diagnostics](SUPPORT_LOGS.md).

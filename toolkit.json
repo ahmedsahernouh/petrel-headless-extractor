@@ -1,6 +1,6 @@
 {
   "name": "portable-petrel-project-extractor",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "execution_boundary": "read_only_zero_gui_no_ocean",
   "source_mutation": false,
   "petrel_required": false,
@@ -50,5 +50,8 @@
   "license": "Apache-2.0",
   "license_file": "LICENSE",
   "notice_file": "NOTICE",
-  "copyright": "Copyright 2026 Ahmed Saher Nouh"
+  "copyright": "Copyright 2026 Ahmed Saher Nouh",
+  "full_seismic_hash_default": true,
+  "support_bundle": "automatic_local_zip_with_best_effort_identifier_replacement",
+  "build_revision": "2026-09-17-support"
 }

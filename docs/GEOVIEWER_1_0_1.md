@@ -1,8 +1,8 @@
-# GeoViewer_data_extractor 1.0.1 — Metadata failure isolation
+# GeoViewer_data_extractor — Metadata failure isolation
 
 [Website](https://saherlabs.dev/) · [Repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 
-This maintenance update fixes a project-wide compatibility failure triggered by
+This correction is included in the current **1.0.0** distribution. It fixes a project-wide compatibility failure triggered by
 an individual model subject with ambiguous metadata. In the affected storage
 profile, local-property subjects contain repeated `unique_tag` fields. The
 generic metadata reader previously stopped at the first such subject and

@@ -14,6 +14,7 @@ param(
     [Alias('-help')][switch]$Help,
     [switch]$NoPause,
     [switch]$FullHash,
+    [switch]$NoFullHash,
     [switch]$ReportOnly
 )
 Set-StrictMode -Version Latest
@@ -21,13 +22,22 @@ $ErrorActionPreference = 'Stop'
 $toolkitRoot = Split-Path -Parent $PSScriptRoot
 $exitCode = 1
 $interactive = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
+$ownsSupport = -not $env:GEOVIEWER_SUPPORT_SESSION
+$supportSession = $null; $launcherFailure = $null
+if ($ownsSupport) {
+    . (Join-Path $PSScriptRoot 'geoviewer_support.ps1')
+    $supportSession = Start-GeoViewerSupport -ToolkitRoot $toolkitRoot -Options $PSBoundParameters
+}
+$hashSpecified = $PSBoundParameters.ContainsKey('FullHash') -or $PSBoundParameters.ContainsKey('NoFullHash')
+if (-not $PSBoundParameters.ContainsKey('FullHash')) { $FullHash = -not $NoFullHash }
 try {
+    if ($FullHash -and $NoFullHash) { throw 'Choose either -FullHash or -NoFullHash, not both.' }
     if ($Help) {
-        Write-Output 'GeoViewer_data_extractor.bat "INPUT.zgy" [OUTPUT_ROOT] [-Domain time] [-VerticalUnit ms] [-HorizontalUnit m] [-Crs "identifier"] [-FullHash] [-NoPause]'
+        Write-Output 'GeoViewer_data_extractor.bat "INPUT.zgy" [OUTPUT_ROOT] [-Domain time] [-VerticalUnit ms] [-HorizontalUnit m] [-Crs "identifier"] [-NoFullHash] [-NoPause]'
         Write-Output 'Use -Inspect to read metadata or -Capabilities to list supported profiles. Double-click or drag a ZGY to enter missing metadata interactively.'
-        exit 0
+        $exitCode=0; exit 0
     }
-    Write-Output 'Petrel binary seismic to SEG-Y 0.7.0 - beta, source read-only'
+    Write-Output 'GeoViewer_data_extractor 1.0.0 - seismic to SEG-Y - beta, source read-only'
     . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
     $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
     # Keep all interactive reads in ConsoleHost. Mixing Read-Host with a child
@@ -58,9 +68,9 @@ with open_zgy(Path(sys.argv[1])) as reader:
             if (-not $Crs) { $Crs=([string](Read-Host 'CRS identifier [Enter keeps unknown]')).Trim(); if (-not $Crs) { $Crs='unknown' } }
         }
         if (-not $OutputRoot) { $OutputRoot=([string](Read-Host 'Output root [Enter for your user folder\Petrel_Conversions]')).Trim().Trim('"') }
-        if (-not $FullHash) {
-            do { $answer=([string](Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]')).Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
-            $FullHash=$answer -in @('y','yes')
+        if (-not $hashSpecified) {
+            do { $answer=([string](Read-Host 'Calculate full seismic SHA-256? [Y/n; Enter = Yes]')).Trim().ToLowerInvariant() } while ($answer -notin @('','y','yes','n','no'))
+            $FullHash=$answer -notin @('n','no')
         }
     }
     $arguments = @('-B', (Join-Path $PSScriptRoot 'petrel_file_convert.py'))
@@ -72,13 +82,20 @@ with open_zgy(Path(sys.argv[1])) as reader:
     if ($VerticalUnit) { $arguments += @('--vertical-unit', $VerticalUnit) }
     if ($HorizontalUnit) { $arguments += @('--horizontal-unit', $HorizontalUnit) }
     if ($Crs) { $arguments += @('--crs', $Crs) }
-    if ($FullHash) { $arguments += '--full-hash' }
+    if ($FullHash) { $arguments += '--full-hash' } else { $arguments += '--no-full-hash' }
     if ($ReportOnly) { $arguments += '--report-only' }
     & (Join-Path $toolkitRoot 'runtime\python.exe') @arguments
     $exitCode = $LASTEXITCODE
 } catch {
+    $launcherFailure = $_
     Write-Output ('ERROR: ' + $_.Exception.Message)
+    if (-not $ownsSupport) {
+        Write-Output $_.Exception.ToString()
+        Write-Output $_.ScriptStackTrace
+        Write-Output $_.InvocationInfo.PositionMessage
+    }
 } finally {
-    if ($interactive) { [void](Read-Host 'Press Enter to close') }
+    if ($ownsSupport) { Stop-GeoViewerSupport -ToolkitRoot $toolkitRoot -Session $supportSession -ExitCode $exitCode -Failure $launcherFailure }
+    if ($interactive -and $ownsSupport) { [void](Read-Host 'Press Enter to close') }
 }
 exit $exitCode

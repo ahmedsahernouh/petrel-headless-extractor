@@ -237,7 +237,7 @@ $manifestRows = @(Import-Csv -LiteralPath $manifestPath)
 $summaryRoot = Join-Path $exportPackage "07_workflows_reports\portable_extractor"
 New-Item -ItemType Directory -Path $summaryRoot -Force | Out-Null
 $summaryPath = Join-Path $summaryRoot "portable_extraction_run_summary.json"
-$toolkitVersion = "1.0.1"
+$toolkitVersion = "1.0.0"
 $toolkitMetadataPath = Join-Path $toolkitRoot "toolkit.json"
 if (Test-Path -LiteralPath $toolkitMetadataPath -PathType Leaf) {
     $toolkitVersion = (Get-Content -Raw -LiteralPath $toolkitMetadataPath | ConvertFrom-Json).version

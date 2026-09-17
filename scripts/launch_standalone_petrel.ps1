@@ -14,6 +14,7 @@ param(
     [switch]$NoPause,
     [switch]$ReportOnly,
     [switch]$FullHash,
+    [switch]$NoFullHash,
     [ValidateSet('time','depth')][string]$Domain,
     [ValidateSet('s','ms','us')][string]$VerticalUnit,
     [ValidateSet('m','ft')][string]$HorizontalUnit,
@@ -30,13 +31,14 @@ $toolkitRoot = Split-Path -Parent $PSScriptRoot
 $pythonExe = Join-Path $toolkitRoot "runtime\python.exe"
 $pauseAtEnd = (-not $NoPause) -and [string]::IsNullOrWhiteSpace($OutputRoot)
 $exitCode = 1
-$transcriptStarted = $false
-$diagnosticsRoot = Join-Path $toolkitRoot 'build\diagnostics'
-New-Item -ItemType Directory -Path $diagnosticsRoot -Force | Out-Null
-$env:GEOVIEWER_BOOTSTRAP_LOG = Join-Path $diagnosticsRoot ('bootstrap_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '_' + [guid]::NewGuid().ToString('N').Substring(0,6) + '.txt')
-try { Start-Transcript -Path $env:GEOVIEWER_BOOTSTRAP_LOG -ErrorAction Stop | Out-Null; $transcriptStarted = $true } catch { Write-Output 'Bootstrap transcript unavailable; extraction diagnostics will still be written.' }
+. (Join-Path $PSScriptRoot 'geoviewer_support.ps1')
+$supportSession = Start-GeoViewerSupport -ToolkitRoot $toolkitRoot -Options $PSBoundParameters
+$launcherFailure = $null
+$hashSpecified = $PSBoundParameters.ContainsKey('FullHash') -or $PSBoundParameters.ContainsKey('NoFullHash')
+if (-not $PSBoundParameters.ContainsKey('FullHash')) { $FullHash = -not $NoFullHash }
 function Invoke-ZgyInput {
-    $zgyArgs = @{ InputFile=$ProjectFile; OutputRoot=$OutputRoot; NoPause=$NoPause; FullHash=$FullHash; ReportOnly=$ReportOnly; Inspect=$Inspect; Capabilities=$Capabilities }
+    $zgyArgs = @{ InputFile=$ProjectFile; OutputRoot=$OutputRoot; NoPause=$NoPause; ReportOnly=$ReportOnly; Inspect=$Inspect; Capabilities=$Capabilities }
+    if ($hashSpecified) { $zgyArgs['FullHash']=$FullHash; $zgyArgs['NoFullHash']=$NoFullHash }
     foreach ($field in @('Domain','VerticalUnit','HorizontalUnit','Crs')) {
         $value=Get-Variable -Name $field -ValueOnly
         if ($value) { $zgyArgs[$field]=$value }
@@ -44,18 +46,18 @@ function Invoke-ZgyInput {
     & (Join-Path $PSScriptRoot 'launch_zgy_conversion.ps1') @zgyArgs
 }
 try {
+    if ($FullHash -and $NoFullHash) { throw 'Choose either -FullHash or -NoFullHash, not both.' }
     if ($Help -or $ProjectFile -in @("--help", "/?")) {
         Write-Output 'Usage: GeoViewer_data_extractor.bat "PROJECT.pet" [OUTPUT_ROOT] [convert|copy|inventory] [LABEL] [PETREL_VERSION] [-NoPause]'
         Write-Output 'Full report/inventory always runs. Add -ReportOnly to disable dataset conversion (enabled by default).'
-        Write-Output 'The same BAT accepts INPUT.zgy, -Inspect, -Capabilities and optional -FullHash (off by default).'
+        Write-Output 'The same BAT accepts INPUT.zgy, -Inspect and -Capabilities. Full hashing defaults to Yes; -NoFullHash disables it.'
         Write-Output 'Or: GeoViewer_data_extractor.bat --check -NoPause'
-        exit 0
+        $exitCode=0; exit 0
     }
-    Write-Output "GeoViewer_data_extractor 1.0.1 - standalone, read-only"
+    Write-Output "GeoViewer_data_extractor 1.0.0 - standalone, read-only"
     if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy' -or $Inspect -or $Capabilities) {
-        $pauseAtEnd=$false
         Invoke-ZgyInput
-        exit $LASTEXITCODE
+        $exitCode=$LASTEXITCODE; exit $exitCode
     }
     . (Join-Path $PSScriptRoot 'repair_standalone_dependencies.ps1')
     $dependencyCheck = Repair-PetrelStandaloneDependencies -ToolkitRoot $toolkitRoot
@@ -77,9 +79,8 @@ try {
                 $ProjectFile = $pairs[$number - 1].FullName
             } else { $ProjectFile = ([string](Read-Host "Full path to the .pet project or .zgy file")).Trim().Trim('"') }
             if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy') {
-                $pauseAtEnd=$false
                 Invoke-ZgyInput
-                exit $LASTEXITCODE
+                $exitCode=$LASTEXITCODE; exit $exitCode
             }
             if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
                 $OutputRoot = ([string](Read-Host 'Output root [Enter for your user folder\Petrel_Extracts]')).Trim().Trim('"')
@@ -91,25 +92,26 @@ try {
             $ReportOnly = $convertAnswer -in @('n', 'no')
         }
         if ($ReportOnly) { $CompanionMode = 'inventory' }
-        if ($pauseAtEnd -and -not $PSBoundParameters.ContainsKey('FullHash')) {
-            do { $hashAnswer = ([string](Read-Host 'Calculate full seismic SHA-256? [y/N; Enter = No]')).Trim().ToLowerInvariant() } while ($hashAnswer -notin @('', 'y', 'yes', 'n', 'no'))
-            $FullHash = $hashAnswer -in @('y','yes')
+        if ($pauseAtEnd -and -not $hashSpecified) {
+            do { $hashAnswer = ([string](Read-Host 'Calculate full seismic SHA-256? [Y/n; Enter = Yes]')).Trim().ToLowerInvariant() } while ($hashAnswer -notin @('', 'y', 'yes', 'n', 'no'))
+            $FullHash = $hashAnswer -notin @('n','no')
         }
         Write-Output $(if ($FullHash) { 'Full seismic hashing: ON (reads entire source files).' } else { 'Full seismic hashing: OFF. Metadata, previews and numerical conversion QC remain available.' })
         Write-Output $(if ($ReportOnly) { 'Selected: full report + inventory. Dataset conversion: OFF.' } else { 'Selected: full report + inventory. Dataset conversion: ON (supported profiles).' })
         if ([string]::IsNullOrWhiteSpace($OutputRoot)) { $OutputRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Petrel_Extracts' }
         $nativeArgs = @('--project-file', $ProjectFile, '--output-root', $OutputRoot, '--mode', $CompanionMode, '--petrel-version', $PetrelVersion)
         if ($ReportOnly) { $nativeArgs += '--report-only' }
-        if ($FullHash) { $nativeArgs += '--full-hash' }
+        if ($FullHash) { $nativeArgs += '--full-hash' } else { $nativeArgs += '--no-full-hash' }
         if (-not [string]::IsNullOrWhiteSpace($ProjectName)) { $nativeArgs += @('--label', $ProjectName) }
         & $pythonExe -B (Join-Path $PSScriptRoot "standalone_petrel_extract.py") @nativeArgs
         $exitCode = $LASTEXITCODE
     }
 } catch {
+    $launcherFailure = $_
     Write-Output ("ERROR: " + $_.Exception.Message)
     $exitCode = 1
 } finally {
-    if ($transcriptStarted) { Stop-Transcript | Out-Null }
+    Stop-GeoViewerSupport -ToolkitRoot $toolkitRoot -Session $supportSession -ExitCode $exitCode -Failure $launcherFailure
     if ($pauseAtEnd) { [void](Read-Host 'Press Enter to close') }
 }
 exit $exitCode

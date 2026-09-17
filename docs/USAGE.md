@@ -1,4 +1,4 @@
-# GeoViewer_data_extractor 1.0.1 usage
+# GeoViewer_data_extractor 1.0.0 usage
 
 Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).
 
@@ -13,7 +13,7 @@ GeoViewer/                 application, scripts and offline runtime cache
 
 Double-click the BAT and enter your exact `.pet` or `.zgy` path, or drag the file onto it. Keep the BAT beside its support folder; it need not be beside the project. For `.pet`, keep the complete same-name `.ptd` folder beside the project. Close the project in Petrel during the read.
 
-The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **off by default**: press Enter at `Calculate full seismic SHA-256? [y/N]`, or type `y` for thorough checksums.
+The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **on by default**: press Enter at `Calculate full seismic SHA-256? [Y/n; Enter = Yes]`. Type `n` or add `-NoFullHash` to skip the full seismic reads; conversion and numerical QC remain available.
 
 Results appear directly in the selected output root:
 
@@ -68,4 +68,6 @@ The current shapefile GeoJSON derivative retains source coordinates without repr
 
 ## License
 
-Version 1.0.1 ships under Apache License 2.0 with a NOTICE crediting Ahmed Saher Nouh as original project creator and principal author. See [licensing and attribution](LICENSING.md); bundled dependencies retain their own terms.
+Version 1.0.0 ships under Apache License 2.0 with a NOTICE crediting Ahmed Saher Nouh as original project creator and principal author. See [licensing and attribution](LICENSING.md); bundled dependencies retain their own terms.
+
+Each finished run writes one compressed `*_SUPPORT.zip` beside its report. Send that one file for debugging; it contains logs, settings, errors and recovery receipts, with recognized identifiers replaced. No source stores, exports or figures are collected, and nothing is uploaded. Startup failures print a support ZIP path even if Python cannot run. Review the sharing copy; fallback startup ZIPs are explicitly unredacted. See [support diagnostics](SUPPORT_LOGS.md).

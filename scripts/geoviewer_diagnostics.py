@@ -33,6 +33,7 @@ class Diagnostics:
         self.sequence = 0; self.problems = []; self.outcomes = {}; self.status = 'running'
         self.stage = None; self.fallback = None; self.sink_errors = []; self.closed = False
         self.log = self.events = None
+        self.all_paths = [self.text_path, self.events_path, self.summary_path]
         try:
             self.log = self.text_path.open('x', encoding='utf-8')
             self.events = self.events_path.open('x', encoding='utf-8')
@@ -54,6 +55,7 @@ class Diagnostics:
                     if stream is not None:stream.close()
                 except (OSError,ValueError): pass
             self.text_path=self.fallback/'LOG.txt';self.events_path=self.fallback/'EVENTS.jsonl';self.summary_path=self.fallback/'DIAGNOSTICS.txt'
+            self.all_paths.extend((self.text_path, self.events_path, self.summary_path))
             self.log = self.text_path.open('x', encoding='utf-8')
             self.events = self.events_path.open('x', encoding='utf-8')
             message = 'Diagnostics storage error: '+str(exc)+'; fallback: '+str(self.fallback)
@@ -78,6 +80,7 @@ class Diagnostics:
                     self.log.close(); self.segment += 1
                     path = self.text_path.with_name(self.text_path.stem+f'.{self.segment:03}.txt')
                     self.log = path.open('x', encoding='utf-8'); self.segment_paths.append(str(path))
+                    self.all_paths.append(path)
                 return
             except (OSError, ValueError) as exc:
                 if not self._fallback(exc): return
@@ -97,6 +100,8 @@ class Diagnostics:
                          elapsed_seconds=round(time.monotonic()-self.started,3), event=kind,
                          severity=severity, pid=fields.get('pid',os.getpid()), parent_pid=fields.get('parent_pid',os.getppid()))
             self._write(entry)
+            if kind == 'child_log_fallback' and fields.get('path'):
+                self.all_paths.append(Path(fields['path']))
             if kind in ('stage','stage_started'): self.stage = fields.get('label') or fields.get('stage')
             if kind in ('completed','run_finished'): self.status = fields.get('status','completed')
             if kind in ('failed','cancelled'): self.status = kind
@@ -125,6 +130,10 @@ class Diagnostics:
             if self._fallback(exc):
                 try: (self.fallback/'DIAGNOSTICS.txt').write_text('\n'.join(lines)+'\n',encoding='utf-8')
                 except OSError: pass
+
+    def paths(self):
+        """Retain original, rotated and fallback sinks for the single support ZIP."""
+        return list(dict.fromkeys(str(p) for p in self.all_paths))
 
     def close(self):
         global _active

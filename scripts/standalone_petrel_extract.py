@@ -81,7 +81,9 @@ def main():
     parser.add_argument('--output-root')
     parser.add_argument('--mode', choices=['inventory','copy','convert'], default='convert')
     parser.add_argument('--report-only', action='store_true', help='Full report/inventory and temporary previews; no retained dataset conversion')
-    parser.add_argument('--full-hash', action='store_true', help='Full seismic SHA-256; off by default')
+    hashing = parser.add_mutually_exclusive_group()
+    hashing.add_argument('--full-hash', dest='full_hash', action='store_true', default=True, help='Full seismic SHA-256 (default)')
+    hashing.add_argument('--no-full-hash', dest='full_hash', action='store_false', help='Skip full seismic hashes; retain numerical QC')
     parser.add_argument('--petrel-version', default='unknown')
     parser.add_argument('--label', default='')
     args = parser.parse_args()
@@ -121,6 +123,9 @@ def main():
         from geoviewer_delivery import partial_report, publish_exports, decorate, diagnostics_section
         log_path=output/(stem+'_LOG.txt');event_path=output/(stem+'_EVENTS.jsonl')
         diagnostics=Diagnostics(log_path,event_path)
+        from geoviewer_support import register_run, environment_info
+        register_run(diagnostics,run,report_path)
+        diagnostics.event('environment',**environment_info(run))
         diagnostics.event('started',request=vars(args),preflight=doctor)
         def optional(category, action):
             try:
@@ -247,10 +252,13 @@ def main():
                     if diagnostics:diagnostics.event('failure_report_unavailable',severity='error',**gio.error_details(secondary))
             display.message('Failure evidence: ' + str(run/'RUN_RESULT.json'))
         display.message('ERROR: ' + str(exc),file=sys.stderr)
+        if not diagnostics: traceback.print_exc()
         return 130 if isinstance(exc,KeyboardInterrupt) else 1
     finally:
         display.close(success=success,status=end_status.replace('_',' ') if end_status else None)
-        if diagnostics:diagnostics.close()
+        if diagnostics:
+            from geoviewer_support import finish_run
+            finish_run(diagnostics,run,report_path)
 
 
 if __name__ == '__main__':

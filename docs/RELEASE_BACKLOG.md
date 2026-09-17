@@ -1,3 +1,11 @@
+# Current release update — 1.0.0, 2026-09-17
+
+The user requires the public release version to remain **1.0.0**. Current package/code/docs retain that version; the build revision and SHA-256 identify this updated package. Earlier numbered validation records below remain historical evidence.
+
+- Full seismic SHA-256 is **Yes/on by default**, superseding the earlier default-off request. Enter accepts Yes; `n` or `-NoFullHash` explicitly disables it. Numerical conversion QC remains independent.
+- Automatically collect one compressed support ZIP per run, linked beside the report and printed in the CLI. Include bootstrap, child streams, tracebacks, stage/object outcomes, receipts, selected environment and dependency versions. Preserve local original logs; sharing copies replace recognized identifiers and exclude source/converted data. Runtime-unavailable startup failures get an explicitly unredacted Windows-only ZIP.
+- Keep deeper logging/resume requests that are not delivered explicitly pending; a forced process termination cannot guarantee final packaging.
+
 # Release requirements and implementation status
 
 ## 1.0.1 metadata isolation correction

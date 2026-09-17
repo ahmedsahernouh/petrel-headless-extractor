@@ -124,7 +124,7 @@ def discover(project):
         if path.suffix.lower() not in SEISMIC_SUFFIXES or not path.is_file(): continue
         if any(parent.suffix.lower()=='.ptd' and parent!=store for parent in path.resolve().parents): continue
         add(path,'unlinked_companion')
-    return dict(version='1.0.1', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
+    return dict(version='1.0.0', project_file=str(project), objects=list(rows.values()), findings=findings,native_objects=native_objects,
                 discovery_boundary='Selected store and explicit XML or supported BXML file/path fields only. Unlinked companions need an exact-file run. Unparsed references are not inferred.')
 
 
@@ -198,6 +198,9 @@ def single_file_run(source, output, options):
     from geoviewer_io import output_probe,systemic,error_details,atomic_json
     from geoviewer_diagnostics import Diagnostics
     logs=Diagnostics(output/(stem+'_LOG.txt'),output/(stem+'_EVENTS.jsonl'))
+    from geoviewer_support import register_run, environment_info, finish_run
+    register_run(logs,data,report)
+    logs.event('environment',**environment_info(data))
     output_probe(data)
     stages=[]
     def optional(category,action):
@@ -243,11 +246,15 @@ def single_file_run(source, output, options):
         print(('COMPLETED WITH GAPS: ' if stages else 'SUCCESS: ')+str(report),flush=True)
         return not stages
     except (Exception,KeyboardInterrupt) as exc:
-        logs.event('failed',error=str(exc),exception=type(exc).__name__)
+        status='cancelled' if isinstance(exc,KeyboardInterrupt) else 'failed'
+        details=error_details(exc)
+        logs.event(status,severity='error',**details)
+        try: atomic_json(data/'RUN_RESULT.json',dict(status=status,error=details,category_outcomes=stages))
+        except OSError as secondary: logs.event('failure_receipt_unavailable',severity='error',**error_details(secondary))
         try:partial_report(report,{},'Seismic extraction failed',str(exc),logs.text_path,preserve=True)
         except OSError as secondary:logs.event('failure_report_unavailable',severity='error',**error_details(secondary))
         raise
-    finally:logs.close()
+    finally:finish_run(logs,data,report)
 
 
 class RelocateLinks(HTMLParser):

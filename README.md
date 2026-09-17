@@ -8,7 +8,7 @@ I built this as a read-only way to inspect and recover supported data from a Pet
 
 **[Download the standalone Windows x64 ZIP](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/latest)** · [Usage and supported formats](docs/USAGE.md) · [Build from source](docs/BUILD.md)
 
-The current maintenance version is **1.0.1**, licensed under **Apache 2.0** with an original-author **NOTICE**. It includes native data recovery, isolated-failure handling, readable diagnostic summaries and adjustable map markers. Modern recovery has been tested on an observed Petrel 2024.5.0 project; this is not a blanket claim for every Petrel version or object type. [Read the metadata-isolation correction](docs/GEOVIEWER_1_0_1.md) and [capabilities and limits](docs/GEOVIEWER_1_0.md).
+The current maintenance version is **1.0.0**, licensed under **Apache 2.0** with an original-author **NOTICE**. It includes native data recovery, isolated-failure handling, readable diagnostic summaries and adjustable map markers. Modern recovery has been tested on an observed Petrel 2024.5.0 project; this is not a blanket claim for every Petrel version or object type. [Read the metadata-isolation correction](docs/GEOVIEWER_1_0_1.md) and [capabilities and limits](docs/GEOVIEWER_1_0.md).
 
 Supported paths include [native well logs to LAS/CSV and supported surfaces to XYZ/CSV](docs/NATIVE_LOGS_SURFACES.md), plus [supported ZGY-to-SEG-Y conversion](docs/ZGY_TO_SEGY.md) for seismic found in the selected store or explicitly referenced by the project. Unsupported objects remain visible in the inventory instead of being presented as converted. See the [coverage notes and roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 
@@ -24,7 +24,7 @@ The release ZIP includes Python and all pinned runtime dependencies. No Python i
 
 Keep the whole extracted release together: the BAT alone is a launcher, not the application. Choose an output folder outside your source project.
 
-**Windows "Path too long" during extraction:** cancel the incomplete extraction and extract the complete ZIP to a short writable destination. Do not skip files. The 1.0.1 ZIP uses a short package name and keeps the runtime compressed until the BAT installs it.
+**Windows "Path too long" during extraction:** cancel the incomplete extraction and extract the complete ZIP to a short writable destination. Do not skip files. The 1.0.0 ZIP uses a short package name and keeps the runtime compressed until the BAT installs it.
 
 ```bat
 GeoViewer_data_extractor.bat "E:\Test Data\Example.pet" "E:\Extracted Results" convert
@@ -49,7 +49,7 @@ The BAT shows an overall stage bar and elapsed timer automatically. Large-file h
 
 Existing open-format companion handling is secondary. It does not count as decoding native well logs, faults, grids or property arrays. Those gaps and the next binary parsers are listed in the [native coverage roadmap](docs/BINARY_EXTRACTION_PURPOSE.md).
 
-`convert` is the standalone default: preserve sources and attempt supported conversions. `copy` preserves companions without converting them. `inventory` inventories companions without copying them. **Native non-seismic files are copied; raw seismic stays at source.** Add `-FullHash` to calculate full seismic checksums, or leave it off for faster processing. Neighboring Petrel projects are excluded from companion ingestion.
+`convert` is the standalone default: preserve sources and attempt supported conversions. `copy` preserves companions without converting them. `inventory` inventories companions without copying them. **Native non-seismic files are copied; raw seismic stays at source.** Full seismic checksums are enabled by default. Add `-NoFullHash` to skip these extra reads while retaining conversion and numerical QC. Neighboring Petrel projects are excluded from companion ingestion.
 
 ## Scope and limits
 
@@ -78,3 +78,5 @@ Petrel and Ocean are trademarks of SLB. This is an independent interoperability 
 ## Initial public release 1.0.0
 
 Start with [the usage and capability guide](docs/GEOVIEWER_1_0.md). This release brings the tested development functionality together under the 1.0.0 version and Apache-2.0 license: modern native recovery, shallow export folders, project version/save evidence, detailed diagnostics and explicit unknown-axis seismic export. Complete 3D RESCUE remains [planned](docs/RESCUE_EXPORT_PLAN.md).
+
+Each finished run writes one compressed `*_SUPPORT.zip` beside its report. Send that one file for debugging; it contains logs, settings, errors and recovery receipts, with recognized identifiers replaced. No source stores, exports or figures are collected, and nothing is uploaded. Startup failures print a support ZIP path even if Python cannot run. Review the sharing copy; fallback startup ZIPs are explicitly unredacted. See [support diagnostics](docs/SUPPORT_LOGS.md).

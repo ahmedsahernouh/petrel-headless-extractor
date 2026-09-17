@@ -10,7 +10,7 @@ Version 0.8.0 uses the same **GeoViewer_data_extractor.bat** for projects and ex
 2. Drag a `.zgy` file onto `GeoViewer_data_extractor.bat`, or double-click it and paste the file path. A ZGY inside a `.ptd` folder is acceptable; it is read-only.
 3. If source metadata is missing, it remains unknown. The exact native axis is retained in text/JSON; set it explicitly in the receiving application. Verified overrides remain optional; never guess units.
 4. Choose an output root outside the source folder and all `.ptd` stores. Default: `%USERPROFILE%\Petrel_Conversions`.
-5. Open the top-level `*_REPORT.html`; its matching data folder contains `volume.segy`, metadata and conversion receipts. Full seismic hashing is off by default; add `-FullHash` to request it.
+5. Open the top-level `*_REPORT.html`; its matching data folder contains `volume.segy`, metadata and conversion receipts. Full seismic hashing is on by default; add `-NoFullHash` to disable it.
 
 Noninteractive example for independently confirmed metadata:
 
@@ -35,6 +35,6 @@ Use `-Capabilities -NoPause` to display the exact supported profile. The same ma
 - Non-finite amplitudes, degenerate geometry, conflicting known units and sampling outside the applicable header profile stop with an explanation. Missing interpretation metadata alone does not block readable data. This is not a universal native-store decoder.
 - Output represents decoded cube amplitudes. Earlier lossy compression/quantization is not reversed; original acquisition headers cannot be recovered when absent from ZGY.
 
-The writer uses bounded array blocks (up to 64 MiB, excluding library/cache overhead). It estimates uncompressed output space, checks every amplitude and key trace header against the ZGY, then verifies source preservation. Conversion, verification and hashing have separate progress phases with elapsed time. Full hashing is optional and off by default. When selected, it reads the source before and after conversion and hashes SEG-Y output. Otherwise file-state checks and complete numerical QC remain, with no SHA-256 identity claim. Raw seismic is not copied merely for preservation.
+The writer uses bounded array blocks (up to 64 MiB, excluding library/cache overhead). It estimates uncompressed output space, checks every amplitude and key trace header against the ZGY, then verifies source preservation. Conversion, verification and hashing have separate progress phases with elapsed time. Full hashing is optional and on by default. When selected, it reads the source before and after conversion and hashes SEG-Y output. Otherwise file-state checks and complete numerical QC remain, with no SHA-256 identity claim. Raw seismic is not copied merely for preservation.
 
 Failures/cancellation after a run directory exists retain `RUN_RESULT.json`; `.partial.segy` files are not accepted results. Exact-file conversion returns success only when the requested conversion/QC or report-only work completes. Unsupported conversion still retains its report and explanation; no accepted SEG-Y is fabricated. Receiving-software import and geological acceptance remain separate from the supplied synthetic/raw-byte tests.

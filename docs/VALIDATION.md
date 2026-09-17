@@ -1,5 +1,18 @@
 # Release validation
 
+## GeoViewer_data_extractor 1.0.0 — Hashing default and support bundles
+
+Validated **2026-09-17**, build revision `2026-09-17-support`. Version remains **1.0.0** at the author's request; this updated initial-release package supersedes the previous 1.0.0 download. Historical numbered records below identify their original test artifacts.
+
+- Final ZIP: `GeoViewer-1.0.0-win64.zip`, 59,346,216 bytes; SHA-256 `838c72261d340e3468a4a8eaa0fc5282574f784ef43b212a65f2270b6c646397`.
+- **170 packaged regression tests**, **41 standalone acceptance checks**, and **7 polygon/grid checks** passed on the final distributed ZIP.
+- The actual main BAT was tested from clean relocated folders with system Python unavailable and network access disabled for dependency installation. Checks cover offline runtime bootstrap/repair, missing Python/cache, startup diagnostics, invalid input, native logs/grids/polygons, report-only operation, default/explicit seismic hashing, interactive answers, and tamper rejection.
+- Each main-BAT run, except a deliberately incomplete extraction with missing launch scripts, produced exactly one readable support ZIP. The final report links directly to it. Support tests cover error traceback/OS codes, child and fallback logs, cancellation, missing evidence, compression, source/export exclusion, and identifier replacement without altering originals.
+- A separate packaging check on existing real-project diagnostic files collected **19,030,325 bytes** into **1,103,371 bytes**, with **19 files** and no missing evidence. This reuses existing diagnostic evidence; it is not a new full project extraction or a broader version-support claim.
+- The source/archive/runtime format and Apache-2.0/NOTICE checks passed. Source data and test outputs remain local; the published validation receipt contains only sanitized check summaries.
+
+See [support diagnostics and limits](SUPPORT_LOGS.md). This update does not add native object profiles or complete 3D RESCUE export.
+
 ## GeoViewer_data_extractor 1.0.1 — Metadata failure isolation
 
 Validated **2026-09-17**. Final standalone ZIP: `17572acc4066b533a6f69d74398a7cc283c2cb5c5b9f14c0088504010946abe9`

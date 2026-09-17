@@ -72,6 +72,17 @@ def main():
         checks.append({'name':label,'passed':passed,'exit_code':proc.returncode,'log':label+'.txt'})
         print(label,proc.returncode,flush=True)
         if not passed:raise AssertionError(label+'\n'+proc.stdout[-4000:])
+        if label != 'reject_incomplete_extraction':
+            support_lines=[line for line in proc.stdout.splitlines() if line.startswith('SUPPORT ZIP (')]
+            assert len(support_lines)==1,(label,support_lines,proc.stdout[-2000:])
+            bundle=Path(support_lines[0].split('): ',1)[1])
+            assert bundle.is_file(),bundle
+            with zipfile.ZipFile(bundle) as support:
+                assert support.testzip() is None
+                assert 'README.txt' in support.namelist()
+                if 'CONTENTS.json' in support.namelist():
+                    contents=json.loads(support.read('CONTENTS.json'))
+                    assert any('BOOTSTRAP_LOG' in r['role'] for r in contents['files']),contents
         return proc.stdout
     # The outer ZIP has no Python at all: the actual BAT must bootstrap offline.
     assert not (package/'runtime').exists()
@@ -123,6 +134,12 @@ def main():
         cache.write_bytes(b'corrupt repair cache test')
         message=run('reject_corrupt_repair_cache',['--check','-NoPause'],expected=1)
         assert 'offline dependency cache is missing or damaged' in message and not dependency.exists()
+        missing_python=package/'runtime/python.exe';saved_python=missing_python.read_bytes()
+        try:
+            missing_python.unlink()
+            message=run('startup_support_without_python',['--check','-NoPause'],expected=1)
+            assert 'startup only, unredacted' in message
+        finally: missing_python.write_bytes(saved_python)
     finally:
         cache.write_bytes(cache_bytes);dependency.write_bytes(dependency_bytes)
     # Do not replace a runtime used by an active extraction.
@@ -158,6 +175,7 @@ def main():
     assert all('Stage '+str(n)+'/12:' in progress_output for n in range(1,13))
     result=next(output.rglob('RUN_RESULT.json'));payload=json.loads(result.read_text())
     assert payload['status']=='completed_with_gaps' and payload['source_mutated'] is False
+    assert payload['full_seismic_hash'] is True
     assert payload['extraction_audit']['status']=='passed' and payload['qc_audit']['status']=='passed'
     assert payload['elapsed_seconds'] > 0
     assert 'Elapsed:' in (result.parent/'RUN_LOG.txt').read_text()
@@ -281,7 +299,7 @@ print(src/'Fixture.pet')
     before_seismic={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*.zgy')}
     for report_only in (False,True):
         destination=relocated/('Project Seismic Report Only' if report_only else 'Project Seismic Convert')
-        options=[project,destination,'-NoPause']+(['-ReportOnly'] if report_only else [])
+        options=[project,destination,'-NoPause','-NoFullHash']+(['-ReportOnly'] if report_only else [])
         run('project_zgy_report_only' if report_only else 'project_zgy_integrated',options,expected=0 if report_only else 10)
         top=list(destination.glob('*_REPORT.html'));assert len(top)==1
         payload=json.loads(next(destination.glob('*_data/RUN_RESULT.json')).read_text())
@@ -310,8 +328,17 @@ print(src/'Fixture.pet')
     assert 'SUCCESS:' in conversion and '5/5 stages complete | Complete' in conversion
     binary_receipt=json.loads(next((relocated/'Binary Results').glob('*_data/seismic/*/RUN_RESULT.json')).read_text())
     assert binary_receipt['status']=='passed' and binary_receipt['summary']['all_decoded_samples_exact']
+    assert binary_receipt['full_seismic_hash'] is True and binary_receipt['source_hashes_before']
     prompted_conversion=run('binary_interactive_prompt',[],input_text=str(zgy)+'\n\nunknown\n'+str(relocated/'Binary Prompt Results')+'\n\n\n')
     assert 'SUCCESS:' in prompted_conversion
+    prompted_receipt=json.loads(next((relocated/'Binary Prompt Results').glob('*_data/seismic/*/RUN_RESULT.json')).read_text())
+    assert prompted_receipt['full_seismic_hash'] is True
+    run('binary_interactive_hash_no',[],input_text=str(zgy)+'\n\nunknown\n'+str(relocated/'Binary Prompt Fast Results')+'\nn\n\n')
+    prompt_fast=json.loads(next((relocated/'Binary Prompt Fast Results').glob('*_data/seismic/*/RUN_RESULT.json')).read_text())
+    assert prompt_fast['full_seismic_hash'] is False
+    run('binary_hash_opt_out',[zgy,relocated/'Binary Fast Results','-NoFullHash','-NoPause'])
+    fast_receipt=json.loads(next((relocated/'Binary Fast Results').glob('*_data/seismic/*/RUN_RESULT.json')).read_text())
+    assert fast_receipt['full_seismic_hash'] is False and not fast_receipt['source_hashes_before']
     bat=native_bat
     routed=run('main_bat_zgy_routing',[zgy,relocated/'Routed Binary Results','-NoPause'])
     assert 'SUCCESS:' in routed
@@ -322,6 +349,14 @@ print(src/'Fixture.pet')
         run('reject_bundle_tamper',[project,relocated/'Tamper Results','convert','-NoPause'],expected=1)
         assert not (relocated/'Tamper Results').exists()
     finally:target.write_bytes(saved)
+    # An integrity-rejected collector must not execute from the failure handler.
+    collector=package/'scripts/geoviewer_support.py';collector_bytes=collector.read_bytes()
+    marker=package/'collector_was_executed.txt'
+    try:
+        collector.write_text('from pathlib import Path\nPath(__file__).resolve().parents[1].joinpath("collector_was_executed.txt").write_text("bad")\n')
+        message=run('reject_support_collector_tamper',['--check','-NoPause'],expected=1)
+        assert not marker.exists() and 'startup only, unredacted' in message
+    finally:collector.write_bytes(collector_bytes)
     run('bundle_check_after_tests',['--check','-NoPause'])
     results=[]
     for path in relocated.rglob('RUN_RESULT.json'):
