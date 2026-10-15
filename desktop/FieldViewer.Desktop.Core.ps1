@@ -1,0 +1,336 @@
+﻿# Copyright 2026 Ahmed Saher Nouh
+# SPDX-License-Identifier: Apache-2.0
+# Field Viewer desktop adapter. No extraction logic lives here.
+Set-StrictMode -Version Latest
+
+function Get-FvEngineRoot([string]$PackageRoot) {
+    foreach ($root in @((Join-Path $PackageRoot 'FieldViewer'), $PackageRoot)) {
+        if (Test-Path -LiteralPath (Join-Path $root 'scripts/launch_standalone_petrel.ps1') -PathType Leaf) { return $root }
+    }
+    throw 'The FieldViewer engine launcher is missing from this package.'
+}
+function Get-FvMetadata([string]$PackageRoot) {
+    $engine = Get-FvEngineRoot $PackageRoot
+    $toolkit = Read-FvJson (Join-Path $engine 'toolkit.json') 65536
+    if (-not $toolkit) { throw 'Engine toolkit.json is unavailable.' }
+    $edition = Read-FvJson (Join-Path $PackageRoot 'EDITION.json') 65536
+    [pscustomobject]@{ EngineRoot=$engine; Version=[string]$toolkit.version; Build=[string]$toolkit.build_revision;
+        Edition=$(if ($edition) { [string]$edition.edition } else { 'Desktop development' });
+        GuiRevision=$(if ($edition) { [string]$edition.gui_revision } else { 'source' });
+        EngineTag=$(if ($edition) { [string]$edition.engine_tag } else { 'unpackaged' });
+        EngineZipSha256=$(if ($edition) { [string]$edition.engine_zip_sha256 } else { 'unpackaged' }) }
+}
+function Read-FvJson([string]$Path, [long]$MaxBytes=262144) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    $info = Get-Item -LiteralPath $Path -ErrorAction Stop
+    if ($info.Length -gt $MaxBytes) { throw "JSON file exceeds $MaxBytes bytes: $Path" }
+    $stream = [IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try {
+        $reader = New-Object IO.StreamReader($stream, [Text.Encoding]::UTF8, $true); $value=$reader.ReadToEnd()
+        try { return ($value | ConvertFrom-Json -ErrorAction Stop) }
+        catch {
+            # Engine receipts can contain an empty metadata key, which Windows
+            # PowerShell ConvertFrom-Json rejects. The framework parser accepts it.
+            Add-Type -AssemblyName System.Web.Extensions
+            $parser=New-Object System.Web.Script.Serialization.JavaScriptSerializer
+            $parser.MaxJsonLength=[int]$MaxBytes; $parser.RecursionLimit=512
+            return $parser.DeserializeObject($value)
+        }
+    }
+    finally { $stream.Dispose() }
+}
+function Get-FvProp($Object,[string]$Name) {
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [Collections.IDictionary]) { if (([Collections.IDictionary]$Object).Contains($Name)) { return $Object[$Name] }; return $null }
+    $p=$Object.PSObject.Properties[$Name]
+    if ($p) { return $p.Value }; return $null
+}
+function Write-FvJson([string]$Path, $Value) {
+    $parent=[IO.Path]::GetDirectoryName($Path); [IO.Directory]::CreateDirectory($parent) | Out-Null
+    $temp=$Path+'.'+[guid]::NewGuid().ToString('N')+'.tmp'
+    [IO.File]::WriteAllText($temp,($Value | ConvertTo-Json -Depth 14), (New-Object Text.UTF8Encoding($false)))
+    $backup=$Path+'.'+[guid]::NewGuid().ToString('N')+'.bak'
+    try { if ([IO.File]::Exists($Path)) { [IO.File]::Replace($temp,$Path,$backup) } else { [IO.File]::Move($temp,$Path) } }
+    finally { if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) }; if ([IO.File]::Exists($backup)) { [IO.File]::Delete($backup) } }
+}
+function ConvertTo-FvArg([string]$Value) {
+    # CommandLineToArgvW-compatible quoting; do not invoke a shell expression.
+    if ($Value -match '^[^\s"]+$') { return $Value }
+    $out='"'; $slashes=0
+    foreach ($ch in $Value.ToCharArray()) {
+        if ($ch -eq '\') { $slashes++; continue }
+        if ($ch -eq '"') { $out += ('\' * (2*$slashes+1)) + '"'; $slashes=0; continue }
+        $out += ('\' * $slashes) + $ch; $slashes=0
+    }
+    $out += ('\' * (2*$slashes)) + '"'
+    return $out
+}
+function Join-FvArgs([string[]]$Values) { return (($Values | ForEach-Object { ConvertTo-FvArg $_ }) -join ' ') }
+function Test-FvWithin([string]$Candidate,[string]$Root,[bool]$AllowRoot=$true) {
+    $candidateFull=[IO.Path]::GetFullPath($Candidate).TrimEnd('\','/')
+    $rootFull=[IO.Path]::GetFullPath($Root).TrimEnd('\','/')
+    if ($AllowRoot -and [string]::Equals($candidateFull,$rootFull,[StringComparison]::OrdinalIgnoreCase)) { return $true }
+    return $candidateFull.StartsWith($rootFull+'\',[StringComparison]::OrdinalIgnoreCase)
+}
+function Test-FvNoReparse([string]$Path) {
+    $current=[IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Path))
+    $parts=[IO.Path]::GetFullPath($Path).Substring($current.Length).Split([char[]]@('\','/'),[StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($part in $parts) {
+        $current=Join-Path $current $part
+        if (Test-Path -LiteralPath $current) {
+            if (([IO.File]::GetAttributes($current) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+        }
+    }
+    return $true
+}
+function Assert-FvInputs([string]$Project,[string]$Output) {
+    $pet=[IO.Path]::GetFullPath($Project); $target=[IO.Path]::GetFullPath($Output)
+    if ([IO.Path]::GetExtension($pet) -ine '.pet' -or -not (Test-Path -LiteralPath $pet -PathType Leaf)) { throw 'Choose an existing exact .pet file.' }
+    $ptd=[IO.Path]::ChangeExtension($pet,'.ptd')
+    if (-not (Test-Path -LiteralPath $ptd -PathType Container)) { throw "Matching .ptd folder is missing: $ptd" }
+    if (-not (Test-Path -LiteralPath $target -PathType Container)) { throw 'Choose an existing output folder.' }
+    if (Test-FvWithin $target ([IO.Path]::GetDirectoryName($pet))) { throw 'Output must be outside the source project directory.' }
+    if (-not (Test-FvNoReparse $target)) { throw 'Output folder cannot use a junction or symbolic link.' }
+    $probe=Join-Path $target ('.fv_write_'+[guid]::NewGuid().ToString('N'))
+    try { [IO.File]::WriteAllText($probe,''); [IO.File]::Delete($probe) } catch { throw "Output folder is not writable: $($_.Exception.Message)" }
+    [pscustomobject]@{ Project=$pet; Ptd=$ptd; Output=$target }
+}
+function Get-FvStateHome([string]$PackageRoot) {
+    $key=[Security.Cryptography.SHA256]::Create()
+    try { $hash=([BitConverter]::ToString($key.ComputeHash([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetFullPath($PackageRoot).ToUpperInvariant())))).Replace('-','').Substring(0,16) }
+    finally { $key.Dispose() }
+    $base=[Environment]::GetFolderPath('LocalApplicationData')
+    if (-not $base) { $base=[IO.Path]::GetTempPath() }
+    return (Join-Path $base ('FieldViewerDesktop\'+$hash))
+}
+function Assert-FvReportPathBudget([string]$Output) {
+    # RC1009's report writer stages assessments below the run folder. Its
+    # native-data preflight does not reserve these flat/sharded report paths.
+    # Reserve the maximum sanitized label (28 ASCII characters), full generation
+    # identity and longest framed member without changing the engine or settings.
+    $run=Join-Path ([IO.Path]::GetFullPath($Output)) ('FV_'+('f'*16))
+    $stem=('p'*28)+'_20000101_000000_ffffff_data'
+    $stage=Join-Path (Join-Path (Join-Path (Join-Path $run $stem) 'interoperability') ('f'*32)) 'validation_opendtect.json.ffffffff.assessment-stage'
+    $names=@('validation_opendtect.json.ffffffffffff.partial','validation_opendtect.preparation_dependency_cycles.0024.jsonl')
+    foreach($name in $names) {
+        $path=Join-Path $stage $name
+        if ($path.Length -gt 259 -or $stage.Length -gt 247) {
+            throw 'The output folder is too long for complete Windows reports. Choose a shorter folder, such as C:\FV. Nothing has been started.'
+        }
+    }
+}
+function New-FvSession([string]$PackageRoot,[string]$Project,[string]$Output,[bool]$ReportOnly) {
+    $paths=Assert-FvInputs $Project $Output
+    Assert-FvReportPathBudget $paths.Output
+    $id=[guid]::NewGuid().ToString('N'); $run=Join-Path $paths.Output ('FV_'+$id.Substring(0,16))
+    # New-Item without Force rejects an existing run folder rather than reusing it.
+    New-Item -ItemType Directory -Path $run -ErrorAction Stop | Out-Null
+    $engine=Get-FvEngineRoot $PackageRoot
+    $exe=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $exe)) { throw 'Windows PowerShell 5.1 executable is missing.' }
+    $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $engine 'scripts/launch_standalone_petrel.ps1'),'-ProjectFile',$paths.Project,'-OutputRoot',$run,'-CompanionMode','convert','-NoPause','-FullHash','-RunToCompletion')
+    if ($ReportOnly) { $args+= '-ReportOnly' }
+    $session=[ordered]@{ schema='fieldviewer.desktop.session/1'; id=$id; package_root=[IO.Path]::GetFullPath($PackageRoot);
+        project=$paths.Project; ptd=$paths.Ptd; selected_output=$paths.Output; output=$run; report_only=$ReportOnly;
+        executable=$exe; arguments=$args; argument_line=(Join-FvArgs $args); pid=$null; creation_utc=$null;
+        command_line=$null; started_utc=[DateTime]::UtcNow.ToString('o'); ended_utc=$null; exit_code=$null;
+        state='starting'; stdout=(Join-Path $run 'GUI_LAUNCHER_STDOUT.txt'); stderr=(Join-Path $run 'GUI_LAUNCHER_STDERR.txt');
+        session_file=(Join-Path $run 'GUI_SESSION.json') }
+    Write-FvJson $session.session_file $session
+    $stateHome=Get-FvStateHome $PackageRoot
+    Write-FvJson (Join-Path $stateHome 'current.json') ([ordered]@{session_file=$session.session_file; id=$id; package_root=$session.package_root})
+    return $session
+}
+function Get-FvLatestSession([string]$PackageRoot) {
+    $pointerPath=Join-Path (Get-FvStateHome $PackageRoot) 'current.json'
+    if (-not (Test-Path -LiteralPath $pointerPath)) { return $null }
+    $pointer=Read-FvJson $pointerPath 16384
+    if (-not $pointer -or $pointer.package_root -ine [IO.Path]::GetFullPath($PackageRoot)) { throw 'The saved session pointer is invalid or belongs to another package. Inspect current.json before starting more work.' }
+    $s=Read-FvJson ([string]$pointer.session_file) 65536
+    if ($s -and $s.id -eq $pointer.id -and $s.session_file -eq $pointer.session_file -and (Test-FvWithin $s.session_file $s.output)) { return $s }
+    throw 'The saved session is missing or does not match its pointer. Inspect the saved session before starting more work.'
+}
+function Test-FvProcessIdentity($Session) {
+    if (-not $Session.pid -or -not $Session.creation_utc -or -not $Session.command_line) { return $false }
+    try {
+        $p=[Diagnostics.Process]::GetProcessById([int]$Session.pid)
+        if ($p.StartTime.ToUniversalTime().Ticks -ne [DateTime]::Parse($Session.creation_utc).ToUniversalTime().Ticks) { return $false }
+        $w=Get-WmiObject Win32_Process -Filter "ProcessId=$($Session.pid)" -ErrorAction Stop
+        if (-not $w -or $w.ExecutablePath -ine $Session.executable -or $w.CommandLine -cne $Session.command_line) { return $false }
+        return $true
+    } catch { return $false }
+}
+function Get-FvSessionState($Session) {
+    if ($Session.state -eq 'finished') { return 'finished' }
+    if ($Session.state -eq 'launch_failed') { return 'launch_failed' }
+    if ($Session.state -eq 'supervision_lost') { return 'stale_identity' }
+    if (Test-FvProcessIdentity $Session) { return 'running' }
+    if ($Session.state -eq 'starting' -and ([DateTime]::UtcNow - [DateTime]::Parse($Session.started_utc)).TotalSeconds -lt 15) { return 'starting' }
+    return 'stale_identity'
+}
+function Get-FvOutcome($Session,$Receipt) {
+    $state=Get-FvSessionState $Session
+    if ($state -eq 'launch_failed') { return 'launcher_failed' }
+    if ($state -ne 'finished') { return $state }
+    $exit=[int](Get-FvProp $Session 'exit_code'); $status=Get-FvProp $Receipt 'status'
+    if ($exit -eq 0 -and $status -eq 'completed') { return 'completed' }
+    if ($exit -eq 10 -and $status -eq 'completed_with_gaps') { return 'completed_with_gaps' }
+    if ($exit -eq 130) { return 'cancelled' }
+    return 'failed_or_missing_receipt'
+}
+function Get-FvReceipt($Session) {
+    if (-not (Test-Path -LiteralPath $Session.output -PathType Container)) { return $null }
+    $files=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+    if ($files.Count -ne 1) { return $null }
+    if (-not (Test-FvWithin $files[0] $Session.output) -or -not (Test-FvNoReparse $files[0])) { return $null }
+    $bound=Get-FvBoundRun $Session
+    if (-not $bound -or [IO.Path]::GetDirectoryName($files[0]) -ine $bound.FullName) { return $null }
+    try { return (Read-FvJson $files[0] 33554432) } catch { return $null }
+}
+function Get-FvReceiptProblem($Session) {
+    $files=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+    if ($files.Count -eq 0) { return 'No RUN_RESULT.json was written in this GUI run.' }
+    if ($files.Count -ne 1) { return 'Multiple RUN_RESULT.json files exist in this GUI run; identity is ambiguous.' }
+    if ((Get-Item -LiteralPath $files[0]).Length -gt 33554432) { return 'RUN_RESULT.json exceeds the GUI 32 MiB reader limit; open it from this run folder for manual review.' }
+    return 'RUN_RESULT.json is malformed or its paths did not validate.'
+}
+function Get-FvBoundRun($Session) {
+    $dirs=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue)
+    $bound=@()
+    foreach ($dir in $dirs) {
+        if (-not (Test-FvNoReparse $dir.FullName)) { continue }
+        try {
+            $request=Read-FvJson (Join-Path $dir.FullName 'request.json') 131072
+            if ($request -and (Get-FvProp $request 'project_file') -ieq $Session.project -and
+                (Get-FvProp $request 'output_root') -ieq $Session.output -and
+                [bool](Get-FvProp $request 'report_only') -eq [bool]$Session.report_only) { $bound+= $dir }
+        } catch {}
+    }
+    if ($bound.Count -eq 1) { return $bound[0] }; return $null
+}
+function Resolve-FvArtifact($Session,[string]$Path,[string]$Kind='file') {
+    if (-not $Path) { return $null }
+    try {
+        $full=[IO.Path]::GetFullPath($Path)
+        if (-not (Test-FvWithin $full $Session.output) -or -not (Test-FvNoReparse $full)) { return $null }
+        if ($Kind -eq 'dir' -and (Test-Path -LiteralPath $full -PathType Container)) { return $full }
+        if ($Kind -eq 'file' -and (Test-Path -LiteralPath $full -PathType Leaf)) { return $full }
+    } catch {}
+    return $null
+}
+function Get-FvLinks($Session,$Receipt) {
+    $links=[ordered]@{ reports=[ordered]@{}; folders=[ordered]@{} }
+    $links.folders['Selected output']=$(if ((Test-Path -LiteralPath $Session.selected_output -PathType Container) -and (Test-FvNoReparse $Session.selected_output)) { [string]$Session.selected_output } else { $null })
+    $links.folders['This run']=Resolve-FvArtifact $Session $Session.output 'dir'
+    if (-not $Receipt) {
+        $bound=Get-FvBoundRun $Session
+        if (-not $bound) { return $links }
+        $prefix=$bound.Name.Substring(0,$bound.Name.Length-5)
+        $links.folders['Evidence']=$bound.FullName
+        $links.reports['Main report']=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_REPORT.html'))
+        $links.reports['View log']=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_LOG.txt'))
+        $links.reports['Diagnostics']=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_DIAGNOSTICS.txt'))
+        $exports=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_EXPORTS')) 'dir'
+        if ($exports) {
+            $links.folders['All exports']=$exports
+            $links.reports['File index (CSV)']=Resolve-FvArtifact $Session (Join-Path $exports 'FILE_INDEX.csv')
+            foreach ($dir in Get-ChildItem -LiteralPath $exports -Directory -ErrorAction SilentlyContinue) { if (Test-FvNoReparse $dir.FullName) { $links.folders[$dir.Name]=$dir.FullName } }
+        }
+        return $links
+    }
+    $links.reports['Main report']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'full_report')
+    $qc=Get-FvProp $Receipt 'qc'; if ($qc) { $links.reports['QC']=Resolve-FvArtifact $Session (Get-FvProp $qc 'report_path') }
+    $links.reports['Diagnostics']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'diagnostic_summary')
+    $links.reports['View log']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'process_log')
+    $access=Get-FvProp $Receipt 'result_access'; if ($access) { $links.reports['Results page']=Resolve-FvArtifact $Session (Get-FvProp $access 'entry_page') }
+    $extraction=Get-FvProp $Receipt 'extraction'; $summary=Get-FvProp $extraction 'summary'
+    $links.reports['Internal package report']=Resolve-FvArtifact $Session (Get-FvProp $summary 'dashboard')
+    $interop=Get-FvProp $Receipt 'interoperability_contract'; $assess=Get-FvProp $interop 'assessments'
+    foreach ($name in @('source','opendtect','paleoscan')) {
+        $assessment=Get-FvProp $assess $name
+        $links.reports[($name+' preparation assessment (JSON)')]=Resolve-FvArtifact $Session (Get-FvProp $assessment 'path')
+    }
+    $index=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'file_index')
+    if ($index) { $links.reports['File index (CSV)']=$index }
+    $receiptFiles=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+    if ($receiptFiles.Count -eq 1) { $links.folders['Evidence']=Resolve-FvArtifact $Session ([IO.Path]::GetDirectoryName($receiptFiles[0])) 'dir' }
+    $links.folders['All exports']=$(if ($index) { Resolve-FvArtifact $Session ([IO.Path]::GetDirectoryName($index)) 'dir' } else { $null })
+    if ($links.folders['All exports']) {
+        foreach ($dir in Get-ChildItem -LiteralPath $links.folders['All exports'] -Directory -ErrorAction SilentlyContinue) {
+            $name=$dir.Name
+            if (Test-FvNoReparse $dir.FullName) { $links.folders[$name]=$dir.FullName }
+        }
+    }
+    return $links
+}
+function Read-FvTail([string]$Path,[int]$Maximum=131072) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+    $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try { $count=[int][math]::Min($Maximum,$stream.Length); [void]$stream.Seek(-$count,[IO.SeekOrigin]::End); $buffer=New-Object byte[] $count; [void]$stream.Read($buffer,0,$count); return [Text.Encoding]::UTF8.GetString($buffer) }
+    finally { $stream.Dispose() }
+}
+function Read-FvEventSlice([string]$Path,[long]$Offset,[int]$Maximum=131072) {
+    $result=[ordered]@{ offset=$Offset; events=@(); skipped=$false }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $result }
+    $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try {
+        if ($Offset -gt $stream.Length) { $Offset=0 }
+        [void]$stream.Seek($Offset,[IO.SeekOrigin]::Begin)
+        $count=[int][math]::Min($Maximum,$stream.Length-$Offset); $bytes=New-Object byte[] $count; $read=$stream.Read($bytes,0,$count)
+        # Track byte positions, not decoded string lengths: a UTF-8 character
+        # may straddle the bounded read. An oversized event must not stall polling.
+        $last=-1
+        for ($i=$read-1;$i -ge 0;$i--) { if ($bytes[$i] -eq 10) { $last=$i; break } }
+        if ($last -lt 0) {
+            if ($read -eq $Maximum) { $result.offset=$Offset+$read; $result.skipped=$true }
+            else { $result.offset=$Offset }
+            return $result
+        }
+        $result.offset=$Offset+$last+1
+        $raw=[Text.Encoding]::UTF8.GetString($bytes,0,$last+1)
+        foreach ($line in $raw.Split("`n")) { if ($line.Trim()) { try { $result.events+=($line | ConvertFrom-Json) } catch { $result.skipped=$true } } }
+        return $result
+    } finally { $stream.Dispose() }
+}
+function Get-FvProgress($Events,$Previous=$null) {
+    $stage=$(if ($Previous) { [string]$Previous.Stage } else { 'Awaiting recorded stage' })
+    $activity=$(if ($Previous) { [string]$Previous.Activity } else { 'No recorded activity yet' })
+    $percent=$(if ($Previous) { $Previous.Percent } else { $null })
+    $unit=$(if ($Previous) { [string]$Previous.Unit } else { '' })
+    $time=$(if ($Previous) { [string]$Previous.LastActivityUtc } else { '' })
+    foreach ($e in $Events) {
+        $kind=Get-FvProp $e 'event'
+        $meaningful=$kind -in @('stage','stage_started','hash_file_started','hash_file_progress','hash_file_completed','object_started','object_phase','native_object_outcome','operation_started','operation_finished')
+        if ($kind -eq 'stage' -or $kind -eq 'stage_started') { $stage=[string]$(if (Get-FvProp $e 'label') { Get-FvProp $e 'label' } else { Get-FvProp $e 'stage' }); $percent=$null; $unit='' }
+        if ($kind -match '^hash_file_(started|progress|completed)$') {
+            $activity='Hashing '+[string](Get-FvProp $e 'source')
+            if ($kind -eq 'hash_file_started') { $percent=$null; $unit='' }
+            $total=Get-FvProp $e 'total'; $done=Get-FvProp $e 'done'
+            if ($total -is [ValueType] -and $done -is [ValueType] -and $total -gt 0 -and $done -ge 0 -and $done -le $total) {
+                $percent=[int][math]::Floor(100.0*$done/$total); $unit="Hash file bytes: $done / $total"
+            }
+        } elseif ($kind -in @('object_started','object_phase','native_object_outcome')) {
+            $activity="Object $(Get-FvProp $e 'object_index') of $(Get-FvProp $e 'object_total'): $(Get-FvProp $e 'operation')"; $percent=$null; $unit='Objects are processing; recovery varies'
+        } elseif ($kind -in @('operation_started','operation_finished')) {
+            $activity="Operation: $(Get-FvProp $e 'operation') $(Get-FvProp $e 'status')"; $percent=$null; $unit=''
+        } elseif ($kind -eq 'stage' -or $kind -eq 'stage_started') { $activity=$stage }
+        if ($meaningful -and (Get-FvProp $e 'time_utc')) { $time=[string](Get-FvProp $e 'time_utc') }
+    }
+    [pscustomobject]@{ Stage=$stage; Activity=$activity; Percent=$percent; Unit=$unit; LastActivityUtc=$time }
+}
+function Format-FvDuration([double]$Seconds) {
+    $s=[long][math]::Max(0,[math]::Floor($Seconds)); $days=[long][math]::Floor($s/86400); $hours=[long][math]::Floor(($s%86400)/3600)
+    $body='{0:00}:{1:00}:{2:00}' -f $hours,([long][math]::Floor(($s%3600)/60)),($s%60)
+    if ($days) { return "$days d $body" }; return $body
+}
+function Format-FvBytes([long]$Bytes) {
+    if ($Bytes -ge 1GB) { return ('{0:N2} GiB' -f ($Bytes/1GB)) }
+    if ($Bytes -ge 1MB) { return ('{0:N2} MiB' -f ($Bytes/1MB)) }
+    return "$Bytes bytes"
+}
+function Start-FvSizeScan([string]$Root,[string]$ResultPath,[int]$MaxFiles=20000,[int]$MaxSeconds=8) {
+    # Independent bounded scan; a new scan never waits on the UI thread.
+    $script=Join-Path $PSScriptRoot 'FieldViewer.Desktop.SizeScan.ps1'
+    $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$script,'-Root',$Root,'-ResultPath',$ResultPath,'-MaxFiles',"$MaxFiles",'-MaxSeconds',"$MaxSeconds")
+    Start-Process -FilePath (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList (Join-FvArgs $args) -WindowStyle Hidden -PassThru
+}

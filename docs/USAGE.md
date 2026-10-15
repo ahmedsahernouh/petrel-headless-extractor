@@ -1,4 +1,4 @@
-# Field Viewer Beta version (1.0.0) usage
+# Field Viewer 1.0.0 usage
 
 Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).
 

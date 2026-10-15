@@ -78,9 +78,5 @@
   "copyright": "Copyright 2026 Ahmed Saher Nouh",
   "full_seismic_hash_default": true,
   "support_bundle": "automatic_local_zip_with_best_effort_identifier_replacement",
-  "build_revision": "2026-09-17-support",
-  "release_channel": "beta",
-  "display_version": "Beta version (1.0.0)",
-  "release_version": "1.0.0-beta.1",
-  "release_tag": "v1.0.0-beta.1"
+  "build_revision": "2026-09-17-support"
 }
