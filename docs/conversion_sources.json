@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-09-14",
+  "website": "https://saherlabs.dev/",
+  "project": "https://github.com/ahmedsahernouh/petrel-headless-extractor",
+  "sources": [
+    {
+      "id": "S01",
+      "title": "pyzgy README",
+      "publisher": "Equinor",
+      "url": "https://github.com/equinor/pyzgy",
+      "version_scope": "Bundled 0.1.1; web README unversioned",
+      "limit": "ZGY read API; library capability only",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S02",
+      "title": "segyio open/create API",
+      "publisher": "Equinor / segyio",
+      "url": "https://segyio.readthedocs.io/en/stable/segyio.html",
+      "version_scope": "1.9.14",
+      "limit": "SEG-Y writer and header responsibilities",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S03",
+      "title": "SEG-Y revision 2.1 specification",
+      "publisher": "Society of Exploration Geophysicists",
+      "url": "https://seg.org/wp-content/uploads/2025/11/seg_y_rev2_1-oct2023.pdf",
+      "version_scope": "October 2023",
+      "limit": "Binary/trace headers, units and domain; not certification of segyio",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S04",
+      "title": "SEGYExport",
+      "publisher": "OSDU OpenVDS",
+      "url": "https://osdu.pages.opengroup.org/platform/domain-data-mgmt-services/seismic/open-vds/tools/SEGYExport/README.html",
+      "version_scope": "Documentation 3.4.255",
+      "limit": "Requires preserved SEG-Y headers in VDS in documented version",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S05",
+      "title": "seismic-zfp README",
+      "publisher": "Equinor",
+      "url": "https://github.com/equinor/seismic-zfp/blob/master/README.md",
+      "version_scope": "Unversioned README; PyPI 0.4.4 separately checked",
+      "limit": "SGZ conversion; compression can lose information",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S06",
+      "title": "Writing LAS files",
+      "publisher": "lasio maintainers",
+      "url": "https://lasio.readthedocs.io/en/latest/writing.html",
+      "version_scope": "0.32",
+      "limit": "LAS 1.2/2.0 writer; not general LAS 3 support",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S07",
+      "title": "LAS format",
+      "publisher": "US Geological Survey",
+      "url": "https://www.usgs.gov/programs/national-geological-and-geophysical-data-preservation-program/las-format",
+      "version_scope": "Undated accessed page",
+      "limit": "LAS 2/3 scope; log LAS distinct from point clouds",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S08",
+      "title": "LAS 2.0 standard",
+      "publisher": "Canadian Well Logging Society",
+      "url": "https://www.cwls.org/wp-content/uploads/2014/09/LAS_20_Update_Jan2014.pdf",
+      "version_scope": "January 2014 update",
+      "limit": "Search-index text inspected; direct PDF retrieval failed",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S09",
+      "title": "DLIS curves",
+      "publisher": "dlisio maintainers / Equinor",
+      "url": "https://dlisio.readthedocs.io/en/latest/dlis/curves.html",
+      "version_scope": "1.0.4",
+      "limit": "Multidimensional channels and tabular limits",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S10",
+      "title": "LIS user guide",
+      "publisher": "dlisio maintainers / Equinor",
+      "url": "https://dlisio.readthedocs.io/en/latest/lis/userguide.html",
+      "version_scope": "1.0.4",
+      "limit": "LIS 79 sampling groups",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S11",
+      "title": "Data model and formats",
+      "publisher": "Equinor XTGeo",
+      "url": "https://xtgeo.readthedocs.io/en/latest/datamodels.html",
+      "version_scope": "4.25.2.dev26 documentation; PyPI stable 4.25.1",
+      "limit": "Direction-specific support table; may differ from individual APIs",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S12",
+      "title": "ZMap raster driver",
+      "publisher": "GDAL project",
+      "url": "https://gdal.org/en/stable/drivers/raster/zmap.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "ZMAP grid I/O",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S13",
+      "title": "Surfer ASCII grid driver",
+      "publisher": "GDAL project",
+      "url": "https://gdal.org/en/stable/drivers/raster/gsag.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "GSAG I/O",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S14",
+      "title": "Surfer binary grid driver",
+      "publisher": "GDAL project",
+      "url": "https://gdal.org/en/stable/drivers/raster/gsbg.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "GSBG I/O",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S15",
+      "title": "GeoTIFF driver",
+      "publisher": "GDAL project",
+      "url": "https://gdal.org/en/stable/drivers/raster/gtiff.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "Raster output driver, not domain inference",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S16",
+      "title": "GeoJSON specification",
+      "publisher": "IETF",
+      "url": "https://www.rfc-editor.org/info/rfc7946/",
+      "version_scope": "RFC 7946, August 2016",
+      "limit": "WGS84 longitude/latitude degrees",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S17",
+      "title": "GeoPackage vector driver",
+      "publisher": "GDAL project",
+      "url": "https://gdal.org/en/stable/drivers/vector/gpkg.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "Geometry, attributes and CRS support",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S18",
+      "title": "WITSML developers and users",
+      "publisher": "Energistics",
+      "url": "https://energistics.org/witsml-developers-users",
+      "version_scope": "WITSML 2.1, RESQML 2.2, Common 2.3 stated",
+      "limit": "Standard version information is separate from Python library support",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S19",
+      "title": "Model API",
+      "publisher": "resqpy maintainers",
+      "url": "https://resqpy.readthedocs.io/en/latest/_autosummary/resqpy.model.Model.html",
+      "version_scope": "5.2.1.dev9 page; PyPI stable 5.2.0",
+      "limit": "EPC and HDF5 relationships",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S20",
+      "title": "GOCAD TSurface reader",
+      "publisher": "GemGIS developers",
+      "url": "https://gemgis.readthedocs.io/en/stable/getting_started/reference/raster_api/gemgis.raster.read_ts.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "Vertices and face indices; variants need fixtures",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S21",
+      "title": "PolyData save",
+      "publisher": "PyVista developers",
+      "url": "https://docs.pyvista.org/api/core/_autosummary/pyvista.polydata.save",
+      "version_scope": "0.49.0",
+      "limit": "VTP/VTK/OBJ geometry output; property retention varies",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S22",
+      "title": "Reading and writing files",
+      "publisher": "Xarray developers",
+      "url": "https://docs.xarray.dev/en/stable/user-guide/io.html",
+      "version_scope": "Stable rolling documentation",
+      "limit": "NetCDF/Zarr backends; arbitrary HDF5 not guaranteed",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S23",
+      "title": "LAS/LAZ examples",
+      "publisher": "laspy maintainers",
+      "url": "https://laspy.readthedocs.io/en/latest/examples.html",
+      "version_scope": "Documentation 2.5.0; PyPI 2.7.0 separately checked",
+      "limit": "Point-cloud I/O and chunking",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S24",
+      "title": "SEG-Y and SU I/O",
+      "publisher": "ObsPy developers",
+      "url": "https://docs.obspy.org/packages/obspy.io.segy.html",
+      "version_scope": "1.5.1",
+      "limit": "SEG-Y/SU adapter candidate",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    },
+    {
+      "id": "S25",
+      "title": "SEG-2 reader source",
+      "publisher": "ObsPy developers",
+      "url": "https://github.com/obspy/obspy/blob/master/obspy/io/seg2/seg2.py",
+      "version_scope": "Unversioned source",
+      "limit": "SEG-2 rev1 scope; no SEG-D inference",
+      "accessed": "2026-09-14",
+      "authority": "primary"
+    }
+  ]
+}

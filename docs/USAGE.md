@@ -1,0 +1,73 @@
+# Field Viewer Beta version (1.0.0) usage
+
+Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).
+
+[Website](https://saherlabs.dev/) · [Project repository](https://github.com/ahmedsahernouh/petrel-headless-extractor)
+
+Extract the whole standalone release ZIP. The top level contains only:
+
+```text
+FieldViewer_data_extractor.bat
+FieldViewer/                 application, scripts and offline runtime cache
+```
+
+Double-click the BAT and enter your exact `.pet` or `.zgy` path, or drag the file onto it. Keep the BAT beside its support folder; it need not be beside the project. For `.pet`, keep the complete same-name `.ptd` folder beside the project. Close the project in Petrel during the read.
+
+The full visual report and foldable inventory are always included. Dataset conversion is enabled by default: press Enter at `Convert supported data as well? [Y/n]`, or type `n` for report-only. Full seismic hashing is **on by default**: press Enter at `Calculate full seismic SHA-256? [Y/n; Enter = Yes]`. Type `n` or add `-NoFullHash` to skip the full seismic reads; conversion and numerical QC remain available.
+
+Results appear directly in the selected output root:
+
+```text
+Example_<run>_REPORT.html        open this full report
+Example_<run>_EXPORTS/           files to import, organized by category + FILE_INDEX.csv
+Example_<run>_data/              supporting evidence, figures and receipts
+Example_<run>_DIAGNOSTICS.txt     readable run summary
+Example_<run>_LOG.txt             detailed process log
+Example_<run>_EVENTS.jsonl        structured events
+```
+
+The report is a full HTML document, not a redirect. It becomes available before seismic conversion and is refreshed after each dataset; reload it to see updates. Keep the report and both matching folders together when moving results. Use the report links or _EXPORTS category folders to load converted files into other software. Source seismic references need access to the original files.
+
+## Commands
+
+```bat
+FieldViewer_data_extractor.bat "E:\Projects\Example.pet" "E:\Results" -NoPause
+FieldViewer_data_extractor.bat "E:\Projects\Example.pet" "E:\Results" -ReportOnly -NoPause
+FieldViewer_data_extractor.bat "E:\Projects\Example.pet" "E:\Results" -FullHash -NoPause
+FieldViewer_data_extractor.bat "E:\Projects\Example.ptd\cube.zgy" "E:\Results" -NoPause
+FieldViewer_data_extractor.bat "E:\Projects\Example.ptd\cube.zgy" -Inspect -NoPause
+FieldViewer_data_extractor.bat -Capabilities -NoPause
+FieldViewer_data_extractor.bat --check -NoPause
+```
+
+Choose an output root outside the source directory and all native stores. Each run gets a unique report/data pair, with no overwriting of previous results. `-NoPause` is for unattended use. The legacy `convert`, `copy` and `inventory` positional modes remain accepted; `-ReportOnly` explicitly disables dataset conversion.
+
+## Seismic conversion and hashing
+
+One BAT handles both project extraction and exact-file ZGY conversion. A project run attempts supported ZGY in the selected store and explicit file/path/URI fields recovered from XML or the validated native BXML project profile. Missing references, unreadable files, unsupported profiles and unlinked companions remain visible. Nearby seismic is not automatically assigned to the selected project. See [ZGY profile](ZGY_TO_SEGY.md).
+
+With hashing off, no whole ZGY/SEG-Y SHA-256 passes or raw seismic copies are added by project preservation/QC stages. The report still includes filename, size, available metadata/geometry, bounded previews, conversion status and output links. Its checksum field says **Not calculated — full hashing disabled**. Fast mode records file identity/size/timestamps and, on Windows, holds a read-only lease while converting. These checks are weaker than full byte-identity proof and are labelled accordingly. Conversion still checks every decoded amplitude and key trace header; this necessary numerical QC can itself take substantial time.
+
+`-FullHash` adds full source SHA-256 before/after conversion and a SEG-Y checksum. Report-only full hashing calculates source inventory checksums. Ordinary application/runtime and non-seismic package integrity checks remain enabled. Full hashes detect byte changes and identify files; they do not prove CRS or geological correctness.
+
+An unsupported `Model.ptd` layout can leave well-head metadata or trajectory names unresolved. The report lists these limitations while retaining independently decoded geometry and continuing the remaining workflow. No name or geometry is inferred to bypass a failed native-layout check.
+
+## Dependencies and failures
+
+Windows 10/11 x64 with Windows PowerShell is the target. The BAT installs/repairs bundled Python, plotting and conversion dependencies inside `FieldViewer/runtime` from its verified offline cache. No system Python, pip, administrator access, Petrel, Ocean or network download is required. Cloud SeismicStore is not configured and is unnecessary for local files.
+
+Keep the whole release together. If extraction is incomplete or Windows reports Path too long, cancel and extract again to a shorter writable directory without skipping files. Missing application scripts or a damaged repair cache require re-extraction.
+
+Run logs and receipts are inside the result data folder. Per-dataset conversion failures stay in the report while other supported cubes continue. Partial SEG-Y files are not accepted outputs. Exit zero for a project means the extraction/report/QC workflow completed, not that every proprietary object converted. Receiving-software import, CRS, geological acceptance and untested Petrel versions remain separate.
+
+## Progress and timer
+
+The console shows elapsed time and stage progress. Conversion/QC uses measured trace counts. When full hashing is selected, byte progress and Hash ETA apply to that hash pass, not the whole job. Report-only still reads the bounded data needed for figures. No ETAs are invented for unknown stages.
+
+The current shapefile GeoJSON derivative retains source coordinates without reprojection; projected coordinates are not RFC 7946 WGS84 GeoJSON. See the backlog for that separate correction.
+
+## License
+
+Version 1.0.0 ships under Apache License 2.0 with a NOTICE crediting Ahmed Saher Nouh as original project creator and principal author. See [licensing and attribution](LICENSING.md); bundled dependencies retain their own terms.
+
+Each finished run writes one compressed `*_SUPPORT.zip` beside its report. Send that one file for debugging; it contains logs, settings, errors and recovery receipts, with recognized identifiers replaced. No source stores, exports or figures are collected, and nothing is uploaded. Startup failures print a support ZIP path even if Python cannot run. Review the sharing copy; fallback startup ZIPs are explicitly unredacted. See [support diagnostics](SUPPORT_LOGS.md).

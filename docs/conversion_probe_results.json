@@ -1,0 +1,101 @@
+{
+  "purpose": "research_only",
+  "production_converter_implemented": false,
+  "python": "3.13.15",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "dependencies": {
+    "numpy": "2.4.6",
+    "segyio": "1.9.14",
+    "pyzgy": "0.1.1",
+    "zfpy": "1.0.1",
+    "lasio": "0.32"
+  },
+  "limitations": [
+    "No Petrel or other application re-import validation",
+    "No depth-domain SEG-Y profile or full format conformance test",
+    "No large-volume performance validation",
+    "No user project conversion"
+  ],
+  "cases": [
+    {
+      "case": "float32",
+      "status": "passed",
+      "traces": 72,
+      "samples_compared": 4680,
+      "decoded_zgy_to_segy_exact": true,
+      "raw_byte_checks_passed": true,
+      "axes_and_rotated_xy_passed": true,
+      "max_error_from_pre_storage_fixture": 0.0,
+      "source_unchanged": true,
+      "source_sha256": "01b0eb556967c174666e1768e53d67272822b7159ad27252a4a726e345144d7c",
+      "output_sha256": "703d011490ae38b5204948d9b2f38d0e31cf811464a4c12d2c75978f8376b54a"
+    },
+    {
+      "case": "scaled_int8",
+      "status": "passed",
+      "traces": 72,
+      "samples_compared": 4680,
+      "decoded_zgy_to_segy_exact": true,
+      "raw_byte_checks_passed": true,
+      "axes_and_rotated_xy_passed": true,
+      "max_error_from_pre_storage_fixture": 0.4999961853027344,
+      "source_unchanged": true,
+      "source_sha256": "179a9e028cc9a6bb4021c9888d0276a6733a70e06f1899bf2f0eda6e72c7d172",
+      "output_sha256": "db35f89da47fb6dd4a6db9b03ad114abb412758b5ad65fece1639f98d9508e9d"
+    },
+    {
+      "case": "zfp_float32",
+      "status": "passed",
+      "traces": 4096,
+      "samples_compared": 262144,
+      "decoded_zgy_to_segy_exact": true,
+      "raw_byte_checks_passed": true,
+      "axes_and_rotated_xy_passed": true,
+      "max_error_from_pre_storage_fixture": 8.190242767333984,
+      "source_unchanged": true,
+      "source_sha256": "5348cfe92d0b48a8e9cc27561c8ee10d8b689a178feba683e7b0c644a33e02ce",
+      "output_sha256": "83de7b750778ad9d9a5cf299a41f7d1353bde9735adcbb82e07714e3bbfcff06"
+    },
+    {
+      "case": "csv_to_las2",
+      "status": "passed",
+      "rows": 3,
+      "curves_including_index": 3,
+      "values_units_nulls_and_step_passed": true,
+      "input_schema_explicit": true
+    },
+    {
+      "case": "local_demo_read_probe",
+      "status": "passed",
+      "samples_read": 1362,
+      "finite_samples": 1362,
+      "storage_type": "SampleDataType.int8",
+      "zunitdim": "UnitDimension.unknown",
+      "zunitname": "",
+      "hunitdim": "UnitDimension.unknown",
+      "hunitname": "",
+      "segy_written": false,
+      "crs_verified": false,
+      "decision": "Read feasibility only; domain, units and receiving-system profile unresolved",
+      "source_unchanged": true
+    },
+    {
+      "case": "local_demo_read_probe",
+      "status": "passed",
+      "samples_read": 1362,
+      "finite_samples": 1362,
+      "storage_type": "SampleDataType.int8",
+      "zunitdim": "UnitDimension.unknown",
+      "zunitname": "",
+      "hunitdim": "UnitDimension.unknown",
+      "hunitname": "",
+      "segy_written": false,
+      "crs_verified": false,
+      "decision": "Read feasibility only; domain, units and receiving-system profile unresolved",
+      "source_unchanged": true
+    }
+  ],
+  "status": "passed",
+  "publication_note": "Sanitized research summary. Local demo identities, paths and raw data omitted.",
+  "probe_script": "research/verify_conversion_candidates.py"
+}

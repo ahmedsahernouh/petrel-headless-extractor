@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/ahmedsahernouh/petrel-headless-extractor/security/policy
+    about: Contact the maintainer privately about a possible security issue.

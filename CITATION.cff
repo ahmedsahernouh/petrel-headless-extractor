@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If Field Viewer helps your work, a citation is appreciated."
+type: software
+title: "Field Viewer Data Extractor"
+version: "1.0.0-beta.1"
+date-released: "2026-10-14"
+authors:
+  - family-names: "Nouh"
+    given-names: "Ahmed Saher"
+    website: "https://saherlabs.dev/"
+url: "https://github.com/ahmedsahernouh/petrel-headless-extractor"
+repository-code: "https://github.com/ahmedsahernouh/petrel-headless-extractor"
+license: Apache-2.0
+abstract: >-
+  A standalone Windows tool for recovering supported Petrel project data into
+  open formats, with HTML reports, inventories, integrity checks and QC findings.
+keywords:
+  - geoscience
+  - Petrel
+  - data extraction
+  - seismic
+  - well logs

@@ -1,0 +1,13 @@
+{
+  "extractor_directory": "",
+  "scan_connected_drives": true,
+  "extra_roots": [],
+  "exclude_roots": [],
+  "output_roots": ["L:\\GeoViewer_Trials", "M:\\GeoViewer_Trials"],
+  "campaign_root": "",
+  "full_hash": true,
+  "reserve_free_gib": 50,
+  "space_multiplier": 3,
+  "timeout_hours": 0,
+  "diagnostic_sample_seconds": 10
+}

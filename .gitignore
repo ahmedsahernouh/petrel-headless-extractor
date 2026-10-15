@@ -1,0 +1,34 @@
+# Local environments and generated release artifacts
+.venv/
+runtime/
+build/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.zip
+*.whl
+
+# User project data and extraction outputs stay local
+*.pet
+*.ptd
+*.ptd/
+Petrel_Extracts/
+outputs/
+vault/
+petrel_manuals/
+petrel_projects/
+*.las
+*.segy
+*.sgy
+*.zgy
+
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+.mcp.json
+.codex/
+.vscode/
+*.log
+Thumbs.db
+Desktop.ini

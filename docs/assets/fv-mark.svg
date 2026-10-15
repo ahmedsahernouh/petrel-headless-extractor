@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FieldViewer FV">
+  <defs><linearGradient id="fv" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#378add"/><stop offset="1" stop-color="#1d9e75"/></linearGradient></defs>
+  <rect width="64" height="64" rx="16" fill="url(#fv)"/>
+  <text x="32" y="43" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="32" font-weight="700">FV</text>
+</svg>

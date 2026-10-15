@@ -1,0 +1,35 @@
+name: Bug report
+description: Help reproduce an extraction or application problem.
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Field Viewer version
+      placeholder: "Beta version (1.0.0)"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows and Petrel save version
+      description: Include the project save version if known.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: A small public or anonymized example is helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Relevant diagnostic excerpt
+      description: Include the final status and a short anonymized log excerpt.
+      render: text

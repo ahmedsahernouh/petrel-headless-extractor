@@ -1,0 +1,16 @@
+name: Feature suggestion
+description: Suggest a useful recovery profile or workflow improvement.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would help your work?
+      description: Describe the task and the output you would like.
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Object type and project save version
+      description: Include these when the suggestion concerns data recovery.
