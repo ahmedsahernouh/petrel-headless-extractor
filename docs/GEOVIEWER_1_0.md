@@ -1,4 +1,4 @@
-# Field Viewer Data Extractor — Beta version (1.0.0)
+# Field Viewer Data Extractor 1.0.0 — first public beta
 
 [Website](https://saherlabs.dev/) · [Project](https://github.com/ahmedsahernouh/petrel-headless-extractor)
 

@@ -1,4 +1,4 @@
-# Field Viewer Data Extractor — Beta version (1.0.0)
+# Field Viewer Data Extractor 1.0.0
 
 Field Viewer is a Windows x64 beta for inspecting Petrel projects and recovering
 supported native data without launching Petrel or Ocean. Original project files
