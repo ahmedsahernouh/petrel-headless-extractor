@@ -81,5 +81,6 @@
   "build_revision": "2026-09-17-support",
   "release_version": "1.0.0-beta.2",
   "release_tag": "v1.0.0-beta.2",
-  "display_version": "Beta version (1.0.0-beta.2)"
+  "display_version": "Beta version (1.0.0-beta.2)",
+  "release_channel": "beta"
 }

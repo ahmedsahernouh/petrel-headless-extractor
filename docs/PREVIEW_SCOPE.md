@@ -1,6 +1,6 @@
 # Field Viewer: supported beta scope
 
-Field Viewer 1.0.0 is a public Windows x64 beta. It reads supported Petrel
+Field Viewer Beta version (1.0.0) runs on Windows x64. It reads supported Petrel
 project layouts without launching Petrel or Ocean. Keep the complete `.pet` and
 matching `.ptd` folder together and select a separate output directory.
 

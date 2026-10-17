@@ -54,11 +54,13 @@ def main():
     package=extraction_root/'FieldViewer';bat=extraction_root/'FieldViewer_data_extractor.bat'
     # Check the distributed license/version, not just the repository copies.
     shipped_metadata=json.loads((package/'toolkit.json').read_text(encoding='utf-8'))
-    assert args.zip.name=='FieldViewer-'+shipped_metadata['version']+'-win64.zip'
+    assert args.zip.name=='FieldViewer-'+shipped_metadata.get('release_version',shipped_metadata['version'])+'-win64.zip'
     assert shipped_metadata['license']=='Apache-2.0'
     assert b'Apache License' in (package/'LICENSE').read_bytes()
     assert b'Original project creator and principal author: Ahmed Saher Nouh' in (package/'NOTICE').read_bytes()
     assert (package/'LICENSING.md').is_file() and (package/'GEOVIEWER_1_0.md').is_file()
+    for name in ('CITATION.cff','SECURITY.md','BRANDING.md'):
+        assert (package/name).is_file(),name
     env=os.environ.copy();win=Path(os.environ['SystemRoot'])
     env.update(PATH=str(win/'System32')+';'+str(win/'System32/WindowsPowerShell/v1.0'),
                PYTHONHOME=str(relocated/'NONEXISTENT_SYSTEM_PYTHON'),PYTHONPATH=str(relocated/'FORBIDDEN_IMPORTS'),
@@ -102,8 +104,8 @@ def main():
     assert "No module named 'sdglue'" not in first and "No module named 'zfpy'" not in first
     manifest=json.loads((package/'00_manifest/toolkit_files.json').read_text())
     assert manifest['version']==shipped_metadata['version']
-    assert 'Field Viewer Data Extractor '+shipped_metadata['version'] in first
-    for name in ('LICENSE','NOTICE','LICENSING.md','GEOVIEWER_1_0.md'):
+    assert 'Field Viewer Data Extractor' in first and shipped_metadata['display_version'] in first
+    for name in ('LICENSE','NOTICE','LICENSING.md','GEOVIEWER_1_0.md','CITATION.cff','SECURITY.md','BRANDING.md'):
         row=next(item for item in manifest['files'] if item['path']==name)
         assert row['sha256']==hashlib.sha256((package/name).read_bytes()).hexdigest()
     installed_path_length=max(len(str(package/row['path'])) for row in manifest['files'])

@@ -78,6 +78,8 @@ def copy_project_notices(package):
         if source.read_bytes() != (ROOT/'portable_petrel_toolkit'/name).read_bytes():
             raise ValueError('Portable licensing file differs from repository: '+name)
         shutil.copy2(source, package/name)
+    for name in ('CITATION.cff', 'SECURITY.md'):
+        shutil.copy2(ROOT/name, package/name)
 
 
 def copy_release_guides(output_root):
@@ -107,7 +109,8 @@ def main():
     # Explorer adds a directory named after the ZIP during Extract All. Keep both
     # that name and the archive's own root short enough for legacy Windows paths.
     name=PACKAGE_FOLDER
-    zip_name='FieldViewer-'+VERSION+'-win64.zip'
+    release_version=json.loads((ROOT/'portable_petrel_toolkit/toolkit.json').read_text()).get('release_version',VERSION)
+    zip_name='FieldViewer-'+release_version+'-win64.zip'
     package=args.output_root.resolve()/name
     package.mkdir(parents=True,exist_ok=False)
     copy_project_notices(package)
@@ -148,6 +151,9 @@ def main():
     shutil.copy2(ROOT/'docs/assets/fv-mark.svg',package/'assets/fv-mark.svg')
     for document in ('GEOVIEWER_1_0.md','SUPPORT_LOGS.md','RESCUE_EXPORT_PLAN.md','LICENSING.md','PREVIEW_SCOPE.md','RESULT_ACCESS.md'):
         shutil.copy2(ROOT/'docs'/document,package/document)
+    branding=(ROOT/'docs/BRANDING.md').read_text(encoding='utf-8')
+    branding=branding.replace('../LICENSE','LICENSE').replace('../NOTICE','NOTICE')
+    (package/'BRANDING.md').write_text(branding,encoding='utf-8')
     release_notes=(ROOT/'docs/RELEASE_NOTES.md').read_text(encoding='utf-8')
     release_notes=re.sub(r'## Package\n.*?(?=\n## |\Z)',
                          '## Download\n\nDownload the package and its SHA-256 checksum from the release page.\n',

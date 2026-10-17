@@ -1,6 +1,6 @@
 # Field Viewer conversion and recovery capabilities
 
-Field Viewer 1.0.0 focuses on recovering supported Petrel native payloads into
+Field Viewer Beta version (1.0.0) focuses on recovering supported Petrel native payloads into
 open files. Its source projects remain read-only. The complete object inventory
 distinguishes recovered, empty, missing, unsupported and rejected objects.
 Availability depends on the observed binary layout of each object, not a
