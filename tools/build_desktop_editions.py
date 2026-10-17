@@ -26,13 +26,17 @@ def safe_name(name):
         raise ValueError('Unsafe archive member: '+name)
     return name.casefold()
 
-def build(engine_zip, expected_hash, output, source, gui_revision, source_revision, engine_tag='v1.0.0-rc1009'):
+def build(engine_zip, expected_hash, output, source, gui_revision, source_revision, engine_tag='v1.0.0-rc1009', release_version=None):
     engine_zip, output, source = map(Path, (engine_zip, output, source))
     raw = engine_zip.read_bytes()
     if digest(raw) != expected_hash.lower():
         raise ValueError('Engine ZIP SHA-256 mismatch')
     if not gui_revision.strip() or not source_revision.strip():
         raise ValueError('Explicit GUI and source revisions required')
+    if release_version is not None:
+        import re
+        if not re.fullmatch(r'\d+\.\d+\.\d+-beta\.\d+', release_version):
+            raise ValueError('Expected an explicit beta release version')
     with zipfile.ZipFile(engine_zip) as engine:
         entries = engine.infolist()
         seen = set()
@@ -72,11 +76,18 @@ def build(engine_zip, expected_hash, output, source, gui_revision, source_revisi
         if 'desktop/FieldViewer.Desktop.ps1' not in gui_files:
             raise ValueError('Desktop entrypoint is missing')
         additions = {name:path.read_bytes() for name,path in gui_files.items()}
+        if release_version:
+            text=additions['DESKTOP_README.md'].decode('utf-8')
+            text=text.replace('(RELEASE_NOTES.md)','(FieldViewer/RELEASE_NOTES.md)')
+            text=text.replace('(DESKTOP_BETA2_VALIDATION.md)',
+                '(https://github.com/ahmedsahernouh/petrel-headless-extractor/blob/v'+release_version+'/docs/DESKTOP_BETA2_VALIDATION.md)')
+            additions['DESKTOP_README.md']=text.encode('utf-8')
         for name in additions:
             if safe_name(name) in seen:
                 raise ValueError('GUI cannot replace an engine member')
         output.mkdir(parents=True, exist_ok=True)
-        targets = {edition:output/f'FieldViewer-{edition}-GUI-preview-win64.zip' for edition in ('Headless','Desktop')}
+        label = release_version or 'GUI-preview'
+        targets = {edition:output/f'FieldViewer-{edition}-{label}-win64.zip' for edition in ('Headless','Desktop')}
         if any(p.exists() or p.with_suffix(p.suffix+'.sha256').exists() for p in targets.values()):
             raise FileExistsError('Edition output already exists; use a fresh build directory')
         receipts=[]
@@ -86,7 +97,8 @@ def build(engine_zip, expected_hash, output, source, gui_revision, source_revisi
             extra['EDITION.json']=encoded({'schema':SCHEMA,'edition':edition,
                 'engine_version':version,'engine_tag':engine_tag,'engine_zip_sha256':expected_hash.lower(),
                 'gui_revision':gui_revision if edition=='Desktop' else None,
-                'source_revision':source_revision,'release_status':'development_candidate',
+                'source_revision':source_revision,'release_status':'prerelease_candidate' if release_version else 'development_candidate',
+                'release_version':release_version,
                 'shared_engine_manifest_sha256':digest(shared_data)})
             manifest = shared+[{'path':name,'bytes':len(data),'sha256':digest(data)} for name,data in sorted(extra.items())]
             extra['PACKAGE_MANIFEST.json']=encoded({'schema':'fieldviewer.package/1','edition':edition,
@@ -110,7 +122,7 @@ def build(engine_zip, expected_hash, output, source, gui_revision, source_revisi
             receipts.append({'edition':edition,'path':str(target),'bytes':target.stat().st_size,'sha256':file_hash,
                 'shared_engine_members':len(shared),'shared_engine_manifest_sha256':digest(shared_data)})
     receipt={'schema':'fieldviewer.edition-build/1','engine_zip_sha256':expected_hash.lower(),
-             'source_revision':source_revision,'gui_revision':gui_revision,'engine_tag':engine_tag,
+             'source_revision':source_revision,'gui_revision':gui_revision,'engine_tag':engine_tag,'release_version':release_version,
              'scope':'Archive parity only; installation, UI and clean-Windows acceptance are separate.', 'editions':receipts}
     (output/'BUILD_RECEIPT.json').write_bytes(encoded(receipt))
     return receipt
@@ -124,8 +136,9 @@ def main():
     parser.add_argument('--gui-revision',required=True)
     parser.add_argument('--source-revision',required=True)
     parser.add_argument('--engine-tag',default='v1.0.0-rc1009')
+    parser.add_argument('--release-version',help='Outer beta package version; engine files stay unchanged')
     a=parser.parse_args()
-    print(json.dumps(build(a.engine_zip,a.expected_sha256,a.output,a.source,a.gui_revision,a.source_revision,a.engine_tag),indent=2))
+    print(json.dumps(build(a.engine_zip,a.expected_sha256,a.output,a.source,a.gui_revision,a.source_revision,a.engine_tag,a.release_version),indent=2))
 
 if __name__=='__main__':
     main()

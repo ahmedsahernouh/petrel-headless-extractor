@@ -34,10 +34,14 @@ def prepare(source: Path, expected: str, output: Path,
             .replace('../LICENSE', 'LICENSE').replace('../NOTICE', 'NOTICE').encode('utf-8'),
     }
     notes=(ROOT/'docs/RELEASE_NOTES.md').read_text('utf-8')
+    if release_version:
+        notes=notes.replace('(DESKTOP_BETA2_VALIDATION.md)',
+            '(https://github.com/ahmedsahernouh/petrel-headless-extractor/blob/v'+release_version+'/docs/DESKTOP_BETA2_VALIDATION.md)')
     notes=re.sub(r'## Package\n.*?(?=\n## |\Z)',
                  '## Download\n\nDownload the package and checksum from the release page.\n',
                  notes,flags=re.S)
     replacements['FieldViewer/RELEASE_NOTES.md']=notes.encode('utf-8')
+    replacements['FieldViewer/README.md']=(ROOT/'portable_petrel_toolkit/STANDALONE_README.md').read_bytes()
     with zipfile.ZipFile(source) as src:
         if src.testzip() is not None:
             raise ValueError('Input ZIP integrity check failed.')

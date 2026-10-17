@@ -33,98 +33,109 @@ $script:events=New-Object 'System.Collections.Generic.List[object]'; $script:sta
 $script:scanJobs=@{}; $script:lastScan=@{}; $script:scanScopes=@{}; $script:lastState=''; $script:links=$null; $script:terminalRefreshPending=$false
 $script:form=New-Object Windows.Forms.Form
 $form=$script:form; $form.Text='Field Viewer Data Extractor '+$meta.Version
-$form.MinimumSize=New-Object Drawing.Size(980,610); $form.Size=New-Object Drawing.Size(1120,730)
+$form.MinimumSize=New-Object Drawing.Size(860,700); $form.Size=New-Object Drawing.Size(1040,780)
 if ($SmokeMinimum) { $form.Size=$form.MinimumSize }
-$form.StartPosition='CenterScreen'; $form.AutoScaleMode='Dpi'; $form.Font=New-Object Drawing.Font('Segoe UI',9)
+$form.StartPosition='CenterScreen'; $form.AutoScaleMode='Dpi'; $form.Font=New-Object Drawing.Font('Segoe UI',10)
 $ownerPath=Join-Path $stateHome 'gui_owner.json'
 if (-not $SmokeScreenshot) { Write-FvJson $ownerPath ([ordered]@{ package_root=$PackageRoot; pid=$PID; start_ticks=(Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks }) }
-$form.BackColor=[Drawing.Color]::White
-$main=New-Object Windows.Forms.TableLayoutPanel; $main.Dock='Fill'; $main.ColumnCount=1; $main.RowCount=9
-$main.Padding=New-Object Windows.Forms.Padding(14); $main.AutoScroll=$true
-foreach ($h in @(70,48,56,56,60,52,135,60,100)) { $main.RowStyles.Add((New-Object Windows.Forms.RowStyle([Windows.Forms.SizeType]::Absolute,$h))) | Out-Null }
+$form.BackColor=[Drawing.Color]::FromArgb(248,250,252)
+$main=New-Object Windows.Forms.TableLayoutPanel; $main.Dock='Fill'; $main.ColumnCount=1; $main.RowCount=7
+$main.Padding=New-Object Windows.Forms.Padding(20); $main.AutoScroll=$true
+foreach ($h in @(76,48,104,52,148,80)) { [void]$main.RowStyles.Add((New-Object Windows.Forms.RowStyle([Windows.Forms.SizeType]::Absolute,$h))) }
+[void]$main.RowStyles.Add((New-Object Windows.Forms.RowStyle([Windows.Forms.SizeType]::Percent,100)))
 $form.Controls.Add($main)
 function New-FvLabel([string]$Text,[int]$Size=10,[bool]$Bold=$false) {
     $l=New-Object Windows.Forms.Label; $l.Text=$Text; $l.AutoSize=$true
     $l.Font=New-Object Drawing.Font('Segoe UI',$Size,$(if ($Bold) { [Drawing.FontStyle]::Bold } else { [Drawing.FontStyle]::Regular }))
-    $l.Margin=New-Object Windows.Forms.Padding(5,3,5,3); return $l
+    $l.Margin=New-Object Windows.Forms.Padding(4,3,4,3); $l.Anchor='Left'; return $l
 }
 function New-FvButton([string]$Text,[scriptblock]$Action) {
-    $b=New-Object Windows.Forms.Button; $b.Text=$Text; $b.AutoSize=$true; $b.MinimumSize=New-Object Drawing.Size(92,30)
-    $b.FlatStyle='System'; $b.Add_Click($Action); return $b
+    $b=New-Object Windows.Forms.Button; $b.Text=$Text; $b.AutoSize=$true; $b.MinimumSize=New-Object Drawing.Size(88,32)
+    $b.FlatStyle='System'; $b.Anchor='Left,Right'; $b.Add_Click($Action); return $b
 }
 function New-FvFlow { $p=New-Object Windows.Forms.FlowLayoutPanel; $p.Dock='Fill'; $p.WrapContents=$true; $p.AutoScroll=$false; return $p }
-$header=New-FvFlow; $header.WrapContents=$false
-$logo=New-Object Windows.Forms.Panel; $logo.Size=New-Object Drawing.Size(52,52); $logo.Margin=New-Object Windows.Forms.Padding(2,0,12,0)
+function New-FvChoice([string]$Name) {
+    $box=New-Object Windows.Forms.ComboBox; $box.DropDownStyle='DropDownList'; $box.Dock='Fill'; $box.Anchor='Left,Right'
+    $box.Margin=New-Object Windows.Forms.Padding(4,8,8,4); $box.AccessibleName=$Name; $box.DropDownWidth=280
+    return $box
+}
+$header=New-Object Windows.Forms.TableLayoutPanel; $header.Dock='Fill'; $header.ColumnCount=3; $header.RowCount=1
+foreach ($w in @(76,0,100)) { [void]$header.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,$w))) }
+$header.ColumnStyles[1].SizeType='Percent'; $header.ColumnStyles[1].Width=100
+# Render the existing docs/assets/fv-mark.svg design at native 64px dimensions.
+$logo=New-Object Windows.Forms.Panel; $logo.Size=New-Object Drawing.Size(64,64); $logo.AccessibleName='Field Viewer FV logo'
 $logo.Add_Paint({ param($sender,$e)
     $e.Graphics.SmoothingMode=[Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $brush=New-Object Drawing.Drawing2D.LinearGradientBrush((New-Object Drawing.Rectangle(0,0,52,52)),[Drawing.Color]::FromArgb(55,138,221),[Drawing.Color]::FromArgb(29,158,117),45)
+    $brush=New-Object Drawing.Drawing2D.LinearGradientBrush((New-Object Drawing.Rectangle(0,0,64,64)),[Drawing.Color]::FromArgb(55,138,221),[Drawing.Color]::FromArgb(29,158,117),45)
     $shape=New-Object Drawing.Drawing2D.GraphicsPath
-    $shape.AddArc(0,0,16,16,180,90); $shape.AddArc(36,0,16,16,270,90); $shape.AddArc(36,36,16,16,0,90); $shape.AddArc(0,36,16,16,90,90); $shape.CloseFigure()
+    $shape.AddArc(0,0,32,32,180,90); $shape.AddArc(32,0,32,32,270,90); $shape.AddArc(32,32,32,32,0,90); $shape.AddArc(0,32,32,32,90,90); $shape.CloseFigure()
     $e.Graphics.FillPath($brush,$shape); $shape.Dispose(); $brush.Dispose()
-    $font=New-Object Drawing.Font('Arial',24,[Drawing.FontStyle]::Bold)
-    $e.Graphics.DrawString('FV',$font,[Drawing.Brushes]::White,3,7); $font.Dispose()
+    $font=New-Object Drawing.Font('Arial',32,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+    $format=New-Object Drawing.StringFormat; $format.Alignment='Center'; $format.LineAlignment='Center'
+    $e.Graphics.DrawString('FV',$font,[Drawing.Brushes]::White,(New-Object Drawing.RectangleF(0,1,64,64)),$format); $format.Dispose(); $font.Dispose()
 })
-$header.Controls.Add($logo)
-$header.Controls.Add((New-FvLabel 'Field Viewer Data Extractor' 18 $true))
-$about=New-FvButton '&About' { Show-FvAbout }; $about.Margin=New-Object Windows.Forms.Padding(30,10,0,0); $header.Controls.Add($about)
+$header.Controls.Add($logo,0,0)
+$title=New-FvLabel "Field Viewer`r`nData Extractor" 17 $true; $header.Controls.Add($title,1,0)
+$helpMenu=New-Object Windows.Forms.ContextMenuStrip
+$aboutItem=$helpMenu.Items.Add('About Field Viewer'); $aboutItem.Add_Click({ Show-FvAbout })
+$emailButton=$helpMenu.Items.Add('Email last log...'); $emailButton.Enabled=$false; $emailButton.Add_Click({ Show-FvEmail })
+$help=New-FvButton '&Help...' { $helpMenu.Show($help,0,$help.Height) }; $header.Controls.Add($help,2,0)
 $main.Controls.Add($header,0,0)
-$reportRow=New-FvFlow; $reportRow.Controls.Add((New-FvLabel 'Reports:' 10 $true))
-$folderRow=New-FvFlow; $folderRow.Controls.Add((New-FvLabel 'Folders:' 10 $true))
-$script:reportButtons=@{}; $script:folderButtons=@{}
-foreach ($name in @('Main report','QC','Diagnostics','Results page','View log','File index (CSV)')) {
-    $button=New-FvButton $name { $n=[string]$this.Tag; Open-FvLink 'reports' $n }; $button.Tag=$name; $button.Enabled=$false
-    $reportRow.Controls.Add($button); $script:reportButtons[$name]=$button
-}
-$otherReports=New-FvButton 'Other &reports' { if ($script:reportMenu.Items.Count) { $script:reportMenu.Show($otherReports,0,$otherReports.Height) } }
-$script:reportMenu=New-Object Windows.Forms.ContextMenuStrip; $reportRow.Controls.Add($otherReports)
-foreach ($name in @('This run','All exports','Seismic','Wells','Surfaces','Evidence','Selected output')) {
-    $button=New-FvButton $name { $n=[string]$this.Tag; Open-FvLink 'folders' $n }; $button.Tag=$name; $button.Enabled=$false
-    $folderRow.Controls.Add($button); $script:folderButtons[$name]=$button
-}
-$otherFolders=New-FvButton 'Other &folders' { if ($script:folderMenu.Items.Count) { $script:folderMenu.Show($otherFolders,0,$otherFolders.Height) } }
-$script:folderMenu=New-Object Windows.Forms.ContextMenuStrip; $folderRow.Controls.Add($otherFolders)
-$main.Controls.Add($reportRow,0,1); $main.Controls.Add($folderRow,0,2)
-$projectRow=New-FvFlow; $projectRow.WrapContents=$false
-$projectRow.Controls.Add((New-FvLabel 'Petrel project (.pet + matching .ptd):' 9 $true))
-$projectBox=New-Object Windows.Forms.TextBox; $projectBox.Width=650; $projectBox.Anchor='Left,Right'; $projectBox.Margin=New-Object Windows.Forms.Padding(4,7,4,4)
-$projectRow.Controls.Add($projectBox)
+# Two selectors replace the report/folder button strips. Only available targets appear.
+$linkRow=New-Object Windows.Forms.TableLayoutPanel; $linkRow.Dock='Fill'; $linkRow.ColumnCount=6; $linkRow.RowCount=1
+foreach ($w in @(64,0,88,64,0,88)) { [void]$linkRow.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,$w))) }
+foreach ($i in @(1,4)) { $linkRow.ColumnStyles[$i].SizeType='Percent'; $linkRow.ColumnStyles[$i].Width=50 }
+$reportChoice=New-FvChoice 'Reports'; $folderChoice=New-FvChoice 'Extracted data folders'
+$reportOpen=New-FvButton '&Open' { if ($reportChoice.SelectedIndex -ge 0) { Open-FvLink 'reports' ([string]$reportChoice.SelectedItem) } }
+$folderOpen=New-FvButton 'O&pen' { if ($folderChoice.SelectedIndex -ge 0) { Open-FvLink 'folders' ([string]$folderChoice.SelectedItem) } }
+$reportOpen.AccessibleName='Open selected report'; $folderOpen.AccessibleName='Open selected folder'
+$reportChoice.Enabled=$false; $folderChoice.Enabled=$false; $reportOpen.Enabled=$false; $folderOpen.Enabled=$false
+$linkRow.Controls.Add((New-FvLabel 'Reports'),0,0); $linkRow.Controls.Add($reportChoice,1,0); $linkRow.Controls.Add($reportOpen,2,0)
+$linkRow.Controls.Add((New-FvLabel 'Folders'),3,0); $linkRow.Controls.Add($folderChoice,4,0); $linkRow.Controls.Add($folderOpen,5,0)
+$main.Controls.Add($linkRow,0,1)
+$paths=New-Object Windows.Forms.TableLayoutPanel; $paths.Dock='Fill'; $paths.ColumnCount=3; $paths.RowCount=2
+[void]$paths.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,108)))
+[void]$paths.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Percent,100)))
+[void]$paths.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,104)))
+foreach ($i in 0..1) { [void]$paths.RowStyles.Add((New-Object Windows.Forms.RowStyle([Windows.Forms.SizeType]::Percent,50))) }
+$projectBox=New-Object Windows.Forms.TextBox; $projectBox.Dock='Fill'; $projectBox.Anchor='Left,Right'; $projectBox.AccessibleName='Petrel project path'
+$outputBox=New-Object Windows.Forms.TextBox; $outputBox.Dock='Fill'; $outputBox.Anchor='Left,Right'; $outputBox.AccessibleName='Output folder path'
 $projectBox.Add_TextChanged({ $script:lastScan.Remove('input'); $sizeLabel.Text='Input exact .pet + matching .ptd: Calculating...' })
-$projectBrowse=New-FvButton '&Browse project' {
-    $dialog=New-Object Windows.Forms.OpenFileDialog; $dialog.Filter='Petrel project (*.pet)|*.pet'; $dialog.CheckFileExists=$true
-    if ($dialog.ShowDialog() -eq 'OK') { $projectBox.Text=$dialog.FileName; Start-FvScan 'input' }
-}; $projectRow.Controls.Add($projectBrowse)
-$main.Controls.Add($projectRow,0,3)
-$outputRow=New-FvFlow; $outputRow.WrapContents=$false
-$outputRow.Controls.Add((New-FvLabel 'Output folder:' 9 $true))
-$outputBox=New-Object Windows.Forms.TextBox; $outputBox.Width=792; $outputBox.Margin=New-Object Windows.Forms.Padding(4,7,4,4); $outputRow.Controls.Add($outputBox)
 $outputBox.Add_TextChanged({ $script:lastScan.Remove('selected'); $sizeLabel.Text='Selected output total: Calculating...' })
-$outputBrowse=New-FvButton 'B&rowse output' {
+$projectBrowse=New-FvButton '&Browse...' {
+    $dialog=New-Object Windows.Forms.OpenFileDialog; $dialog.Filter='Petrel project (*.pet)|*.pet'; $dialog.CheckFileExists=$true
+    try { if ($dialog.ShowDialog() -eq 'OK') { $projectBox.Text=$dialog.FileName; Start-FvScan 'input' } } finally { $dialog.Dispose() }
+}
+$outputBrowse=New-FvButton 'B&rowse...' {
     $dialog=New-Object Windows.Forms.FolderBrowserDialog; $dialog.Description='Select an output folder outside the source project directory'
-    if ($dialog.ShowDialog() -eq 'OK') { $outputBox.Text=$dialog.SelectedPath; Start-FvScan 'selected' }
-}; $outputRow.Controls.Add($outputBrowse)
-$main.Controls.Add($outputRow,0,4)
-$controlRow=New-FvFlow
-$full=New-Object Windows.Forms.RadioButton; $full.Text='&Full extraction'; $full.Checked=$true; $full.AutoSize=$true; $full.Margin=New-Object Windows.Forms.Padding(7,13,18,5)
-$reportOnly=New-Object Windows.Forms.RadioButton; $reportOnly.Text='&Report only'; $reportOnly.AutoSize=$true; $reportOnly.Margin=New-Object Windows.Forms.Padding(7,13,18,5)
-$runButton=New-FvButton '&Run' { Start-FvRun }; $runButton.MinimumSize=New-Object Drawing.Size(100,34); $runButton.Margin=New-Object Windows.Forms.Padding(16,5,16,5)
-$emailButton=New-FvButton '&Email last log' { Show-FvEmail }; $emailButton.Enabled=$false
-$controlRow.Controls.Add($full); $controlRow.Controls.Add($reportOnly); $controlRow.Controls.Add($runButton); $controlRow.Controls.Add($emailButton)
-$main.Controls.Add($controlRow,0,5)
+    try { if ($dialog.ShowDialog() -eq 'OK') { $outputBox.Text=$dialog.SelectedPath; Start-FvScan 'selected' } } finally { $dialog.Dispose() }
+}
+$paths.Controls.Add((New-FvLabel 'Petrel project' 10 $true),0,0); $paths.Controls.Add($projectBox,1,0); $paths.Controls.Add($projectBrowse,2,0)
+$paths.Controls.Add((New-FvLabel 'Output folder' 10 $true),0,1); $paths.Controls.Add($outputBox,1,1); $paths.Controls.Add($outputBrowse,2,1)
+$main.Controls.Add($paths,0,2)
+$controlRow=New-Object Windows.Forms.TableLayoutPanel; $controlRow.Dock='Fill'; $controlRow.ColumnCount=4; $controlRow.RowCount=1
+foreach ($w in @(108,220,0,120)) { [void]$controlRow.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,$w))) }
+$controlRow.ColumnStyles[2].SizeType='Percent'; $controlRow.ColumnStyles[2].Width=100
+$modeBox=New-FvChoice 'Extraction mode'; [void]$modeBox.Items.Add('Full extraction'); [void]$modeBox.Items.Add('Report only'); $modeBox.SelectedIndex=0
+$runButton=New-FvButton '&Run' { Start-FvRun }; $runButton.BackColor=[Drawing.Color]::FromArgb(29,105,172); $runButton.ForeColor=[Drawing.Color]::White; $runButton.FlatStyle='Flat'
+$controlRow.Controls.Add((New-FvLabel 'Mode' 10 $true),0,0); $controlRow.Controls.Add($modeBox,1,0); $controlRow.Controls.Add($runButton,3,0)
+$main.Controls.Add($controlRow,0,3)
 $progressPanel=New-Object Windows.Forms.TableLayoutPanel; $progressPanel.Dock='Fill'; $progressPanel.ColumnCount=1; $progressPanel.RowCount=5
-foreach ($h in @(25,25,27,27,27)) { $progressPanel.RowStyles.Add((New-Object Windows.Forms.RowStyle([Windows.Forms.SizeType]::Absolute,$h))) | Out-Null }
-$statusLabel=New-FvLabel 'Ready. Choose an exact Petrel project and a separate output folder.' 10 $true
+foreach ($h in @(30,28,28,24,30)) { [void]$progressPanel.RowStyles.Add((New-Object Windows.Forms.RowStyle([Windows.Forms.SizeType]::Absolute,$h))) }
+$statusLabel=New-FvLabel 'Ready. Choose a project and an output folder.' 10 $true
 $timerLabel=New-FvLabel 'Elapsed 00:00:00  |  Overall progress: not available  |  Last activity: --' 9 $false
 $stageLabel=New-FvLabel 'Stage: awaiting run' 9 $false
 $stageStrip=New-FvLabel 'Recorded stages: awaiting first event' 9 $false
+foreach ($label in @($statusLabel,$timerLabel,$stageLabel,$stageStrip)) { $label.AutoSize=$false; $label.Dock='Fill'; $label.AutoEllipsis=$true }
 $bar=New-Object Windows.Forms.ProgressBar; $bar.Dock='Fill'; $bar.Style='Marquee'; $bar.MarqueeAnimationSpeed=0
 $progressPanel.Controls.Add($statusLabel,0,0); $progressPanel.Controls.Add($timerLabel,0,1)
 $progressPanel.Controls.Add($stageLabel,0,2); $progressPanel.Controls.Add($bar,0,3); $progressPanel.Controls.Add($stageStrip,0,4)
-$main.Controls.Add($progressPanel,0,6)
-$sizeLabel=New-FvLabel 'Input exact .pet + matching .ptd: --  |  Output this run: --  |  Selected output total: --' 9 $false
-$sizeLabel.MaximumSize=New-Object Drawing.Size(1050,0); $main.Controls.Add($sizeLabel,0,7)
-$detail=New-Object Windows.Forms.TextBox; $detail.Multiline=$true; $detail.ReadOnly=$true; $detail.ScrollBars='Vertical'; $detail.Dock='Fill'
-$detail.Text='A new FV_<ID> folder will be created inside the selected output folder. Use a short output path, such as C:\FV, to leave room for complete reports. Backend checks remain authoritative.'
-$main.Controls.Add($detail,0,8)
+$main.Controls.Add($progressPanel,0,4)
+$sizeLabel=New-FvLabel 'Input project: --  |  Output this run: --  |  Output folder total: --' 9 $false
+$sizeLabel.AutoSize=$false; $sizeLabel.Dock='Fill'; $main.Controls.Add($sizeLabel,0,5)
+$detail=New-Object Windows.Forms.TextBox; $detail.Multiline=$true; $detail.ReadOnly=$true; $detail.ScrollBars='Vertical'; $detail.Dock='Fill'; $detail.MinimumSize=New-Object Drawing.Size(0,64)
+$detail.Text='Choose the exact .pet file with its matching .ptd folder. A new FV_<ID> folder will be created in the output folder. Prefer a short output path, such as C:\FV.'
+$main.Controls.Add($detail,0,6)
 
 function Open-FvLink([string]$Group,[string]$Name) {
     if (-not $script:links -or -not $script:session) { return }
@@ -139,38 +150,38 @@ function Open-FvLink([string]$Group,[string]$Name) {
 function Update-FvLinks {
     if (-not $script:session) { return }
     $script:links=Get-FvLinks $script:session $script:receipt
-    foreach ($name in $script:reportButtons.Keys) { $target=$script:links.reports[$name]; $script:reportButtons[$name].Enabled=[bool]$target; $script:reportButtons[$name].AccessibleDescription=$(if ($target) { $target } else { 'Unavailable for this run' }) }
-    $script:reportMenu.Items.Clear()
-    foreach ($key in $script:links.reports.Keys) { if (-not $script:reportButtons.ContainsKey($key) -and $script:links.reports[$key]) {
-        $item=$script:reportMenu.Items.Add($key); $item.Tag=$key; $item.Add_Click({ Open-FvLink 'reports' ([string]$this.Tag) })
-    } }
-    $otherReports.Enabled=($script:reportMenu.Items.Count -gt 0)
-    foreach ($name in $script:folderButtons.Keys) {
-        $target=$script:links.folders[$name]
-        if (-not $target -and $name -eq 'Seismic') { foreach ($key in $script:links.folders.Keys) { if ($key -match '^seismic') { $target=$script:links.folders[$key]; break } } }
-        if (-not $target -and $name -eq 'Wells') { foreach ($key in $script:links.folders.Keys) { if ($key -match '^(well|logs|heads|trajector)') { $target=$script:links.folders[$key]; break } } }
-        if (-not $target -and $name -eq 'Surfaces') { foreach ($key in $script:links.folders.Keys) { if ($key -match '^surface') { $target=$script:links.folders[$key]; break } } }
-        $script:folderButtons[$name].Enabled=[bool]$target
-        $script:folderButtons[$name].AccessibleDescription=$(if ($target) { $target } else { 'Unavailable for this run' })
-        if ($target) { $script:links.folders[$name]=$target }
+    foreach ($group in @('reports','folders')) {
+        $choice=$(if ($group -eq 'reports') { $reportChoice } else { $folderChoice })
+        $open=$(if ($group -eq 'reports') { $reportOpen } else { $folderOpen })
+        $selected=[string]$choice.SelectedItem
+        $preferred=$(if ($group -eq 'reports') { 'Main report' } else { 'All exports' })
+        $keys=@($script:links[$group].Keys | Where-Object { $script:links[$group][$_] })
+        $ordered=@($keys | Sort-Object @{Expression={ if ($_ -eq $preferred) { 0 } else { 1 } }}, @{Expression={$_}})
+        # Avoid resetting an open dropdown during the one-second dashboard refresh.
+        if (($ordered -join "`n") -ne (@($choice.Items) -join "`n")) {
+            $choice.BeginUpdate()
+            try {
+                $choice.Items.Clear()
+                foreach ($key in $ordered) { [void]$choice.Items.Add($key) }
+                if ($choice.Items.Contains($selected)) { $choice.SelectedItem=$selected }
+                elseif ($choice.Items.Count) { $choice.SelectedIndex=0 }
+            } finally { $choice.EndUpdate() }
+        }
+        $choice.Enabled=($choice.Items.Count -gt 0); $open.Enabled=$choice.Enabled
     }
-    $script:folderMenu.Items.Clear()
-    foreach ($key in $script:links.folders.Keys) { if (-not $script:folderButtons.ContainsKey($key) -and $script:links.folders[$key]) {
-        $item=$script:folderMenu.Items.Add($key); $item.Tag=$key; $item.Add_Click({ Open-FvLink 'folders' ([string]$this.Tag) })
-    } }
-    $otherFolders.Enabled=($script:folderMenu.Items.Count -gt 0)
 }
+
 function Start-FvRun {
     $launched=$false
     $createdSession=$false
     try {
         if ($script:sessionLoadError) { throw $script:sessionLoadError }
         if ($script:session -and (Get-FvSessionState $script:session) -notin @('finished','launch_failed')) { throw 'The previous run is active or its process identity is unverified. New work is disabled until a terminal supervisor record exists.' }
-        $script:session=New-FvSession $PackageRoot $projectBox.Text $outputBox.Text $reportOnly.Checked
+        $script:session=New-FvSession $PackageRoot $projectBox.Text $outputBox.Text ($modeBox.SelectedIndex -eq 1)
         $createdSession=$true
         $script:receipt=$null; $script:receiptStamp=''; $script:eventOffset=0; $script:events.Clear(); $script:progressState=$null; $script:recordedStages=@(); $script:startedMonotonic=[Diagnostics.Stopwatch]::StartNew(); $script:lastScan.Remove('run'); $script:lastScan.Remove('selected'); $script:terminalRefreshPending=$false
         $detail.Text="Run folder: $($script:session.output)`r`nFull hashing is enabled. Backend bootstrap and doctor run inside the existing launcher."
-        $runButton.Enabled=$false; $projectBox.Enabled=$false; $outputBox.Enabled=$false; $projectBrowse.Enabled=$false; $outputBrowse.Enabled=$false; $full.Enabled=$false; $reportOnly.Enabled=$false
+        $runButton.Enabled=$false; $projectBox.Enabled=$false; $outputBox.Enabled=$false; $projectBrowse.Enabled=$false; $outputBrowse.Enabled=$false; $modeBox.Enabled=$false
         Update-FvLinks
         $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'FieldViewer.Desktop.Supervisor.ps1'),'-SessionFile',$script:session.session_file)
         Start-Process -FilePath (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList (Join-FvArgs $args) -WindowStyle Hidden | Out-Null
@@ -184,7 +195,7 @@ function Start-FvRun {
         }
         [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Cannot start run') | Out-Null
         $editable=(-not $script:sessionLoadError -and (-not $script:session -or (Get-FvSessionState $script:session) -in @('finished','launch_failed')))
-        $runButton.Enabled=$editable; $projectBox.Enabled=$editable; $outputBox.Enabled=$editable; $projectBrowse.Enabled=$editable; $outputBrowse.Enabled=$editable; $full.Enabled=$editable; $reportOnly.Enabled=$editable
+        $runButton.Enabled=$editable; $projectBox.Enabled=$editable; $outputBox.Enabled=$editable; $projectBrowse.Enabled=$editable; $outputBrowse.Enabled=$editable; $modeBox.Enabled=$editable
     }
 }
 function Start-FvScan([string]$Kind) {
@@ -218,7 +229,7 @@ function Format-FvScan([string]$Kind) {
         if ($r.root -ine $expected -or [string]$r.exact_file -ine $exact) { return 'Calculating...' }
     } catch { return 'Unavailable' }
     $prefix=$(if ($r.partial) { 'Partial ' } else { '' })
-    return ($prefix+(Format-FvBytes ([long]$r.logical_path_sum_bytes))+" logical path sum (aliases included; $($r.files) files; measured $($r.measured_utc))")
+    return ($prefix+(Format-FvBytes ([long]$r.logical_path_sum_bytes))+" logical size ($($r.files) files; aliases included)")
 }
 function Show-FvAbout {
     $dialog=New-Object Windows.Forms.Form; $dialog.Text='About Field Viewer'; $dialog.Size=New-Object Drawing.Size(690,470); $dialog.StartPosition='CenterParent'; $dialog.AutoScaleMode='Dpi'
@@ -355,9 +366,9 @@ function Update-FvDashboard {
             $stageStrip.Text='Recorded stages: '+($parts -join '  |  ')
         }
         if ($state -in @('finished','launch_failed')) {
-            $runButton.Enabled=$true; $projectBox.Enabled=$true; $outputBox.Enabled=$true; $projectBrowse.Enabled=$true; $outputBrowse.Enabled=$true; $full.Enabled=$true; $reportOnly.Enabled=$true
+            $runButton.Enabled=$true; $projectBox.Enabled=$true; $outputBox.Enabled=$true; $projectBrowse.Enabled=$true; $outputBrowse.Enabled=$true; $modeBox.Enabled=$true
             if ($script:startedMonotonic) { $script:startedMonotonic.Stop() }
-        } else { $runButton.Enabled=$false; $projectBox.Enabled=$false; $outputBox.Enabled=$false; $projectBrowse.Enabled=$false; $outputBrowse.Enabled=$false; $full.Enabled=$false; $reportOnly.Enabled=$false }
+        } else { $runButton.Enabled=$false; $projectBox.Enabled=$false; $outputBox.Enabled=$false; $projectBrowse.Enabled=$false; $outputBrowse.Enabled=$false; $modeBox.Enabled=$false }
         if ($state -eq 'running' -and (-not $script:lastScan.ContainsKey('run') -or ([DateTime]::UtcNow-$script:lastScan['run']).TotalSeconds -ge 30)) { Start-FvScan 'run' }
         if ($state -eq 'finished' -and -not $script:terminalRefreshPending) { $script:terminalRefreshPending=$true; $script:lastScan.Remove('run'); $script:lastScan.Remove('selected') }
         if ($script:terminalRefreshPending) {
@@ -372,8 +383,6 @@ function Update-FvDashboard {
     } catch { $statusLabel.Text='Display error: '+$_.Exception.Message }
 }
 $timer=New-Object Windows.Forms.Timer; $timer.Interval=1000; $timer.Add_Tick({ Update-FvDashboard }); $timer.Start()
-function Update-FvPathWidths { $projectBox.Width=[math]::Max(300,$form.ClientSize.Width-430); $outputBox.Width=[math]::Max(300,$form.ClientSize.Width-275) }
-$form.Add_Resize({ Update-FvPathWidths }); Update-FvPathWidths
 $form.Add_FormClosing({
     if ($script:session -and (Get-FvSessionState $script:session) -in @('starting','running')) {
         $answer=[Windows.Forms.MessageBox]::Show('Extraction continues independently. Minimize this window and keep watching? Choose No to close the window while extraction continues.','Extraction running',[Windows.Forms.MessageBoxButtons]::YesNoCancel)
@@ -386,7 +395,7 @@ try {
         try { $script:session=Get-FvLatestSession $PackageRoot }
         catch { $script:sessionLoadError=$_.Exception.Message; $runButton.Enabled=$false; $statusLabel.Text='Saved session could not be verified; new work is blocked.'; $detail.Text=$script:sessionLoadError }
         if ($script:session) {
-            $projectBox.Text=$script:session.project; $outputBox.Text=$script:session.selected_output; $reportOnly.Checked=[bool]$script:session.report_only; $full.Checked=(-not $reportOnly.Checked)
+            $projectBox.Text=$script:session.project; $outputBox.Text=$script:session.selected_output; $modeBox.SelectedIndex=$(if ($script:session.report_only) { 1 } else { 0 })
             Start-FvScan 'input'; Start-FvScan 'selected'; Update-FvDashboard
         }
         [void]$form.ShowDialog()

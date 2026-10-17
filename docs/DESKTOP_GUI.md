@@ -1,9 +1,6 @@
-# Field Viewer Desktop — development candidate
+# Field Viewer Desktop - Beta 2
 
-The optional Desktop interface runs the same CLI engine used by applications and
-AI agents. It adds no decoder, conversion, unit override, service or account.
-RC1009 remains the current public download. The GUI has no assigned release
-version and is not yet an independently accepted clean-Windows release.
+The optional Windows interface runs the same extraction engine as the CLI.
 
 ## Open and run
 
@@ -29,9 +26,13 @@ the engine's admission and integrity rules. Full hashing and run-to-completion
 stay enabled. Report only retains the existing report/inventory/preview scope;
 it is not a promise of zero temporary work.
 
-The top rows open this run's available reports, QC, diagnostics, log and extracted
-data folders. Missing/not-yet-generated destinations stay unavailable. Reports
-and files remain usable independently of the GUI.
+The top Reports and Folders dropdowns list this run's available destinations;
+select one and choose its adjacent Open button. These include QC, diagnostics,
+the log and extracted data folders. Missing/not-yet-generated destinations stay
+unavailable. The Mode dropdown selects Full extraction or Report only. About and
+Email last log are in Help. The FV logo heads the window, and the project/output
+fields share an aligned, resizing layout. Reports and files remain usable
+independently of the GUI.
 
 ## Progress and lifecycle
 
@@ -72,23 +73,13 @@ offers an addressed draft and reveals the local attachment for manual addition.
 upload or project/data attachment is added. Mail-client acceptance does not prove
 delivery. Email problems do not change extraction results.
 
-## One engine, two editions
+## Desktop and Headless downloads
 
-- **Desktop:** GUI plus the complete Headless tools.
-- **Headless:** the same engine and CLI, without GUI files or a GUI dependency.
+Desktop includes the graphical interface and the complete command-line tools.
+Headless includes the same extraction engine and runtime without the GUI.
+Both packages contain Start Here.pdf and Start Here.html in their root.
 
-`EDITION.json` identifies the edition, GUI revision and pinned engine archive.
-`SHARED_ENGINE_MANIFEST.json` binds the unchanged baseline; the outer
-`PACKAGE_MANIFEST.json` covers each edition's members. Each ZIP has its own
-checksum. Historical engine metadata can differ from the outer candidate label;
-the About dialog exposes both instead of changing engine files for branding.
+An interactive Windows session is required for Desktop. Use the headless
+launcher over SSH, in scheduled jobs, or from another application.
 
-The build command takes the published baseline explicitly:
-
-```powershell
-python tools/build_desktop_editions.py --engine-zip PATH_TO_PUBLIC_RC1009_ZIP --expected-sha256 e17674c71c9a64bb93d3f883c2ab247d5d109e4d273837042159cfe9f24a0a23 --output FRESH_BUILD_DIRECTORY --gui-revision preview-1 --source-revision CURRENT_COMMIT
-```
-
-This builder verifies archive parity. It does not replace installation, UI,
-mail-client compatibility, DPI or independent clean-Windows acceptance. GUI
-candidate publication requires a separate release decision.
+See [release notes](RELEASE_NOTES.md) and [candidate validation](DESKTOP_BETA2_VALIDATION.md).

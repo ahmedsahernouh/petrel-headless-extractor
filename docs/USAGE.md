@@ -1,3 +1,11 @@
+## Desktop interface
+
+Extract the complete Desktop ZIP, then double-click `FieldViewer_Desktop.bat`.
+Browse to the exact `.pet` file and its matching `.ptd` folder, select a short
+existing output folder outside the source project, choose the mode and click
+Run. When finished, use Reports / Main report / Open and Folders / All exports /
+Open. See the root Start Here guides for illustrated instructions.
+
 # Field Viewer 1.0.0 usage
 
 Native surface grids are recovered through the main project BAT: XYZ/CSV, plus ZMAP for validated regular grids, with maps under the report's **Surfaces** filter. `-Capabilities` lists both direct-file conversion and native project recovery. See [grid profiles, masks and unresolved units](NATIVE_LOGS_SURFACES.md).

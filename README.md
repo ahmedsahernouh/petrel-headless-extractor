@@ -2,7 +2,7 @@
 
 # Field Viewer — Beta version
 
-Petrel Headless Extractor · Technical version 1.0.0
+Petrel Headless Extractor · Desktop and Headless · 1.0.0-beta.2
 
 By [Ahmed Saher Nouh](https://github.com/ahmedsahernouh) · [SaherLabs](https://saherlabs.dev/)
 
@@ -12,31 +12,32 @@ Inspect Petrel projects and recover supported native data without opening Petrel
 Original projects stay read-only; separate outputs include open datasets, HTML
 reports, checksums, QC findings and explicit coverage gaps.
 
-**First time using Field Viewer? [Start Here — PDF guide](Start%20Here.pdf) · [Download the HTML guide](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.1/Start.Here.html)**
+**First time using Field Viewer? [Start Here — PDF guide](Start%20Here.pdf) · [Download the HTML guide](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.2/Start.Here.html)**
 
 Copies of `Start Here.pdf` and `Start Here.html` are in the main repository folder above.
 
-**[Download Field Viewer — Beta version (1.0.0), including Start Here (Windows x64)](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.1/FieldViewer-1.0.0-beta.1-win64.zip)**
-· [Checksum](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.1/FieldViewer-1.0.0-beta.1-win64.zip.sha256)
+**[Download Field Viewer — Desktop beta 2, including Start Here (Windows x64)](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.2/FieldViewer-Desktop-1.0.0-beta.2-win64.zip)**
+· [Checksum](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.2/FieldViewer-Desktop-1.0.0-beta.2-win64.zip.sha256)
+· [Headless package](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.2/FieldViewer-Headless-1.0.0-beta.2-win64.zip)
 · [Release notes](docs/RELEASE_NOTES.md)
 
 The standalone ZIP includes Python and pinned dependencies. It runs offline on
 Windows 10/11 x64 with built-in Windows PowerShell, without Petrel, Ocean, system
 Python or administrator access. GitHub's automatic **Source code** archives do
 not include that runtime. The recommended ZIP includes **Start Here.pdf** and
-**Start Here.html** in its root, beside **FieldViewer_data_extractor.bat**.
+**Start Here.html** in its root, beside **FieldViewer_Desktop.bat** and **FieldViewer_data_extractor.bat**.
 
 ## Start Here — first-time users
 
 Start with a simple data-flow map showing extracted files and examples of
 destination tools for geoscience, analytics, ML/DL and AI agents/harnesses. Follow the illustrated
-guide from extracting the downloaded ZIP and entering the
-full `.pet` path through opening the HTML reports, reviewing QC and locating the
+guide from extracting the downloaded ZIP and choosing the
+`.pet` project in the desktop interface through opening the HTML reports, reviewing QC and locating the
 exported files. Red outline boxes highlight the inputs and controls.
 
 - **[Read Start Here (PDF)](Start%20Here.pdf)**
-- **[Download Start Here (HTML)](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.1/Start.Here.html)** — save locally and open in a browser; screenshots are embedded and it works offline.
-- [Download Start Here (PDF)](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.1/Start.Here.pdf)
+- **[Download Start Here (HTML)](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.2/Start.Here.html)** — save locally and open in a browser; screenshots are embedded and it works offline.
+- [Download Start Here (PDF)](https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/download/v1.0.0-beta.2/Start.Here.pdf)
 
 The guide uses the SLB demo saved in Petrel 2018.2. Select your own exact project
 path and a separate output folder.
@@ -47,17 +48,17 @@ Review the reported limitations and unknown units before using exported data.
 1. Extract the **whole ZIP** into a short writable folder.
 2. Keep `Project.pet` beside its complete matching `Project.ptd` directory. Close
    the project in Petrel while extracting. Choose a separate output folder.
-3. Drag the exact `.pet` onto `FieldViewer_data_extractor.bat`, or use:
+3. Double-click **FieldViewer_Desktop.bat**. Browse to the exact `.pet` project
+   and an existing output folder such as `C:\FV`.
+4. Choose **Full extraction** or **Report only**, then click **Run** once.
+5. When the run finishes, choose **Main report** from **Reports** and click
+   **Open**. Choose **All exports** from **Folders** to browse extracted data.
 
-   ```bat
-   FieldViewer_data_extractor.bat "D:\Projects\Example.pet" "D:\FV_Out" convert
-   ```
+For command-line or agent use, the Desktop package also includes:
 
-4. First launch installs/checks the bundled runtime locally. No online installer
-   is required. Later launches verify and repair managed files from that cache.
-5. Open `OPEN_RESULTS_*.html` or `*_REPORT.html` in your selected output folder.
-   Links lead to exports, QC, diagnostics, logs and supporting evidence.
-   [Result access details](docs/RESULT_ACCESS.md).
+```bat
+FieldViewer_data_extractor.bat "D:\Projects\Example.pet" "C:\FV" convert
+```
 
 Append `-ReportOnly` for report/inventory/previews without retained converted
  datasets. Full extraction and full seismic SHA-256 are the defaults. Agents and
@@ -95,11 +96,11 @@ Contact: [ahmed-saher@hotmail.com](mailto:ahmed-saher@hotmail.com).
 
 ## Development and next release
 
-[Build instructions](docs/BUILD.md) · [GUI plan](docs/NEXT_RELEASE_GUI_PLAN_20261012.md)
+[Build instructions](docs/BUILD.md) · [Desktop guide](docs/DESKTOP_GUI.md)
 
-An optional GUI preview is under development. Planned **Desktop (GUI + CLI)**
-and **Headless (CLI / AI agents)** editions share the extraction engine.
-The GUI is planned for a future release.
+The prepared beta 2 adds an optional Desktop interface. **Desktop** includes the
+GUI and complete CLI; **Headless** contains the same engine without GUI files.
+See [Desktop usage](docs/DESKTOP_GUI.md) and [candidate validation](docs/DESKTOP_BETA2_VALIDATION.md).
 
 Source project data and validation datasets are not bundled. Supported-profile
 and receiving-software limits remain explicit.
