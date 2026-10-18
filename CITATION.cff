@@ -3,7 +3,7 @@ message: "If Field Viewer helps your work, a citation is appreciated."
 type: software
 title: "Field Viewer Data Extractor"
 version: "1.0.0-beta.2"
-date-released: "2026-10-16"
+date-released: "2026-10-18"
 authors:
   - family-names: "Nouh"
     given-names: "Ahmed Saher"

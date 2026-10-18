@@ -1,31 +1,42 @@
-# Desktop Beta 2 candidate validation
+# Desktop Beta 2 validation scope
 
-The candidate is prepared for review and is not yet published. Its exact archive
-hashes and check results are recorded in the accompanying validation asset.
+Beta 2 adds the optional desktop interface and updated first-use guides to the
+beta 1 extraction engine. Its supported decoding profiles are unchanged.
+Complete 3D reservoir/RESCUE model export is not included.
 
-## Candidate boundary
+## Completed checks
 
-The engine is based on the verified public beta 1 archive. Only release
-documentation and metadata are refreshed before the Desktop interface is added.
-Extraction scripts, CLI launcher and runtime archives must remain byte-identical.
-Desktop and Headless must contain matching shared-engine members.
+- ZIP CRC, package-member hashes and shared-engine parity between editions.
+- 5,674 managed files, bundled dependency imports and a ZFP round trip.
+- Local synthetic Full extraction and Report only through the GUI backend.
+  Full extraction returned exit 10 with the fixture's intentional well-head
+  metadata gap; Report only returned exit 0. QC passed on both.
+- Independent sample/MD/null readback, unchanged source hashes, support ZIPs,
+  and the 16 Full / 12 Report only available result targets.
+- Process lifetime and identity, bounded event reading, path preflight,
+  launcher failure propagation and three-width control layout checks.
+- Offline HTML at desktop/mobile widths and visual review of the 14-page PDF.
+- Isolated installation on an existing Windows 11 VM: all 117 outer package
+  members and 5,674 managed engine files matched, the dependency check exited 0,
+  and the shipped Desktop BAT opened the form. Project Browse opened the file
+  picker and the selected synthetic project path appeared in the form.
 
-The interface uses the locally checked preview 6 layout. Its native controls
-select paths and mode, display recorded progress, and open available results.
-Prior preview evidence covers synthetic payload parity, process lifetime and
-identity, bounded event reads, output-path admission and a VM report-only run.
-Those earlier checks are not an acceptance result for these new archives.
+The final release refreshes publication documentation and metadata. Extraction,
+runtime, launcher and GUI code remain byte-identical to the prepared candidate.
+The release assets and `RELEASE_MANIFEST.json` bind the final hashes; the release's
+`VALIDATION.json` identifies the tested candidate and final comparison.
 
-## Before public release
+## Deferred checks
 
-- Verify CRC, every package member, shared-engine parity and offline dependencies.
-- Observe the exact Desktop package launch in an interactive Windows session.
-- Exercise project/output selection, Full extraction and Report only on a small
-  known fixture; verify source hashes, receipts, QC, report links and file index.
-- Check close/reconnect, resize, high DPI and keyboard navigation.
-- Check diagnostic draft/fallback behaviour without sending a message.
-- Retain beta status and the supported-profile limitations.
+The visible GUI's output selection, Run workflow and result-opening controls,
+close/reconnect, DPI/keyboard navigation and diagnostic mail-client behaviour
+have not completed independent interactive acceptance. Network paths and
+mail-client compatibility remain unqualified.
 
-New interactive acceptance and screenshots are pending. Existing screenshots illustrate the
-preview 6 layout and the public SLB 2018 demo outputs; they do not represent a new
-beta 2 extraction. Network paths and mail-client compatibility remain unqualified.
+This is a scoped prerelease with those checks deferred. It is not a clean OS
+image acceptance or a new full real-project extraction trial. Existing engine
+evidence does not establish scientific interpretation, universal Petrel-version
+coverage or receiving-application acceptance.
+
+Start Here illustrates the preview 6 control layout and existing public SLB 2018
+demo report/output examples. It does not claim a new beta 2 demo extraction.

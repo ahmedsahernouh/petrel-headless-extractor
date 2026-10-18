@@ -1,7 +1,7 @@
 # Field Viewer Desktop and Headless - 1.0.0-beta.2
 
-Prepared prerelease candidate. This version adds a Windows desktop interface
-around the existing extraction engine.
+This prerelease adds an optional Windows desktop interface around the existing
+extraction engine.
 
 ## Downloads
 
@@ -38,8 +38,14 @@ using exported files. Receiving-application acceptance remains separate.
 
 ## Validation
 
-See [candidate validation](DESKTOP_BETA2_VALIDATION.md) for completed checks and
-the remaining interactive Windows acceptance.
+Package integrity, bundled dependencies, ZFP checks, synthetic backend extraction
+and report-only checks passed. The Desktop launcher and project selection were
+observed on an existing Windows 11 VM.
+
+Full interactive GUI workflow, close/reconnect, DPI/keyboard and mail-client
+checks remain incomplete. The interface is released as a beta with those checks
+deferred. See [validation scope](DESKTOP_BETA2_VALIDATION.md) and the release's
+`VALIDATION.json` for the exact evidence boundary.
 
 Field Viewer is the open-source extraction component of a larger, non-public
 geoscience project. The wider project is not included in this distribution.

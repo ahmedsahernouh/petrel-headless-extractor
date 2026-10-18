@@ -94,13 +94,13 @@ Each run creates a `*_SUPPORT.zip`. Recognized identifiers are replaced on a
 best-effort basis; review before sharing. Nothing is uploaded automatically.
 Contact: [ahmed-saher@hotmail.com](mailto:ahmed-saher@hotmail.com).
 
-## Development and next release
+## Desktop and Headless
 
 [Build instructions](docs/BUILD.md) · [Desktop guide](docs/DESKTOP_GUI.md)
 
-The prepared beta 2 adds an optional Desktop interface. **Desktop** includes the
+Beta 2 adds an optional Desktop interface. **Desktop** includes the
 GUI and complete CLI; **Headless** contains the same engine without GUI files.
-See [Desktop usage](docs/DESKTOP_GUI.md) and [candidate validation](docs/DESKTOP_BETA2_VALIDATION.md).
+See [Desktop usage](docs/DESKTOP_GUI.md) and [validation scope](docs/DESKTOP_BETA2_VALIDATION.md).
 
 Source project data and validation datasets are not bundled. Supported-profile
 and receiving-software limits remain explicit.
