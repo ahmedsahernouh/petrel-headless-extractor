@@ -184,13 +184,17 @@ class SummaryTests(unittest.TestCase):
         table=folder/'native_well_top_picks_bound.csv'
         body='object_id,point_index,well_name,surface,measured_depth,x,y,z,well_link_uuid\nt,0,Alpha,BCU,1234,1,2,-1200,w\n'
         table.write_text(body);(self.exports/'picks.csv').write_text(body)
-        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'object_id':'t','category':'well_tops','format':'CSV','path':'picks.csv','status':'exported'}]}))
+        (self.exports/'xyz.csv').write_text('x,y,z\n1,2,-1200\n')
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'object_id':'t','category':'points','format':'CSV','path':'xyz.csv','status':'exported'}, {'object_id':'t','category':'well_tops','format':'CSV','path':'picks.csv','status':'exported'}]}))
         receipt=self.package/'07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json';receipt.parent.mkdir(parents=True)
         receipt.write_text(json.dumps({'well_top_binding':{'status':'native_schema_bound','row_count':1,'output_path':'02_wells/well_tops/native_well_top_picks_bound.csv','output_sha256':hashlib.sha256(table.read_bytes()).hexdigest()}}))
         context={'objects':[{'object_id':'t','name':'Tops','category':'WellTopsSubject'},{'object_id':'w','name':'Alpha','category':'WellTraceSubject'}]}
         self.publish(context=context);data=payload(self.report);nodes=flatten(data['categories'])
         self.assertEqual(nodes['w']['top_picks'][0]['surface'],'BCU')
         self.assertEqual(data['well_top_status']['native_binding']['rows'],1)
+        self.assertEqual(nodes['t']['files'][0]['label'],'Download well tops (CSV)')
+        self.assertTrue(nodes['t']['files'][0]['href'].endswith('/picks.csv'))
+        self.assertEqual(len(nodes['t']['files']),2)
         self.assertNotIn('post_run_recovery',data['well_top_status'])
         self.assertEqual(data['well_top_status']['native_binding']['units'],{})
         (self.exports/'FILE_INDEX.json').write_text('{"files":[]}')

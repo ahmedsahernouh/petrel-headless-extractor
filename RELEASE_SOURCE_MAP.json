@@ -208,7 +208,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_summary.py",
-      "sha256": "d573cefe358ad9a751c0c64d73289a43a7f7f2de05f278f947b6aef13708f865",
+      "sha256": "dc82124ac6d638f8d2ae9672f10e7de8681a597261a2439df6c98118ab32ca2c",
       "source_path": "scripts/geoviewer_summary.py"
     },
     {
@@ -468,7 +468,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/test_geoviewer_summary.py",
-      "sha256": "797a5930d2d3853fbde12555211973eb4af34e3be4e8f194020c66dcc0a8987d",
+      "sha256": "87a0571e7d2a52dc015cee4d8142e630ba6ea4048e545bfd89a6388cf4995157",
       "source_path": "scripts/test_geoviewer_summary.py"
     },
     {

@@ -193,7 +193,7 @@ def _attach_verified_tops(report, stem, objects, context, warnings):
         return None
 
 
-def _attach_native_tops(package, destination, index, objects, warnings):
+def _attach_native_tops(package, destination, index, objects, warnings, report):
     """Show only hash-bound native rows whose collection was delivered."""
     if not package:
         return None
@@ -211,7 +211,7 @@ def _attach_native_tops(package, destination, index, objects, warnings):
             rows = list(itertools.islice(csv.DictReader(stream), 4097))
         if not rows or len(rows) > 4096 or len(rows) != binding['row_count']:
             raise ValueError('Bound tops row count mismatch or summary limit exceeded')
-        delivered = {str(r.get('object_id')) for r in index.get('files', [])
+        delivered = {str(r.get('object_id')): _safe_file(destination, r.get('path')) for r in index.get('files', [])
                      if r.get('category') == 'well_tops' and r.get('status') == 'exported'
                      and _safe_file(destination, r.get('path'))}
         grouped = {}
@@ -231,6 +231,9 @@ def _attach_native_tops(package, destination, index, objects, warnings):
                 raise ValueError('Bound tops indexes are not unique and complete')
         for identity, picks in grouped.items():
             target = objects[identity]
+            href = _href(delivered[identity], report)
+            target['files'] = [f for f in target['files'] if f['href'] != href]
+            target['files'].insert(0, {'label': 'Download well tops (CSV)', 'href': href})
             target['top_picks'] = picks
             target['status'] = 'native_schema_bound'
             target['tops_geometry_only'] = False
@@ -700,7 +703,7 @@ def publish_summary(report_path, *, package=None, destination=None, inventory=No
             obj = objects.get(str(record.get('object_id')))
             if obj and obj['category'] == 'Surfaces / Grids' and obj['files']:
                 obj['grid_preview'] = _grid_image(package, record, image_budget)
-    native_tops = _attach_native_tops(package, destination, index, objects, warnings)
+    native_tops = _attach_native_tops(package, destination, index, objects, warnings, report)
     top_recovery = None if native_tops else _attach_verified_tops(report, stem, objects, context, warnings)
     if native_tops:
         for raw in _rows(context.get('objects', [])):
