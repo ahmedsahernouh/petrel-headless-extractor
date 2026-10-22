@@ -1,5 +1,9 @@
 """Meaningful offline summary checks against mixed and incomplete catalogues."""
 import json
+import base64
+import hashlib
+import struct
+import zlib
 import os
 from pathlib import Path
 import re
@@ -137,6 +141,171 @@ class SummaryTests(unittest.TestCase):
         html = self.report.read_text(encoding='utf-8')
         self.assertIn('<details class="panel">', html)
         self.assertIn('if(!p){started=false;continue}', html)
+
+    def test_well_tops_have_their_own_inventory_category_without_invented_picks(self):
+        self.publish(context={'objects':[{'object_id':'tops','name':'Well Tops','category':'WellTopsSubject'},{'object_id':'formation','name':'BCU','category':'WellTopsSurfaceSubject','parent_id':'tops'},{'object_id':'welltops','name':'A10 picks','category':'WellTopsWellSubject','parent_id':'tops'},{'object_id':'point','name':'Points','category':'PointSubject'}]})
+        data=payload(self.report);nodes=flatten(data['categories'])
+        self.assertEqual(data['counts']['Well tops'],3)
+        self.assertEqual(data['counts']['Points'],1)
+        self.assertEqual(nodes['formation']['kind'],'Well tops')
+        self.assertEqual(nodes['welltops']['files'],[])
+        self.assertEqual(nodes['welltops']['status'],'metadata_only')
+
+    def test_verified_post_run_tops_bind_to_exact_wells_and_fail_closed_on_tampering(self):
+        run=self.root/'case_data/RUN_RESULT.json';run.parent.mkdir();run.write_text('{"status":"completed_with_gaps"}')
+        table=self.exports/'tops.csv';table.write_text('object_id,point_index,well_name,surface,measured_depth,x,y,z,well_link_uuid\nt,0,Alpha,BCU,1234,1,2,-1200,w\n')
+        receipt=self.root/'Details/case_TOPS/RECOVERY.json';receipt.parent.mkdir(parents=True)
+        receipt.write_text(json.dumps({'schema':'fieldviewer.native-tops/1','status':'verified','object_id':'t','row_count':1,'run_receipt_path':'case_data/RUN_RESULT.json','run_receipt_sha256':hashlib.sha256(run.read_bytes()).hexdigest(),'csv_path':'case_EXPORTS/tops.csv','csv_sha256':hashlib.sha256(table.read_bytes()).hexdigest(),'units':{'md':'m','z':'m'}}))
+        context={'objects':[{'object_id':'t','name':'Tops','category':'WellTopsSubject'},{'object_id':'w','name':'Alpha','category':'WellTraceSubject'}]}
+        self.publish(context=context);data=payload(self.report);nodes=flatten(data['categories'])
+        self.assertEqual(nodes['w']['top_picks'][0]['surface'],'BCU')
+        self.assertEqual(nodes['t']['top_picks'][0]['measured_depth'],'1234')
+        self.assertEqual(data['well_top_status']['post_run_recovery']['rows'],1)
+        self.assertEqual(nodes['t']['files'][0]['label'],'Download well tops (CSV)')
+        table.write_text(table.read_text().replace('1234','9999'))
+        result=self.publish(context=context);nodes=flatten(payload(self.report)['categories'])
+        self.assertEqual(nodes['t']['top_picks'],[])
+        self.assertTrue(any('checksum mismatch' in s for s in result['warnings']))
+
+    def test_complete_polygon_preview_retains_parts_closure_and_late_vertices(self):
+        table=self.exports/'linework.csv'
+        table.write_text('part_index,vertex_index,is_closed_native,x,y\n'+''.join(f'0,{i},no,{i},0\n' for i in range(500))+'1,0,yes,0,10\n1,1,yes,10,10\n1,2,yes,10,20\n')
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'object_id':'p','category':'polygons','format':'CSV','path':'linework.csv','status':'exported'}]}))
+        self.publish(context={'objects':[{'object_id':'p','name':'Multipart','category':'PolygonsSubject'}]})
+        n=flatten(payload(self.report)['categories'])['p'];g=n['polygon_preview']
+        self.assertEqual(g['vertices'],503)
+        self.assertEqual([len(p['points']) for p in g['parts']],[500,3])
+        self.assertEqual(g['parts'][0]['points'][-1],[499,0])
+        self.assertFalse(g['parts'][0]['closed']);self.assertTrue(g['parts'][1]['closed'])
+        self.assertLess(len(n['preview']),g['vertices'])
+
+    def test_native_bound_tops_require_receipt_hash_and_accepted_delivery(self):
+        folder=self.package/'02_wells/well_tops';folder.mkdir(parents=True)
+        table=folder/'native_well_top_picks_bound.csv'
+        body='object_id,point_index,well_name,surface,measured_depth,x,y,z,well_link_uuid\nt,0,Alpha,BCU,1234,1,2,-1200,w\n'
+        table.write_text(body);(self.exports/'picks.csv').write_text(body)
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'object_id':'t','category':'well_tops','format':'CSV','path':'picks.csv','status':'exported'}]}))
+        receipt=self.package/'07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json';receipt.parent.mkdir(parents=True)
+        receipt.write_text(json.dumps({'well_top_binding':{'status':'native_schema_bound','row_count':1,'output_path':'02_wells/well_tops/native_well_top_picks_bound.csv','output_sha256':hashlib.sha256(table.read_bytes()).hexdigest()}}))
+        context={'objects':[{'object_id':'t','name':'Tops','category':'WellTopsSubject'},{'object_id':'w','name':'Alpha','category':'WellTraceSubject'}]}
+        self.publish(context=context);data=payload(self.report);nodes=flatten(data['categories'])
+        self.assertEqual(nodes['w']['top_picks'][0]['surface'],'BCU')
+        self.assertEqual(data['well_top_status']['native_binding']['rows'],1)
+        self.assertNotIn('post_run_recovery',data['well_top_status'])
+        self.assertEqual(data['well_top_status']['native_binding']['units'],{})
+        (self.exports/'FILE_INDEX.json').write_text('{"files":[]}')
+        self.publish(context=context);nodes=flatten(payload(self.report)['categories'])
+        self.assertEqual(nodes['w']['top_picks'],[])
+        table.write_text(body.replace('1234','8888'))
+        self.assertTrue(any('checksum mismatch' in n for n in self.publish(context=context)['warnings']))
+
+    def test_polygon_geometry_rejects_disordered_or_oversize_data(self):
+        from geoviewer_summary import _polygon_geometry
+        table=self.exports/'linework.csv'
+        table.write_text('part_index,vertex_index,is_closed_native,x,y\n0,0,no,0,0\n0,2,no,1,1\n')
+        self.assertIsNone(_polygon_geometry(table,{'bytes':0,'points':0}))
+        table.write_text('part_index,vertex_index,is_closed_native,x,y\n'+''.join(f'0,{i},no,{i},0\n' for i in range(20001)))
+        self.assertIsNone(_polygon_geometry(table,{'bytes':0,'points':0}))
+
+    def test_top_point_geometry_is_not_promoted_to_validated_picks(self):
+        (self.exports/'points.csv').write_text('x,y,z\n1,2,-3\n',encoding='utf-8')
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'object_id':'tops','category':'points','format':'CSV','path':'points.csv','status':'exported'}]}))
+        self.publish(context={'objects':[{'object_id':'tops','name':'Well Tops','category':'WellTopsSubject'}]})
+        n=flatten(payload(self.report)['categories'])['tops']
+        self.assertEqual(n['kind'],'Well tops')
+        self.assertTrue(n['tops_geometry_only'])
+        self.assertEqual(n['files'][0]['label'],'Download recovered XYZ points (CSV)')
+        self.assertEqual(n['preview'][0]['z'],'-3')
+        self.assertNotIn('md',n['preview'][0])
+
+    def test_grid_image_uses_verified_bounded_preview_and_preserves_children(self):
+        import numpy as np
+        folder=self.package/'native_data/g';folder.mkdir(parents=True)
+        path=folder/'grid_preview.npz'
+        np.savez_compressed(path,value=np.array([[1.,2.,3.],[4.,5.,6.]]),valid=np.array([[True,False,True],[True,True,True]]),x=np.array([[10.,20.,30.],[10.,20.,30.]]),y=np.array([[100.,100.,100.],[200.,200.,200.]]))
+        recovery=self.package/'07_workflows_reports/native_recovery';recovery.mkdir(parents=True)
+        data={'objects':[{'object_id':'g','artifacts':[{'path':'g/grid_preview.npz','sha256':hashlib.sha256(path.read_bytes()).hexdigest()}]}]}
+        (recovery/'native_recovery_report.json').write_text(json.dumps(data))
+        (self.exports/'surface.xyz').write_text('1 2 3\n')
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'object_id':'g','category':'grids','format':'XYZ','path':'surface.xyz','status':'exported'}]}))
+        context={'objects':[{'object_id':'g','name':'Grid','category':'SurfaceSubject'},{'object_id':'a','name':'Attribute','category':'SurfaceAttrSubject','parent_id':'g'}]}
+        self.publish(context=context);nodes=flatten(payload(self.report)['categories'])
+        self.assertEqual(nodes['g']['children'][0]['id'],'a')
+        self.assertTrue(nodes['g']['files'])
+        image=nodes['g']['grid_preview'];self.assertEqual((image['rows'],image['columns']),(2,3))
+        self.assertTrue(base64.b64decode(image['image'].split(',')[1]).startswith(b'\x89PNG'))
+        self.assertEqual(image['orientation'],{'coordinates_available':True,'rows_reversed':True,'columns_reversed':False})
+        def pixels(image):
+            raw=base64.b64decode(image['image'].split(',')[1]);offset=8;packed=b''
+            while offset<len(raw):
+                length=struct.unpack('>I',raw[offset:offset+4])[0]
+                if raw[offset+4:offset+8]==b'IDAT':packed+=raw[offset+8:offset+8+length]
+                offset+=length+12
+            return zlib.decompress(packed)
+        scan=pixels(image)
+        self.assertEqual(scan[1:5],bytes((162,158,91,255))) # Highest Y: source value 4.
+        self.assertEqual(scan[21],0) # Undefined node stays blank after the flip.
+        np.savez_compressed(path,value=np.array([[1.,2.,3.],[4.,5.,6.]]),valid=np.ones((2,3),dtype=bool),x=np.array([[30.,20.,10.],[30.,20.,10.]]),y=np.array([[200.,200.,200.],[100.,100.,100.]]))
+        data['objects'][0]['artifacts'][0]['sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+        (recovery/'native_recovery_report.json').write_text(json.dumps(data))
+        self.publish(context=context)
+        image=flatten(payload(self.report)['categories'])['g']['grid_preview']
+        self.assertEqual(image['orientation'],{'coordinates_available':True,'rows_reversed':False,'columns_reversed':True})
+        self.assertEqual(pixels(image)[1:5],bytes((118,132,114,255))) # Increasing X goes right.
+        x,y=np.meshgrid(np.arange(4,dtype=float)*10,np.arange(4,dtype=float)*100)
+        mask=np.zeros((4,4),dtype=bool);mask[1:3,1:3]=True
+        x[~mask]=0;y[~mask]=0
+        np.savez_compressed(path,value=np.arange(16,dtype=float).reshape(4,4),valid=mask,x=x,y=y)
+        data['objects'][0]['artifacts'][0]['sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+        (recovery/'native_recovery_report.json').write_text(json.dumps(data))
+        self.publish(context=context)
+        image=flatten(payload(self.report)['categories'])['g']['grid_preview']
+        self.assertEqual(image['orientation'],{'coordinates_available':True,'rows_reversed':True,'columns_reversed':False})
+        data['objects'][0]['artifacts'][0]['sha256']='0'*64
+        (recovery/'native_recovery_report.json').write_text(json.dumps(data))
+        self.publish(context=context)
+        self.assertIsNone(flatten(payload(self.report)['categories'])['g']['grid_preview'])
+
+    def test_well_header_fields_and_missing_kb_td_are_not_inferred(self):
+        (self.exports/'headers.csv').write_text('well_name,x,y,z,z_coordinate_status,KB,TD\nAlpha,123,456,-1200,observed_native_trajectory_start_z_not_resolved_as_datum_elevation,,\nBeta,0,0,2,,0,2400\n',encoding='utf-8')
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'category':'well_headers','format':'CSV','path':'headers.csv','status':'exported'}]}))
+        self.publish(context={'objects':[{'object_id':'a','name':'Alpha','category':'WellTraceSubject'},{'object_id':'b','name':'Beta','category':'WellTraceSubject'},{'object_id':'l','name':'GR','category':'WellLogSubject','parent_id':'a'}]})
+        nodes=flatten(payload(self.report)['categories'])
+        self.assertEqual(nodes['a']['header']['x'],'123')
+        self.assertEqual(nodes['a']['header']['z'],'-1200')
+        self.assertIsNone(nodes['a']['header']['kb'])
+        self.assertIsNone(nodes['a']['header']['td'])
+        self.assertEqual(nodes['b']['header']['kb'],'0')
+        self.assertEqual(nodes['b']['header']['td'],'2400')
+        self.assertEqual(nodes['a']['children'][0]['id'],'l')
+        self.assertEqual(nodes['a']['header']['download'],'case_EXPORTS/headers.csv')
+
+    def test_ambiguous_well_names_do_not_receive_each_others_headers(self):
+        (self.exports/'headers.csv').write_text('well_name,x,y\nSame,1,2\n',encoding='utf-8')
+        (self.exports/'FILE_INDEX.json').write_text(json.dumps({'files':[{'category':'well_headers','format':'CSV','path':'headers.csv','status':'exported'}]}))
+        result=self.publish(context={'objects':[{'object_id':'a','name':'Same','category':'WellTraceSubject'},{'object_id':'b','name':'Same','category':'WellTraceSubject'}]})
+        nodes=flatten(payload(self.report)['categories'])
+        self.assertIsNone(nodes['a']['header']);self.assertIsNone(nodes['b']['header'])
+        self.assertEqual(result['counts']['Wells'],2)
+        self.assertTrue(any('ambiguous' in w for w in result['warnings']))
+
+    def test_horizon_metadata_does_not_inflate_surface_grid_count(self):
+        context={'objects':[
+            {'object_id':'surface','name':'Top grid','category':'SurfaceSubject'},
+            {'object_id':'attribute','name':'TWT','category':'SurfaceAttrSubject','parent_id':'surface'},
+            {'object_id':'horizon','name':'Interpretation','category':'HorizonSubject'},
+            {'object_id':'segment','name':'Segment','category':'HorizonSegSubject','parent_id':'horizon'},
+            {'object_id':'filter','name':'Filter','category':'HorizonFilterSubject'},
+            {'object_id':'cache','name':'Cache','category':'HorizonWellIntersectCache'},
+            {'object_id':'tops','name':'Top picks','category':'WellTopsSurfaceSubject'}]}
+        self.publish(context=context)
+        data=payload(self.report);nodes=flatten(data['categories'])
+        self.assertEqual(data['counts']['Surfaces / Grids'],2)
+        self.assertEqual(data['counts']['Horizons / Interpretations'],2)
+        self.assertEqual(nodes['segment']['kind'],'Horizons / Interpretations')
+        self.assertEqual(nodes['horizon']['children'][0]['id'],'segment')
+        self.assertEqual(nodes['tops']['kind'],'Well tops')
+        self.assertNotIn('filter',nodes);self.assertNotIn('cache',nodes)
 
     def test_exact_seismic_transport_identity_is_one_dataset(self):
         (self.exports/'volume.segy').write_bytes(b'fixture')

@@ -1,5 +1,5 @@
 {
-  "base_source_commit": "468490522ce45c2ecd838f1023fb64319f316721",
+  "base_source_commit": "3b404af20e76438ca978275e34aaea229b9df7f2",
   "files": [
     {
       "package_path": "AGENT_INTEGRATION.md",
@@ -43,7 +43,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/export_petrel_native_spatial_zero_gui.py",
-      "sha256": "547851b22147461f4be87c6a32571e2f821da29e4e1a0117cb65df5de44e5626",
+      "sha256": "0aa31562d270a8c468547694d2c7709540c6d1bd3c3d0f94024fcb45ede7d628",
       "source_path": "scripts/export_petrel_native_spatial_zero_gui.py"
     },
     {
@@ -113,7 +113,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_delivery.py",
-      "sha256": "bab1187c5b859713fbc66865e785d5a97dc9b9a56ae373f6614832a26481af81",
+      "sha256": "93394da2719003eda8f13fb2acefe4359e2935c32289f532bfe93bebba480ac3",
       "source_path": "scripts/geoviewer_delivery.py"
     },
     {
@@ -168,7 +168,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_output_paths.py",
-      "sha256": "7aa322e6b7001c2f1f196517fbf4bf923368b58abf86460568e6b9ebe3713496",
+      "sha256": "6a1cd56cb15e0ed433a597a8727011e517eb704481cb1f156b089952a61af880",
       "source_path": "scripts/geoviewer_output_paths.py"
     },
     {
@@ -203,12 +203,12 @@
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_summary.html",
-      "sha256": "81f542f92d343b4f603e9cafc181ec9cb25eca531f74e3f1d4d533840794a1e2",
+      "sha256": "576ec3313436e6d7ab8f96f801ec0ea02289ae65ecda697957b9bd74973648ef",
       "source_path": "scripts/geoviewer_summary.html"
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_summary.py",
-      "sha256": "4422be774732a4d85920d28b94bd6218fc0061f36395c2c2e6ad8fc63c9b9689",
+      "sha256": "d573cefe358ad9a751c0c64d73289a43a7f7f2de05f278f947b6aef13708f865",
       "source_path": "scripts/geoviewer_summary.py"
     },
     {
@@ -468,7 +468,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/test_geoviewer_summary.py",
-      "sha256": "617cfa4cc3884b14d1a28ea9c353536b22608689284e1216c6ec1c786e823369",
+      "sha256": "797a5930d2d3853fbde12555211973eb4af34e3be4e8f194020c66dcc0a8987d",
       "source_path": "scripts/test_geoviewer_summary.py"
     },
     {
@@ -578,7 +578,7 @@
     },
     {
       "package_path": "FieldViewer/toolkit.json",
-      "sha256": "a79d64a966b9b5a6833dc4c96cbf5fe22b6212f3fd3945da1044824df223d89b",
+      "sha256": "a8e478cf6d7fc705299d24cece6dfdfa0f9e825b224557dfe99d40a8a776908a",
       "source_path": "toolkit.json"
     },
     {
@@ -598,12 +598,12 @@
     },
     {
       "package_path": "KNOWN_LIMITATIONS.md",
-      "sha256": "76e7b64e40127a963b253e0f9bf99b2625b60447aa3828f6aa99f7297b5d1f9a",
+      "sha256": "9fe44794976472367a71a20643d716634a2923595e490aa2cf14262eca94c03c",
       "source_path": "KNOWN_LIMITATIONS.md"
     },
     {
       "package_path": "RELEASE_NOTES.md",
-      "sha256": "c7c20cd3dbca3bd351619d6b76c15090266a2bfff45d22c22e7793c2cc4116bf",
+      "sha256": "8fb0b47b510db045c119431a8ed67d7c30803327809c21a8fd9dcb9d3b6344ca",
       "source_path": "RELEASE_NOTES.md"
     },
     {
@@ -665,9 +665,20 @@
       "package_path": "skills/petrel-crs-drive-audit/scripts/audit.ps1",
       "sha256": "728fc9f44bf50451d4c5152615f79b2b0caf642c6ee214bc53991eba23b08e8e",
       "source_path": "skills/petrel-crs-drive-audit/scripts/audit.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_tops.py",
+      "sha256": "156bc16913585a2c6ccedc316ef2dabdf1142331d056354c191fe1ec94081de8",
+      "source_path": "scripts/petrel_native_tops.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_native_tops.py",
+      "sha256": "701929dfd71465ceba966b00824c50ba3199f761109c3b3d3bfdabe56521627b",
+      "source_path": "scripts/test_petrel_native_tops.py"
     }
   ],
   "preparation": "r12",
+  "preparation_revision": "r13",
   "schema": "fieldviewer.release-source-map/1",
   "source_archive": "FieldViewer-Source-1.0.0-beta.3-r12.zip",
   "version": "1.0.0-beta.3"

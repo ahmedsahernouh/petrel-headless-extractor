@@ -48,6 +48,7 @@ from typing import Any, Iterable, Sequence
 import petrel_native_binary as native_binary
 import petrel_native_geometry_attributes as geometry_attributes
 import petrel_native_polygon_bindings as polygon_bindings
+import petrel_native_tops as native_tops
 from petrel_native_well_evidence import enrich_heads, IDENTITY_STATUS
 import time
 
@@ -2177,6 +2178,7 @@ def run(args: argparse.Namespace) -> int:
     point_rows = PointVertexRows()
     trajectory_rows: list[dict[str, Any]] = []
     point_objects: list[dict[str, Any]] = []
+    top_candidates: list[dict[str, Any]] = []
     point_identity_rows: list[dict[str, Any]] = []
     point_missing_rows = MissingVertexRows()
     polygon_missing_rows = MissingVertexRows()
@@ -2241,6 +2243,11 @@ def run(args: argparse.Namespace) -> int:
                         point_identity_rows.extend(point_identity_export_rows(
                             native_object.object_id, native_object.data_pk, points, point_identities))
                     if any(point is not None for point in points):
+                        if any(row.get('object_id') == native_object.object_id and
+                               row.get('category') == 'WellTopsSubject'
+                               for row in context.get('objects', [])):
+                            top_candidates.append(dict(object=native_object,payload=payload,
+                                points=points,source_blob_sha256=hashlib.sha256(blob).hexdigest()))
                         if validation_path:
                             point_objects.append(
                                 {"object": native_object, "payload": payload, "points": points, "geometry_metadata": metadata}
@@ -2346,6 +2353,30 @@ def run(args: argparse.Namespace) -> int:
             print('OBJECT_RESULT '+json.dumps({key:report.get(key) for key in ('object_id','object_name','blob_type','status','error','elapsed_seconds')},ensure_ascii=True),flush=True)
     finally:
         connection.close()
+
+    bound_top_rows: list[dict[str, Any]] = []
+    top_object_receipts: list[dict[str, Any]] = []
+    if top_candidates:
+        try:
+            model_payload, model_sha256 = native_tops.load_model(export_package, data_file)
+        except (OSError, ValueError, native_binary.NativeError) as exc:
+            model_payload = None
+            model_error = f'{type(exc).__name__}: {exc}'
+        for item in top_candidates:
+            obj = item['object']
+            try:
+                if model_payload is None:
+                    raise native_tops.TopBindingError(model_error)
+                rows, receipt = native_tops.bind(obj.object_id,obj.data_pk,item['points'],
+                    item['payload'],context,model_payload,
+                    blob_sha256=item['source_blob_sha256'],model_sha256=model_sha256)
+                bound_top_rows.extend(rows)
+                top_object_receipts.append(receipt)
+            except (ValueError, native_binary.NativeError) as exc:
+                top_object_receipts.append(dict(status='unresolved',object_id=obj.object_id,
+                    data_pk=obj.data_pk,point_count=len(item['points']),row_count=0,
+                    reason=f'{type(exc).__name__}: {exc}',
+                    source_blob_sha256=item['source_blob_sha256']))
 
     well_top_rows: list[dict[str, Any]] = []
     well_top_validation: dict[str, Any] = {"status": "not_attempted", "reason": "no_validation_csv"}
@@ -2477,6 +2508,23 @@ def run(args: argparse.Namespace) -> int:
         ("record_class", "native_binary_confirmed", "object_id", "data_pk", "point_index", "well_name_index", "well_name", "surface_index", "surface", "x", "y", "z", "measured_depth", "twt_picked", "twt_auto", "tvt", "tst", "dip_angle", "dip_azimuth", "observation_number", "symbol", "zone_log", "coordinate_source", "label_source", "xyz_validation_distance"),
     ):
         outputs.append(str(well_top_path))
+    bound_top_path = export_package / '02_wells/well_tops/native_well_top_picks_bound.csv'
+    if write_csv_if_rows(bound_top_path,bound_top_rows,native_tops.FIELDS):
+        outputs.append(str(bound_top_path))
+    well_top_binding = {
+        'status': ('not_present' if not top_candidates else
+                   'native_schema_bound' if bound_top_rows else 'unresolved'),
+        'has_gaps': bool(top_candidates and any(r['status']!=native_tops.STATUS for r in top_object_receipts)),
+        'row_count': len(bound_top_rows),
+        'object_count': len(top_candidates),
+        'bound_object_count': sum(r['status']==native_tops.STATUS for r in top_object_receipts),
+        'output_path': bound_top_path.relative_to(export_package).as_posix() if bound_top_rows else None,
+        'output_sha256': bounded_file_sha256(bound_top_path) if bound_top_rows else None,
+        'objects': top_object_receipts,
+        'external_validation_status': 'not_assessed_by_native_schema_binding',
+        'units_datum_status': 'unresolved',
+        'z_semantic_status': 'native_xyz_z; not_TVD_or_TVDSS',
+    }
 
     status_counts: defaultdict[str, int] = defaultdict(int)
     type_counts: defaultdict[str, int] = defaultdict(int)
@@ -2552,6 +2600,7 @@ def run(args: argparse.Namespace) -> int:
         "well_head_trajectory_crosscheck": well_head_trajectory_crosscheck,
         "validated_native_well_top_rows": len(well_top_rows),
         "well_top_validation": well_top_validation,
+        "well_top_binding": well_top_binding,
         "trajectory_name_linkage": trajectory_name_linkage,
         "outputs": outputs,
         "objects": object_reports,

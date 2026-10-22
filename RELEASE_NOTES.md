@@ -1,3 +1,13 @@
+## Beta3 r13: clearer data tree and complete previews
+
+This refresh corrects the concise front report: discoverable well headers, a separate Well tops branch with per-well tables, 73 actual grid datasets in the qualified 2018 demo, grid preview axis direction, and complete segmented polygon previews. Dataset downloads remain linked to accepted artifacts. Detailed diagnostics stay under Details.
+
+Selected native well-top MD/Well/Surface attribute bindings are recovered automatically under the observed typed schema with exact collection/well identities. Native schema binding is distinct from independent Petrel-export calibration; units, CRS and vertical datum remain unresolved when not explicitly recovered. Native Z is never labelled TVD. Unsupported/conflicting profiles fail closed.
+
+The 2018 demo native polygon audit found no exported vertex loss. Most parts are open linework natively. Previews retain all exported vertices and part boundaries and close only native closed parts; no endpoint stitching or inferred rings are added. Grid previews correct axis direction without reprojection. KB and TD remain Not recovered when absent.
+
+This is a separate refresh of immutable beta3 r12. Existing beta3 installations require a manual download; this preparation revision does not change the engine version or promise automatic update detection. Complete Petrel/version, scientific and receiving-application qualification is not claimed.
+
 # Field Viewer Desktop and Headless - Beta 3 (1.0.0-beta.3)
 
 Standalone Windows x64 beta release, 21 October 2026. Extract the whole ZIP to a

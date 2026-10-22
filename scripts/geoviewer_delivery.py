@@ -154,6 +154,52 @@ def _completed_spatial_tables(package, report, findings, *, only=None):
         except (OSError, ValueError, csv.Error, UnicodeError) as exc:
             if systemic(exc): raise
             findings.append('Spatial checkpoint excluded '+relative+': '+str(exc))
+    top = report.get('well_top_binding') or {}
+    relative = '02_wells/well_tops/native_well_top_picks_bound.csv'
+    if ((only is None or only == relative) and top.get('row_count',0) and
+            top.get('status') in ('native_schema_bound','partial')):
+        try:
+            if top.get('output_path') != relative:
+                raise ValueError('native tops output path differs from receipt')
+            expected = top['row_count']; groups = top.get('objects')
+            if type(expected) is not int or expected < 1 or not isinstance(groups,list):
+                raise ValueError('native tops receipt row/group count invalid')
+            group_counts = {}
+            for group in groups:
+                if group.get('status') != 'native_schema_bound': continue
+                identity=group.get('object_id')
+                if identity in group_counts or type(group.get('row_count')) is not int or group['row_count'] < 1:
+                    raise ValueError('duplicate or invalid bound native tops object')
+                group_counts[identity]=group['row_count']
+            if sum(group_counts.values()) != expected:
+                raise ValueError('native tops object row totals differ from receipt')
+            source=contained(package,package/relative); before=source.stat()
+            required={'object_id','data_pk','point_index','well_name','surface','measured_depth',
+                      'x','y','z','well_link_uuid','binding_status'}
+            seen={identity:0 for identity in group_counts}; ordinals={identity:set() for identity in group_counts}
+            with source.open(encoding='utf-8-sig',newline='',buffering=1024*1024) as stream:
+                reader=csv.DictReader(stream)
+                if not reader.fieldnames or not required.issubset(reader.fieldnames) or len(reader.fieldnames)!=len(set(reader.fieldnames)):
+                    raise ValueError('native tops CSV header incomplete or duplicate')
+                for row in reader:
+                    identity=row.get('object_id')
+                    if None in row or any(v is None for v in row.values()) or identity not in seen or row['binding_status']!='native_schema_bound':
+                        raise ValueError('native tops CSV row incomplete or unbound')
+                    ordinal=int(row['point_index'])
+                    if ordinal in ordinals[identity]:raise ValueError('duplicate native top point index')
+                    ordinals[identity].add(ordinal);seen[identity]+=1
+            if seen!=group_counts or any(ordinals[k]!=set(range(v)) for k,v in group_counts.items()):
+                raise ValueError('native tops CSV per-object counts or ordinals differ from receipt')
+            digest=top.get('output_sha256')
+            if not isinstance(digest,str) or len(digest)!=64 or sha256(source)!=digest:
+                raise ValueError('native tops CSV SHA-256 differs from completed decoder receipt')
+            after=source.stat()
+            if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):
+                raise ValueError('native tops table changed during validation')
+            accepted.add(relative)
+        except (OSError,ValueError,csv.Error,UnicodeError) as exc:
+            if systemic(exc):raise
+            findings.append('Spatial checkpoint excluded '+relative+': '+str(exc))
     return accepted
 
 
@@ -445,6 +491,9 @@ def publish_exports(package, inventory, destination, checkpoint_index=None, *, s
     else:spatial=read(spatial_path)
     allowed_tables = _completed_spatial_tables(package, spatial, findings) if spatial_checkpoint else None
     point_attribute_relative = '05_spatial/points/native_point_attributes.csv'
+    top_relative = '02_wells/well_tops/native_well_top_picks_bound.csv'
+    tops_accepted = top_relative in (allowed_tables if allowed_tables is not None else
+        _completed_spatial_tables(package,spatial,findings,only=top_relative))
     point_attributes_accepted = True
     if not spatial_checkpoint and (spatial.get('point_attribute_value_rows') is not None or
                                    (package/point_attribute_relative).exists()):
@@ -462,13 +511,15 @@ def publish_exports(package, inventory, destination, checkpoint_index=None, *, s
             ('05_spatial/points/native_point_missing_vertices.csv','point_missing_vertices'),
             ('05_spatial/points/native_points_vertices.csv','points'),
             ('05_spatial/points/native_points_identity.csv','point_identities'),
-            ('02_wells/trajectories/native_well_trajectory_records.csv','trajectories')]:
+            ('02_wells/trajectories/native_well_trajectory_records.csv','trajectories'),
+            (top_relative,'well_tops')]:
         source=package/relative
         if spatial_checkpoint and relative not in allowed_tables:continue
         if category == 'point_attributes' and not point_attributes_accepted:continue
+        if category == 'well_tops' and not tops_accepted:continue
         auxiliary = category in ('point_identities', 'point_attributes', 'polygon_attributes', 'polygon_parts', 'polygon_missing_vertices', 'point_missing_vertices')
-        if spatial_checkpoint or auxiliary:
-            kinds={'polygons':{'Polygons3'},'polygon_attributes':{'Polygons3'},'polygon_parts':{'Polygons3'},'points':{'Points3'},'point_identities':{'Points3'},'point_attributes':{'Points3'},
+        if spatial_checkpoint or auxiliary or category == 'well_tops':
+            kinds={'polygons':{'Polygons3'},'polygon_attributes':{'Polygons3'},'polygon_parts':{'Polygons3'},'points':{'Points3'},'point_identities':{'Points3'},'point_attributes':{'Points3'},'well_tops':{'Points3'},
                    'polygon_missing_vertices':{'Polygons3'},'point_missing_vertices':{'Points3'},
                    'trajectories':{'ExplicitTrajectoryProviderData','MdInclAzimTrajectoryProviderData','XYZTrajectoryProviderData','WellTrace3'}}
             accepted={x['object_id']:x for x in spatial.get('objects',[])
@@ -477,6 +528,11 @@ def publish_exports(package, inventory, destination, checkpoint_index=None, *, s
                       and (category != 'point_attributes' or
                            (x.get('attributes_status') == 'raw_typed_values_decoded' and
                             type(x.get('attribute_value_count')) is int and x['attribute_value_count'] > 0))}
+            if category == 'well_tops':
+                bound = {r['object_id']:r for r in spatial.get('well_top_binding',{}).get('objects',[])
+                         if r.get('status') == 'native_schema_bound'}
+                accepted = {identity:dict(item,**bound[identity]) for identity,item in accepted.items()
+                            if identity in bound}
         else:
             accepted={x['object_id']:x for x in spatial.get('objects',[]) if x.get('status')=='decoded'}
         if not source.is_file():continue
@@ -528,6 +584,8 @@ def publish_exports(package, inventory, destination, checkpoint_index=None, *, s
             try:
                 if category == 'point_attributes' and count != accepted[identity]['attribute_value_count']:
                     raise ValueError('Point attribute row count differs from completed object receipt')
+                if category == 'well_tops' and count != accepted[identity]['row_count']:
+                    raise ValueError('Native well top row count differs from completed object receipt')
                 digest=_checked_split_sha256(pending,count,emitted[identity].digest.hexdigest())
                 contained(destination,target);contained(destination,pending)
                 def promote():
@@ -545,6 +603,8 @@ def publish_exports(package, inventory, destination, checkpoint_index=None, *, s
                     metadata_warning = 'Raw typed native vectors with original vector/value ordinals, numeric bits and opaque defaults. Names, point association, units, roles, null/default application and receiving qualification remain unresolved. Not geometry.'
                 if category == 'point_identities':
                     metadata_warning = 'Native serialization identity values and original point ordinals; not scientific attributes or external well IDs. Missing XYZ slots retained.'
+                if category == 'well_tops':
+                    metadata_warning = 'Native Model/Points3 well and surface labels with MD ordinals. Units, CRS and vertical datum unresolved; Z is native XYZ, not TVD. External scientific validation separate.'
                 if category in ('polygon_missing_vertices', 'point_missing_vertices'):
                     metadata_warning = 'Raw components and original ordinals of native missing XYZ slots; combine with finite vertex rows by exact indices. Not complete geometry; do not interpolate or bridge gaps.'
                 if accepted[identity].get('blob_type') == 'WellTrace3':
@@ -554,7 +614,8 @@ def publish_exports(package, inventory, destination, checkpoint_index=None, *, s
                 records.append(dict(object_id=identity,name=name,category=category,format='CSV',
                     metadata_warning=metadata_warning,
                     path=target.relative_to(destination).as_posix(),bytes=target.stat().st_size,status='exported',
-                    numerical_qc=('auxiliary_evidence_only; row-preserving split; count checked' if category in ('polygon_attributes','point_attributes','polygon_missing_vertices','point_missing_vertices') else
+                    numerical_qc=('native_schema_bound; row-preserving split; count and hash checked; external validation separate' if category=='well_tops' else
+                                  'auxiliary_evidence_only; row-preserving split; count checked' if category in ('polygon_attributes','point_attributes','polygon_missing_vertices','point_missing_vertices') else
                                   'metadata_only; row-preserving split; count checked' if category=='polygon_parts' else
                                   'native_decoder; row-preserving split; count checked'),units='unknown',
                     sha256=digest,integrity='saved_split_CSV_bytes_sha256; verified_against_emitted_CSV_bytes; derived_from_validated_shared_CSV',storage='object_table',record_count=count))

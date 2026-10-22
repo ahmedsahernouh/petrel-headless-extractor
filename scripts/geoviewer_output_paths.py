@@ -121,6 +121,7 @@ def source_reservations(project_file, mode='convert'):
         '00_manifest/export_manifest.csv.restore.tmp',
         '07_workflows_reports/portable_extractor/portable_extraction_run_summary.json',
         '07_workflows_reports/native_spatial_zero_gui/native_spatial_decode_report.json',
+        '02_wells/well_tops/native_well_top_picks_bound.csv',
         'q_00000000.partial/manifest_before.csv', 'q_00000000.partial/QUARANTINE.json'))
     return reservations, len(files)
 
