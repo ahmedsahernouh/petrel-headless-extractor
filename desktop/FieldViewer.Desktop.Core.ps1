@@ -403,7 +403,10 @@ function Get-FvLinks($Session,$Receipt) {
         if (-not $bound) { return $links }
         $prefix=$bound.Name.Substring(0,$bound.Name.Length-5)
         $links.folders['Evidence']=$bound.FullName
-        $links.reports['Main report']=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_REPORT.html'))
+        $summaryReport=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_REPORT.html'))
+        $detailReport=Resolve-FvArtifact $Session (Join-Path (Join-Path $Session.output 'Details') ($prefix+'_REPORT.html'))
+        $links.reports['Main report']=$(if ($summaryReport) { $summaryReport } else { $detailReport })
+        if ($summaryReport -and $detailReport) { $links.reports['Detailed report']=$detailReport }
         $links.reports['View log']=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_LOG.txt'))
         $links.reports['Diagnostics']=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_DIAGNOSTICS.txt'))
         $exports=Resolve-FvArtifact $Session (Join-Path $Session.output ($prefix+'_EXPORTS')) 'dir'
@@ -414,7 +417,10 @@ function Get-FvLinks($Session,$Receipt) {
         }
         return $links
     }
-    $links.reports['Main report']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'full_report')
+    $summaryReport=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'summary_report')
+    $detailReport=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'full_report')
+    $links.reports['Main report']=$(if ($summaryReport) { $summaryReport } else { $detailReport })
+    if ($summaryReport -and $detailReport) { $links.reports['Detailed report']=$detailReport }
     $qc=Get-FvProp $Receipt 'qc'; if ($qc) { $links.reports['QC']=Resolve-FvArtifact $Session (Get-FvProp $qc 'report_path') }
     $links.reports['Diagnostics']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'diagnostic_summary')
     $links.reports['View log']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'process_log')

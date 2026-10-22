@@ -97,7 +97,9 @@ class ResultAccessLauncherTests(unittest.TestCase):
                 self.assertTrue(any('synthetic desktop refusal' in line for line in display.messages))
                 self.assertIsNone(result['result_access']['entry_page'])
             else:
-                entries=list(output.glob('OPEN_RESULTS_*.html'))
+                entries=list((output/'Details').glob('OPEN_RESULTS_*.html'))
+                self.assertEqual(len(list(output.glob('*.html'))),1)
+                self.assertEqual(Path(result['full_report']).parent,output/'Details')
                 self.assertEqual(len(entries),1)
                 text=entries[0].read_text('utf-8')
                 self.assertIn('Fixture_000001_REPORT.html',text)

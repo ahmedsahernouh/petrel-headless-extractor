@@ -39,3 +39,23 @@ dependencies retain their own licenses. segyio 1.9.14 source and supplemental
 LGPL/GPL notices are included under FieldViewer/third_party/segyio/.
 
 Release: https://github.com/ahmedsahernouh/petrel-headless-extractor/releases/tag/v1.0.0-beta.3
+
+## Project summary report (beta3 refresh r12, 22 October 2026)
+
+Project extraction now creates a concise main _REPORT.html with a searchable
+Petrel-style data tree. Wells group their logs and trajectories; surfaces/grids,
+faults, seismic, models and other discovered categories appear according to the
+available catalogue and evidence. Select a dataset for its status, bounded preview
+and available download formats. Metadata-only, unsupported and missing datasets
+retain their status; the report does not add decoding capability.
+
+The output root has one front report per run. Detailed reports, access pages,
+logs, diagnostics and support ZIPs are kept in Details/. All technical evidence
+remains available through Detailed report. Reports work
+offline, with relative data links when their output folders are kept together.
+
+This refresh is published separately as v1.0.0-beta.3-r12 because the original
+beta3 release is immutable. The package version remains beta3, preparation r12.
+Existing beta3 installations must download and extract the refreshed ZIP; the version checker
+does not distinguish preparation revisions. Runtime, native decoders, Full/CRS
+launchers and public RESCUE limits are retained from published r11.

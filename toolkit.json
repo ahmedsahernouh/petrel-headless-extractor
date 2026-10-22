@@ -58,6 +58,7 @@
   },
   "notice_file": "NOTICE",
   "petrel_required": false,
+  "preparation_revision": "r12",
   "purpose": "Recover supported Petrel binary/native payloads into open formats; companion reformatting is secondary",
   "python_required": false,
   "receipt_contract": "petrel-geoscience-1",
@@ -80,6 +81,14 @@
     "ZMAP or ambiguous DAT",
     "RESQML/EPC"
   ],
+  "summary_report": {
+    "categories": "catalogue-driven",
+    "detailed_report_preserved": true,
+    "details_folder": "Details",
+    "enabled": true,
+    "path_suffix": "_REPORT.html",
+    "previews": "bounded"
+  },
   "support_bundle": "automatic_local_zip_with_best_effort_identifier_replacement",
   "version": "1.0.0",
   "visual_report": {

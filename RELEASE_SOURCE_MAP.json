@@ -1,4 +1,5 @@
 {
+  "base_source_commit": "468490522ce45c2ecd838f1023fb64319f316721",
   "files": [
     {
       "package_path": "AGENT_INTEGRATION.md",
@@ -187,7 +188,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_result_access.py",
-      "sha256": "d19a20d72a3895cc25f49998120a564b016ee69a761d47800325f8de51e1f0ba",
+      "sha256": "29767d46111730a4235043675f4069b7a25f65d15826a528734ee56814234586",
       "source_path": "scripts/geoviewer_result_access.py"
     },
     {
@@ -199,6 +200,16 @@
       "package_path": "FieldViewer/scripts/geoviewer_stage.py",
       "sha256": "5eff39dc3169ba1a9d506e7bde6b5f5ef5c178f3773285a9541c02fe61d9e559",
       "source_path": "scripts/geoviewer_stage.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_summary.html",
+      "sha256": "81f542f92d343b4f603e9cafc181ec9cb25eca531f74e3f1d4d533840794a1e2",
+      "source_path": "scripts/geoviewer_summary.html"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_summary.py",
+      "sha256": "4422be774732a4d85920d28b94bd6218fc0061f36395c2c2e6ad8fc63c9b9689",
+      "source_path": "scripts/geoviewer_summary.py"
     },
     {
       "package_path": "FieldViewer/scripts/geoviewer_support.ps1",
@@ -342,7 +353,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/petrel_project_seismic.py",
-      "sha256": "bab79dfaca382a3bae44f17c5d34246d6570a2ad5d5bb51e300d48e028b279ac",
+      "sha256": "f9afea01a442e387e93c554b44d380081e6f1960e712608be75a435bde118980",
       "source_path": "scripts/petrel_project_seismic.py"
     },
     {
@@ -412,7 +423,7 @@
     },
     {
       "package_path": "FieldViewer/scripts/standalone_petrel_extract.py",
-      "sha256": "78fdc3c4b2b8cacaae2ba225fc5b1ed0684ad9dfaee30aaf37a3e978c00bcb9a",
+      "sha256": "499e44bb3b08060bc5d272985a542463d38eabba9282e854e987d7a3e9f0a16a",
       "source_path": "scripts/standalone_petrel_extract.py"
     },
     {
@@ -454,6 +465,11 @@
       "package_path": "FieldViewer/scripts/test_geoviewer_stage_outcomes.py",
       "sha256": "b912fc3705d2d1a9d72f2f7c988ede1f3592a31ffc768d20ee25a11ca872f1b6",
       "source_path": "scripts/test_geoviewer_stage_outcomes.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_geoviewer_summary.py",
+      "sha256": "617cfa4cc3884b14d1a28ea9c353536b22608689284e1216c6ec1c786e823369",
+      "source_path": "scripts/test_geoviewer_summary.py"
     },
     {
       "package_path": "FieldViewer/scripts/test_geoviewer_support.py",
@@ -536,8 +552,33 @@
       "source_path": "scripts/validate_geoviewer_contract.py"
     },
     {
+      "package_path": "FieldViewer/third_party/segyio/COPYING",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "source_path": "third_party/segyio/COPYING"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/License.md",
+      "sha256": "7f378a4367be6ccff61ea0f5408ebf73b35f2a1635573d1129239afb83c819bd",
+      "source_path": "third_party/segyio/License.md"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/README.md",
+      "sha256": "9dc229ecd22425e456702ac5c470437e26eb6cf3eddd6d6bd4d9744a9fc2f6bd",
+      "source_path": "third_party/segyio/README.md"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/SOURCE_PROVENANCE.json",
+      "sha256": "ebc3ee5e976a618649c0fd079e64ca2f2aa3a2e2880b1958a78dc71a92de883f",
+      "source_path": "third_party/segyio/SOURCE_PROVENANCE.json"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/segyio-1.9.14-source.tar.gz",
+      "sha256": "fdb25f24cf12681553c146fc80645dd058d0b40c9cc56542b2ab91859bd3db44",
+      "source_path": "third_party/segyio/segyio-1.9.14-source.tar.gz"
+    },
+    {
       "package_path": "FieldViewer/toolkit.json",
-      "sha256": "da84fd0cbcf80a1604e9006037942b6068b95f14d4b6f8b3c04586ef5f836f50",
+      "sha256": "a79d64a966b9b5a6833dc4c96cbf5fe22b6212f3fd3945da1044824df223d89b",
       "source_path": "toolkit.json"
     },
     {
@@ -562,7 +603,7 @@
     },
     {
       "package_path": "RELEASE_NOTES.md",
-      "sha256": "7e0b234d5121daafce6511377461f3370b790c73fc501507a7cfa1f4557cff91",
+      "sha256": "c7c20cd3dbca3bd351619d6b76c15090266a2bfff45d22c22e7793c2cc4116bf",
       "source_path": "RELEASE_NOTES.md"
     },
     {
@@ -577,7 +618,7 @@
     },
     {
       "package_path": "desktop/FieldViewer.Desktop.Core.ps1",
-      "sha256": "381736582772d088524961307039f5c25a7864af7deb725a8044e9d830726239",
+      "sha256": "aa4f27c453ef1dee8a595ed87e7f2f827da61bc51f66eaee676d7cfcc20bc802",
       "source_path": "desktop/FieldViewer.Desktop.Core.ps1"
     },
     {
@@ -606,6 +647,11 @@
       "source_path": "desktop/FieldViewer.Desktop.ps1"
     },
     {
+      "package_path": "skills.md",
+      "sha256": "5b69a13da481d2efd48a01f39b6efe49dacfb164eaaa8c2c6622cf8c3f1adb08",
+      "source_path": "skills.md"
+    },
+    {
       "package_path": "skills/petrel-crs-drive-audit/SKILL.md",
       "sha256": "dcc40e2977a8015967cb34546c16c35557f979459bf47e1641f6e19deecd5e22",
       "source_path": "skills/petrel-crs-drive-audit/SKILL.md"
@@ -619,39 +665,10 @@
       "package_path": "skills/petrel-crs-drive-audit/scripts/audit.ps1",
       "sha256": "728fc9f44bf50451d4c5152615f79b2b0caf642c6ee214bc53991eba23b08e8e",
       "source_path": "skills/petrel-crs-drive-audit/scripts/audit.ps1"
-    },
-    {
-      "package_path": "skills.md",
-      "sha256": "5b69a13da481d2efd48a01f39b6efe49dacfb164eaaa8c2c6622cf8c3f1adb08",
-      "source_path": "skills.md"
-    },
-    {
-      "package_path": "FieldViewer/third_party/segyio/License.md",
-      "sha256": "7f378a4367be6ccff61ea0f5408ebf73b35f2a1635573d1129239afb83c819bd",
-      "source_path": "third_party/segyio/License.md"
-    },
-    {
-      "package_path": "FieldViewer/third_party/segyio/COPYING",
-      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-      "source_path": "third_party/segyio/COPYING"
-    },
-    {
-      "package_path": "FieldViewer/third_party/segyio/segyio-1.9.14-source.tar.gz",
-      "sha256": "fdb25f24cf12681553c146fc80645dd058d0b40c9cc56542b2ab91859bd3db44",
-      "source_path": "third_party/segyio/segyio-1.9.14-source.tar.gz"
-    },
-    {
-      "package_path": "FieldViewer/third_party/segyio/SOURCE_PROVENANCE.json",
-      "sha256": "ebc3ee5e976a618649c0fd079e64ca2f2aa3a2e2880b1958a78dc71a92de883f",
-      "source_path": "third_party/segyio/SOURCE_PROVENANCE.json"
-    },
-    {
-      "package_path": "FieldViewer/third_party/segyio/README.md",
-      "sha256": "9dc229ecd22425e456702ac5c470437e26eb6cf3eddd6d6bd4d9744a9fc2f6bd",
-      "source_path": "third_party/segyio/README.md"
     }
   ],
-  "preparation": "r11",
+  "preparation": "r12",
   "schema": "fieldviewer.release-source-map/1",
+  "source_archive": "FieldViewer-Source-1.0.0-beta.3-r12.zip",
   "version": "1.0.0-beta.3"
 }

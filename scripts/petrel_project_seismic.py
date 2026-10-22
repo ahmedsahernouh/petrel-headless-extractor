@@ -9,6 +9,7 @@ Exact relocation maps are separate, user-declared associations.
 Nearby unreferenced seismic is inventoried, not silently assigned to a project.
 """
 from __future__ import annotations
+import os
 import argparse
 from collections import Counter
 import hashlib
@@ -375,14 +376,20 @@ class RelocateLinks(HTMLParser):
 
 
 def deliver_report(package_report, destination, inventory, complete=False):
-    prefix=quote(package_report.parent.relative_to(destination.parent).as_posix(),safe='/')+'/'
+    def report_relative(target):
+        # Keep the prior output-root containment check, while allowing Details/.
+        root = destination.parent.parent if destination.parent.name=='Details' else destination.parent
+        target = Path(target).resolve()
+        target.relative_to(root.resolve())
+        return os.path.relpath(target, destination.parent).replace('\\', '/')
+    prefix=quote(report_relative(package_report.parent),safe='/')+'/' 
     parser=RelocateLinks(prefix); parser.feed(package_report.read_text(encoding='utf-8')); parser.close()
     rows=[]
     for item in inventory['objects']:
         links=[]
         for key,label in [('output_file','Open SEG-Y'),('receipt_path','Conversion checks')]:
             if item.get(key):
-                path=Path(item[key]); relative=path.relative_to(destination.parent).as_posix()
+                path=Path(item[key]); relative=report_relative(path)
                 links.append('<a href="'+quote(relative,safe='/')+'">'+label+'</a>')
         reason=item.get('reason','')
         if item.get('result'): reason='Every amplitude and trace geometry checked. '+item['result']['integrity_scope']+' '+item['result']['summary']['profile'].get('import_warning','')
@@ -420,7 +427,7 @@ def deliver_report(package_report, destination, inventory, complete=False):
         body=re.sub(r'(<span class="visual-status">)[^<]*(</span>)',lambda m:m.group(1)+status+m.group(2),body,count=1)
         links=''
         if row.get('output_file'):
-            relative=Path(row['output_file']).relative_to(destination.parent).as_posix()
+            relative=report_relative(row['output_file'])
             links=' <a href="'+quote(relative,safe='/')+'">Open SEG-Y</a>'
         body+=('<p class="note">'+reason+links+'</p>') if reason or links else ''
         return start+body
@@ -435,7 +442,7 @@ def deliver_report(package_report, destination, inventory, complete=False):
         start=re.sub(r'data-search="([^"]*)"',lambda m:'data-search="'+m.group(1)+' '+status+'"',start)
         body=re.sub(r'(<span class="visual-status">)[^<]*(</span>)',lambda m:m.group(1)+status+m.group(2),body,count=1)
         if row.get('output_file'):
-            relative=Path(row['output_file']).relative_to(destination.parent).as_posix()
+            relative=report_relative(row['output_file'])
             body=body.removesuffix('</td></tr>')+' <a href="'+quote(relative,safe='/')+'">Open SEG-Y</a></td></tr>'
         return start+body
     text=re.sub(r'(<tr data-object-id="([^"]+)"[^>]*>)(.*?</tr>)',catalogue,text,flags=re.S)

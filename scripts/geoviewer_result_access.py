@@ -216,11 +216,16 @@ def _slug(label: str) -> str:
 
 
 def _page_content(report: Path, exports: Path | None, label: str,
-                  status: str, marker: str) -> str:
-    report_href = html.escape(quote(report.name, safe=''), quote=True)
+                  status: str, marker: str, detailed_report: Path | None = None, page_parent: Path | None = None) -> str:
+    parent = page_parent or report.parent
+    def href(target): return html.escape(quote(os.path.relpath(target, parent).replace('\\','/'), safe='/'), quote=True)
+    report_href = href(report)
     links = [f'<li><a href="{report_href}">Open report</a></li>']
+    if detailed_report is not None:
+        detail_href = href(detailed_report)
+        links.append(f'<li><a href="{detail_href}">Detailed report</a></li>')
     if exports is not None:
-        files_href = html.escape(quote(exports.name, safe='') + '/', quote=True)
+        files_href = href(exports) + '/'
         links.append(f'<li><a href="{files_href}">Open exported files</a></li>')
     return ('<!doctype html>\n'
             f'<!-- {marker} -->\n'
@@ -281,7 +286,7 @@ def _publish_page(path: Path, content: str, marker: str) -> bool:
 
 
 def publish_result_access(report_path, exports_path=None, *, label='',
-                          status='in_progress', desktop=None) -> dict:
+                          status='in_progress', desktop=None, detailed_report=None) -> dict:
     """Publish a relocatable results page and optional user-Desktop shortcuts.
 
     The report must already exist. Supplied exports must be a real sibling
@@ -300,11 +305,20 @@ def publish_result_access(report_path, exports_path=None, *, label='',
         exports = exports_input.resolve(strict=True)
         if exports.parent != report.parent:
             raise ValueError('Exports directory must have the same output parent as the report')
+    detail = None
+    if detailed_report is not None:
+        detail_input = Path(detailed_report)
+        if detail_input.is_symlink() or not detail_input.is_file():
+            raise FileNotFoundError('Detailed report is missing or invalid')
+        detail = detail_input.resolve(strict=True)
+        if detail.parent != report.parent and not detail.is_relative_to(report.parent/'Details'):
+            raise ValueError('Detailed report must be a sibling or inside the Details folder')
     identity = hashlib.sha256(os.fsencode(str(report))).hexdigest()[:12]
     marker = f'FIELDVIEWER_RESULT_ACCESS_V1:{identity}:{hashlib.sha256(os.fsencode(report.name)).hexdigest()[:12]}'
-    page = report.parent / f'OPEN_RESULTS_{identity}.html'
+    access_parent = detail.parent if detail is not None and detail.is_relative_to(report.parent/'Details') else report.parent
+    page = access_parent / f'OPEN_RESULTS_{identity}.html'
     warnings = []
-    published = _publish_page(page, _page_content(report, exports, label, status, marker), marker)
+    published = _publish_page(page, _page_content(report, exports, label, status, marker, detail, page.parent), marker)
     if not published:
         warnings.append(f'Result entry page collision; existing file was not changed: {page}')
     result = {'entry_page': str(page) if published else '',

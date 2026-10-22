@@ -169,14 +169,35 @@ def elapsed_budgets(args):
 
 
 def publish_run_access(report_path, destination=None, *, has_exports=False,
-                       label='', status='in_progress', display, diagnostics=None):
+                       label='', status='in_progress', display, diagnostics=None,
+                       context=None, package=None, inventory=None, stages=None):
     """Expose each available report without making desktop access an extraction gate."""
     if report_path is None or not Path(report_path).is_file():
         return None
+    summary = None
+    summary_warning = None
+    try:
+        from geoviewer_summary import publish_summary
+        detail = Path(report_path)
+        name = detail.name[:-len('_REPORT.html')] if detail.name.endswith('_REPORT.html') else detail.stem
+        summary_path = (detail.parent.parent/detail.name if detail.parent.name=='Details'
+                        else detail.with_name(name+'_SUMMARY.html'))
+        export_root = destination or summary_path.parent/(name+'_EXPORTS')
+        summary = publish_summary(summary_path,
+            detailed_report=detail, package=package, destination=export_root,
+            inventory=inventory, context=context, status=status, label=label, stages=stages)
+    except Exception as exc:
+        summary_warning = 'Summary report unavailable; detailed report retained: '+str(exc)
+        if diagnostics: diagnostics.event('summary_report_failed', severity='warning', reason=str(exc))
     try:
         from geoviewer_result_access import publish_result_access
-        access = publish_result_access(report_path, destination if has_exports else None,
-                                       label=label, status=status)
+        primary = summary.get('report_path') if summary else None
+        access = publish_result_access(primary or report_path, destination if has_exports else None,
+                                       label=label, status=status,
+                                       detailed_report=report_path if primary else None)
+        access['summary_report'] = str(primary) if primary else None
+        if summary: access['summary'] = summary
+        if summary_warning: access.setdefault('warnings', []).append(summary_warning)
     except Exception as exc:
         access = {'entry_page': None, 'desktop_shortcuts': [],
                   'warnings': ['Result shortcuts unavailable: ' + str(exc)]}
@@ -253,14 +274,16 @@ def main():
         if path_plan['label_shortened']:
             display.message('Shortened the run folder label by ' + str(path_plan['label_characters_removed']) +
                             ' characters to leave room for project and companion outputs. Project and object identities are retained.', flush=True)
-        report_path = output / (stem + '_REPORT.html')
+        details_root = output/'Details'
+        details_root.mkdir(parents=True, exist_ok=True)
+        report_path = details_root / (stem + '_REPORT.html')
         run = output / (stem + '_data')
         run.mkdir(parents=True, exist_ok=False)
         gio.output_probe(run)
         from geoviewer_diagnostics import Diagnostics
         from geoviewer_metadata import inspect_project
         from geoviewer_delivery import partial_report, publish_exports, decorate, diagnostics_section
-        log_path=output/(stem+'_LOG.txt');event_path=output/(stem+'_EVENTS.jsonl')
+        log_path=details_root/(stem+'_LOG.txt');event_path=details_root/(stem+'_EVENTS.jsonl')
         diagnostics=Diagnostics(log_path,event_path)
         from geoviewer_support import register_run, environment_info
         register_run(diagnostics,run,report_path)
@@ -294,7 +317,7 @@ def main():
         optional('initial_report',lambda:partial_report(report_path,context,'Extraction in progress','Metadata inventory is ready. Converted files and final QC are not ready yet.',log_path))
         display.message('REPORT (updates as extraction completes): '+str(report_path),flush=True)
         publish_run_access(report_path, label=args.label or source.stem,
-                           status='in_progress', display=display, diagnostics=diagnostics)
+                           status='in_progress', display=display, diagnostics=diagnostics, context=context)
         g.write_json(run/'preflight.json',doctor)
         g.write_json(run/'request.json',vars(args))
         common = {'petrel_version':args.petrel_version,'version_scope':'Standalone external extraction; source release unverified unless independently established'}
@@ -394,13 +417,15 @@ def main():
         if any(row.get('status') in ('failed','partial') for row in stages):end_status='completed_with_gaps'
         result_access = publish_run_access(report_path, destination,
             has_exports=bool((export_index or {}).get('files') or incremental.current_index.get('files')),
-            label=args.label or source.stem, status=end_status, display=display, diagnostics=diagnostics)
+            label=args.label or source.stem, status=end_status, display=display, diagnostics=diagnostics,
+            context=context, package=package, inventory=inventory, stages=stages)
         result = {'status':end_status,'toolkit_version':doctor['version'],'elapsed_seconds':round(display.elapsed, 3),'extraction':extraction,
                   'extraction_audit':audit,'qc':qc,'qc_audit':qc_audit,
                   'source_mutated':False,'petrel_process_launched':False,
                   'report_included':report_path.is_file(),'dataset_conversion_enabled':not args.report_only and args.mode=='convert',
                   'full_report':str(report_path),'seismic':inventory,'full_seismic_hash':args.full_hash,
                   'result_access':result_access,
+                  'summary_report':(result_access or {}).get('summary_report'),
                   'scientific_acceptance':'not_established','project_context':context,
                   'interoperability_contract':interoperability,
                   'file_index':str(destination/'FILE_INDEX.csv') if export_index is not None or incremental.current_index.get('files') else None,
@@ -413,6 +438,7 @@ def main():
         success = True
         display.message('COMPLETED WITH GAPS: validated exports are available; see report diagnostics.' if end_status=='completed_with_gaps' else 'SUCCESS: report and package QC completed. See per-dataset conversion and integrity results.', flush=True)
         display.message('Run folder: ' + str(run))
+        if (result_access or {}).get('summary_report'):display.message('SUMMARY REPORT: '+result_access['summary_report'])
         display.message('HTML report: ' + str(report_path) if report_path.is_file() else 'HTML report unavailable; open the diagnostic summary: '+str(diagnostics.summary_path))
         display.message('Process log: ' + str(log_path))
         if export_index is not None:display.message('Extracted file index: ' + str(destination/'FILE_INDEX.csv'))
@@ -454,10 +480,17 @@ def main():
                     display.message('PARTIAL REPORT: '+str(report_path))
                 except OSError as secondary:
                     if diagnostics:diagnostics.event('failure_report_unavailable',severity='error',**gio.error_details(secondary))
-                publish_run_access(report_path, destination,
+                failure_access = publish_run_access(report_path, destination,
                     has_exports=bool(incremental is not None and incremental.current_index.get('files')),
-                    label=args.label or source.stem, status=end_status, display=display, diagnostics=diagnostics)
-            display.message('Failure evidence: ' + str(run/'RUN_RESULT.json'))
+                    label=args.label or source.stem, status=end_status, display=display, diagnostics=diagnostics,
+                    context=context, package=locals().get('package'), inventory=locals().get('inventory'), stages=stages)
+                failure['summary_report'] = (failure_access or {}).get('summary_report')
+                failure['full_report'] = str(report_path) if Path(report_path).is_file() else None
+                failure['result_access'] = failure_access
+                try: gio.atomic_json(run/'RUN_RESULT.json',failure)
+                except OSError as secondary:
+                    if diagnostics: diagnostics.event('failure_summary_receipt_unavailable',severity='warning',reason=str(secondary))
+            display.message('Failure evidence: '  + str(run/'RUN_RESULT.json'))
         display.message('ERROR: ' + str(exc),file=sys.stderr)
         if not diagnostics: traceback.print_exc()
         return 130 if isinstance(exc,KeyboardInterrupt) else 1
