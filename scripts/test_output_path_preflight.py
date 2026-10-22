@@ -42,7 +42,9 @@ class OutputPathTests(unittest.TestCase):
             from geoviewer_output_paths import fits_file
             self.assertGreater(plan['label_characters_removed'],old['label_characters_removed'])
             package=Path(plan['planned_native_root']).parent
-            self.assertTrue(fits_file(package/'09_source_companions'/companion.relative_to(source.parent)))
+            expected=Path('09_source_companions')/companion.relative_to(source.parent)
+            self.assertTrue(fits_file(package/expected))
+            self.assertNotIn(str(expected),[p['relative_path'] for p in plan['deferred_companion_paths']])
             self.assertEqual(plan['source_files_inventoried'],2)
             self.assertTrue(plan['stem'].endswith('_20261008_024409_c560bc'))
 
@@ -57,14 +59,23 @@ class OutputPathTests(unittest.TestCase):
             self.assertIn(Path('10_converted_ascii/las/curve.summary.json'),paths)
             self.assertIn(Path('10_converted_ascii/workbooks/sheet/workbook.summary.json'),paths)
 
-    def test_impossible_source_relative_path_is_rejected_before_writes(self):
+    def test_long_companion_path_is_deferred_without_writes(self):
         with tempfile.TemporaryDirectory() as folder:
             source=Path(folder)/'p.pet';source.write_bytes(b'p');source.with_suffix('.ptd').mkdir()
             deep=source.parent/('a'*85)/('b'*85)/'c.txt';deep.parent.mkdir(parents=True);deep.write_bytes(b'x')
             output=source.parent.parent/'unused_path_guard_output'
-            with self.assertRaisesRegex(core.g.InputError,'shorter output root'):
-                core.plan_run_paths(output,'p',project_file=source)
+            plan=core.plan_run_paths(output,'p',project_file=source)
+            self.assertGreater(plan['deferred_companion_path_count'],0)
+            self.assertTrue(all(row['relative_path'].startswith(('09_source_companions','02_wells'))
+                                for row in plan['deferred_companion_paths']))
             self.assertFalse(output.exists())
+
+    def test_required_native_snapshot_path_still_has_a_guard(self):
+        import geoviewer_output_paths as paths
+        required=Path('08_native_project/ptd_store')/('d'*220)/'Data.ptd'
+        with patch.object(paths,'source_reservations',return_value=([required],1)):
+            with self.assertRaisesRegex(core.g.InputError,'shorter output root'):
+                core.plan_run_paths(Path('C:/FV'),'p',project_file=Path('C:/source/p.pet'))
 
     def test_utf16_and_parent_directory_limits(self):
         from geoviewer_output_paths import windows_length, fits_file

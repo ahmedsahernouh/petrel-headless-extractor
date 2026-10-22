@@ -1,6 +1,6 @@
 ﻿# Copyright 2026 Ahmed Saher Nouh
 # SPDX-License-Identifier: Apache-2.0
-param([string]$PackageRoot='', [string]$SmokeScreenshot='', [switch]$SmokeMinimum)
+param([string]$PackageRoot='', [string]$SmokeScreenshot='', [switch]$SmokeMinimum, [ValidateSet('full','report','rescue','crs')][string]$SmokeMode='full', [string]$SmokeSessionFile='')
 $ErrorActionPreference='Stop'
 if (-not [Environment]::UserInteractive) {
     throw 'Field Viewer Desktop requires an interactive Windows desktop. Use FieldViewer_data_extractor.bat for SSH or automation.'
@@ -31,11 +31,13 @@ if (-not $created -and -not $SmokeScreenshot) {
 $script:session=$null; $script:sessionLoadError=$null; $script:receipt=$null; $script:receiptStamp=''; $script:eventOffset=[long]0
 $script:events=New-Object 'System.Collections.Generic.List[object]'; $script:startedMonotonic=$null; $script:progressState=$null; $script:recordedStages=@()
 $script:scanJobs=@{}; $script:lastScan=@{}; $script:scanScopes=@{}; $script:lastState=''; $script:links=$null; $script:terminalRefreshPending=$false
+$script:updateJob=$null
 $script:form=New-Object Windows.Forms.Form
-$form=$script:form; $form.Text='Field Viewer Data Extractor '+$meta.Version
+$form=$script:form; $form.Text='Field Viewer Data Extractor '+$meta.ReleaseVersion+' ('+$meta.PreparationRevision+')'
 $form.MinimumSize=New-Object Drawing.Size(860,700); $form.Size=New-Object Drawing.Size(1040,780)
 if ($SmokeMinimum) { $form.Size=$form.MinimumSize }
 $form.StartPosition='CenterScreen'; $form.AutoScaleMode='Dpi'; $form.Font=New-Object Drawing.Font('Segoe UI',10)
+if ($SmokeScreenshot) { $form.StartPosition='Manual'; $form.Location=New-Object Drawing.Point(-32000,-32000) }
 $ownerPath=Join-Path $stateHome 'gui_owner.json'
 if (-not $SmokeScreenshot) { Write-FvJson $ownerPath ([ordered]@{ package_root=$PackageRoot; pid=$PID; start_ticks=(Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks }) }
 $form.BackColor=[Drawing.Color]::FromArgb(248,250,252)
@@ -79,6 +81,7 @@ $title=New-FvLabel "Field Viewer`r`nData Extractor" 17 $true; $header.Controls.A
 $helpMenu=New-Object Windows.Forms.ContextMenuStrip
 $aboutItem=$helpMenu.Items.Add('About Field Viewer'); $aboutItem.Add_Click({ Show-FvAbout })
 $emailButton=$helpMenu.Items.Add('Email last log...'); $emailButton.Enabled=$false; $emailButton.Add_Click({ Show-FvEmail })
+$updateItem=$helpMenu.Items.Add('Check for updates...'); $updateItem.Add_Click({ Start-FvUpdateCheck })
 $help=New-FvButton '&Help...' { $helpMenu.Show($help,0,$help.Height) }; $header.Controls.Add($help,2,0)
 $main.Controls.Add($header,0,0)
 # Two selectors replace the report/folder button strips. Only available targets appear.
@@ -116,7 +119,8 @@ $main.Controls.Add($paths,0,2)
 $controlRow=New-Object Windows.Forms.TableLayoutPanel; $controlRow.Dock='Fill'; $controlRow.ColumnCount=4; $controlRow.RowCount=1
 foreach ($w in @(108,220,0,120)) { [void]$controlRow.ColumnStyles.Add((New-Object Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,$w))) }
 $controlRow.ColumnStyles[2].SizeType='Percent'; $controlRow.ColumnStyles[2].Width=100
-$modeBox=New-FvChoice 'Extraction mode'; [void]$modeBox.Items.Add('Full extraction'); [void]$modeBox.Items.Add('Report only'); $modeBox.SelectedIndex=0
+$modeBox=New-FvChoice 'Extraction mode'; [void]$modeBox.Items.Add('Full extraction'); [void]$modeBox.Items.Add('Report only'); [void]$modeBox.Items.Add('RESCUE (experimental)'); [void]$modeBox.Items.Add('CRS and datum only'); $modeBox.SelectedIndex=0
+if ($SmokeScreenshot) { $modeBox.SelectedIndex=@('full','report','rescue','crs').IndexOf($SmokeMode) }
 $runButton=New-FvButton '&Run' { Start-FvRun }; $runButton.BackColor=[Drawing.Color]::FromArgb(29,105,172); $runButton.ForeColor=[Drawing.Color]::White; $runButton.FlatStyle='Flat'
 $controlRow.Controls.Add((New-FvLabel 'Mode' 10 $true),0,0); $controlRow.Controls.Add($modeBox,1,0); $controlRow.Controls.Add($runButton,3,0)
 $main.Controls.Add($controlRow,0,3)
@@ -135,6 +139,9 @@ $sizeLabel=New-FvLabel 'Input project: --  |  Output this run: --  |  Output fol
 $sizeLabel.AutoSize=$false; $sizeLabel.Dock='Fill'; $main.Controls.Add($sizeLabel,0,5)
 $detail=New-Object Windows.Forms.TextBox; $detail.Multiline=$true; $detail.ReadOnly=$true; $detail.ScrollBars='Vertical'; $detail.Dock='Fill'; $detail.MinimumSize=New-Object Drawing.Size(0,64)
 $detail.Text='Choose the exact .pet file with its matching .ptd folder. A new FV_<ID> folder will be created in the output folder. Prefer a short output path, such as C:\FV.'
+if (-not (Test-Path -LiteralPath (Join-Path $meta.EngineRoot 'runtime/python.exe') -PathType Leaf)) {
+    $detail.Text+="`r`nFirst use: bundled Python will be prepared automatically in the background when you press Run. Preparation may take a minute or two; progress stays in this window."
+}
 $main.Controls.Add($detail,0,6)
 
 function Open-FvLink([string]$Group,[string]$Name) {
@@ -176,11 +183,12 @@ function Start-FvRun {
     $createdSession=$false
     try {
         if ($script:sessionLoadError) { throw $script:sessionLoadError }
+        if ($modeBox.SelectedIndex -eq 2 -and -not $meta.RescueExportAvailable) { throw 'Static-model RESCUE export is not included in public beta3. Full extraction and CRS modes remain available; use the CLI inventory-only option for grid metadata.' }
         if ($script:session -and (Get-FvSessionState $script:session) -notin @('finished','launch_failed')) { throw 'The previous run is active or its process identity is unverified. New work is disabled until a terminal supervisor record exists.' }
-        $script:session=New-FvSession $PackageRoot $projectBox.Text $outputBox.Text ($modeBox.SelectedIndex -eq 1)
+        $script:session=New-FvSession $PackageRoot $projectBox.Text $outputBox.Text ($modeBox.SelectedIndex -eq 1) ($modeBox.SelectedIndex -eq 2) ($modeBox.SelectedIndex -eq 3)
         $createdSession=$true
         $script:receipt=$null; $script:receiptStamp=''; $script:eventOffset=0; $script:events.Clear(); $script:progressState=$null; $script:recordedStages=@(); $script:startedMonotonic=[Diagnostics.Stopwatch]::StartNew(); $script:lastScan.Remove('run'); $script:lastScan.Remove('selected'); $script:terminalRefreshPending=$false
-        $detail.Text="Run folder: $($script:session.output)`r`nFull hashing is enabled. Backend bootstrap and doctor run inside the existing launcher."
+        $detail.Text=$(if ($modeBox.SelectedIndex -eq 3) { "Run folder: $($script:session.output)`r`nReading CRS and datum declarations from PET/Model metadata only. No 3D model is required. No data or seismic extraction, and no coordinate transformation." } elseif ($modeBox.SelectedIndex -eq 2) { "Run folder: $($script:session.output)`r`nExperimental RESCUE requires the exact tested static-model profile. Other projects produce diagnostics and no RESCUE model. For metadata without a static model, choose CRS and datum only." } else { "Run folder: $($script:session.output)`r`nFull hashing is enabled. Backend bootstrap and doctor run inside the existing launcher." })
         $runButton.Enabled=$false; $projectBox.Enabled=$false; $outputBox.Enabled=$false; $projectBrowse.Enabled=$false; $outputBrowse.Enabled=$false; $modeBox.Enabled=$false
         Update-FvLinks
         $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'FieldViewer.Desktop.Supervisor.ps1'),'-SessionFile',$script:session.session_file)
@@ -200,6 +208,8 @@ function Start-FvRun {
 }
 function Start-FvScan([string]$Kind) {
     try {
+        if ($SmokeScreenshot) { return }
+        if ($modeBox.SelectedIndex -eq 3 -and $Kind -in @('input','selected')) { return }
         if ($Kind -eq 'input') {
             if (-not (Test-Path -LiteralPath $projectBox.Text -PathType Leaf)) { return }
             $pet=[IO.Path]::GetFullPath($projectBox.Text); $root=[IO.Path]::ChangeExtension($pet,'.ptd')
@@ -220,6 +230,8 @@ function Start-FvScan([string]$Kind) {
     } catch {}
 }
 function Format-FvScan([string]$Kind) {
+    if ($modeBox.SelectedIndex -eq 3 -and $Kind -eq 'input') { return 'PET/Model metadata only; complete project size not scanned' }
+    if ($modeBox.SelectedIndex -eq 3 -and $Kind -eq 'selected') { return 'Not scanned in CRS-only mode' }
     $r=Read-FvJson (Join-Path $stateHome ($Kind+'_size.json')) 16384
     if (-not $r) { return 'Calculating...' }
     try {
@@ -231,16 +243,17 @@ function Format-FvScan([string]$Kind) {
     $prefix=$(if ($r.partial) { 'Partial ' } else { '' })
     return ($prefix+(Format-FvBytes ([long]$r.logical_path_sum_bytes))+" logical size ($($r.files) files; aliases included)")
 }
-function Show-FvAbout {
-    $dialog=New-Object Windows.Forms.Form; $dialog.Text='About Field Viewer'; $dialog.Size=New-Object Drawing.Size(690,470); $dialog.StartPosition='CenterParent'; $dialog.AutoScaleMode='Dpi'
+function New-FvAboutDialog {
+    $dialog=New-Object Windows.Forms.Form; $dialog.Text='About Field Viewer'; $dialog.Size=New-Object Drawing.Size(740,540); $dialog.StartPosition='CenterParent'; $dialog.AutoScaleMode='Dpi'
     $layout=New-Object Windows.Forms.FlowLayoutPanel; $layout.Dock='Fill'; $layout.FlowDirection='TopDown'; $layout.WrapContents=$false; $layout.AutoScroll=$true; $layout.Padding=New-Object Windows.Forms.Padding(14); $dialog.Controls.Add($layout)
-    $info=New-FvLabel "Field Viewer Data Extractor`r`nProduct/engine version: $($meta.Version)`r`nEngine build: $($meta.Build)`r`nEngine tag: $($meta.EngineTag)`r`nGUI revision: $($meta.GuiRevision)`r`nEdition: $($meta.Edition)`r`nEngine ZIP SHA-256: $($meta.EngineZipSha256)" 10 $false
+    $info=New-FvLabel "Field Viewer Data Extractor`r`nRelease: $($meta.ReleaseVersion)`r`nPreparation: $($meta.PreparationRevision)`r`nPackage folder: $($meta.PackageRoot)`r`nBase engine: $($meta.Version), $($meta.Build)`r`nCurrent scripts: $($meta.SourceRevision)`r`nGUI revision: $($meta.GuiRevision)`r`nEdition: $($meta.Edition)" 10 $false
     $info.MaximumSize=New-Object Drawing.Size(625,0); $layout.Controls.Add($info)
     foreach ($entry in @(
         @{Label='GitHub project';Target='https://github.com/ahmedsahernouh/petrel-headless-extractor'},
+        @{Label='Ahmed Saher Nouh on LinkedIn';Target='https://www.linkedin.com/in/ahmedsahernouh'},
         @{Label='SaherLabs website';Target='https://saherlabs.dev/'},
         @{Label='Support email';Target='mailto:ahmed-saher@hotmail.com'})) {
-        $link=New-Object Windows.Forms.LinkLabel; $link.Text=$entry.Label+' — '+$entry.Target; $link.AutoSize=$true; $link.Tag=$entry.Target
+        $link=New-Object Windows.Forms.LinkLabel; $link.Text=$entry.Label+' — '+$entry.Target; $link.AutoSize=$true; $link.MaximumSize=New-Object Drawing.Size(680,0); $link.Tag=$entry.Target
         $link.Add_LinkClicked({ Start-Process -FilePath ([string]$this.Tag) | Out-Null }); $layout.Controls.Add($link)
     }
     foreach ($entry in @(@{Label='Apache-2.0 LICENSE';Name='LICENSE'},@{Label='Author NOTICE';Name='NOTICE'},@{Label='Third-party notices';Name='THIRD_PARTY_NOTICES.md'})) {
@@ -249,8 +262,60 @@ function Show-FvAbout {
         $button=New-FvButton $entry.Label { try { Start-Process -FilePath ([string]$this.Tag) | Out-Null } catch { [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Open notice') | Out-Null } }
         $button.Tag=$path; $button.Enabled=(Test-Path -LiteralPath $path -PathType Leaf); $layout.Controls.Add($button)
     }
-    $close=New-FvButton '&Close' { $dialog.Close() }; $layout.Controls.Add($close)
-    [void]$dialog.ShowDialog($form); $dialog.Dispose()
+    $close=New-FvButton '&Close' { $this.FindForm().Close() }; $layout.Controls.Add($close)
+    return $dialog
+}
+function Show-FvAbout {
+    $dialog=New-FvAboutDialog
+    try { [void]$dialog.ShowDialog($form) } finally { $dialog.Dispose() }
+}
+function New-FvUpdateDialog($Result) {
+    $dialog=New-Object Windows.Forms.Form; $dialog.Text='Check for updates'; $dialog.Size=New-Object Drawing.Size(670,330); $dialog.StartPosition='CenterParent'; $dialog.AutoScaleMode='Dpi'
+    $panel=New-Object Windows.Forms.FlowLayoutPanel; $panel.Dock='Fill'; $panel.FlowDirection='TopDown'; $panel.WrapContents=$false; $panel.AutoScroll=$true; $panel.Padding=New-Object Windows.Forms.Padding(18); $dialog.Controls.Add($panel)
+    $heading=New-FvLabel 'Field Viewer updates' 14 $true; $panel.Controls.Add($heading)
+    $message=New-FvLabel ([string]$Result.Message) 10; $message.MaximumSize=New-Object Drawing.Size(600,0); $panel.Controls.Add($message)
+    $privacy=New-FvLabel 'Checks public GitHub releases only. No project data is sent. Updates are downloaded manually.' 9; $privacy.MaximumSize=New-Object Drawing.Size(600,0); $panel.Controls.Add($privacy)
+    # Only the checker-created URL under this fixed repository can be opened.
+    if ($Result.Status -eq 'update_available' -and [string]$Result.ReleaseUrl -match '^https://github\.com/ahmedsahernouh/petrel-headless-extractor/releases/tag/[A-Za-z0-9.%+_-]+$') {
+        $link=New-Object Windows.Forms.LinkLabel; $link.Text='Open the newer release on GitHub'; $link.Tag=[string]$Result.ReleaseUrl; $link.AutoSize=$true
+        $link.Add_LinkClicked({ try { Start-Process -FilePath ([string]$this.Tag) | Out-Null } catch { [Windows.Forms.MessageBox]::Show('Could not open the browser. Visit the project releases page manually.','Check for updates') | Out-Null } }); $panel.Controls.Add($link)
+    }
+    $close=New-FvButton '&Close' { $this.FindForm().Close() }; $panel.Controls.Add($close); $dialog.AcceptButton=$close; $dialog.CancelButton=$close
+    return $dialog
+}
+function Show-FvUpdateResult($Result) {
+    $dialog=New-FvUpdateDialog $Result
+    try { [void]$dialog.ShowDialog($form) } finally { $dialog.Dispose() }
+}
+function Start-FvUpdateCheck {
+    if ($script:updateJob) { return }
+    $worker=$null
+    try {
+        $helper=Join-Path $PSScriptRoot 'FieldViewer.Desktop.Updates.ps1'
+        if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) { throw 'Update checker is unavailable.' }
+        $worker=[PowerShell]::Create()
+        [void]$worker.AddScript('param($helper,$version) . $helper; Get-FvUpdateCheck -CurrentVersion $version').AddArgument($helper).AddArgument($meta.ReleaseVersion)
+        $handle=$worker.BeginInvoke()
+        $script:updateJob=[pscustomobject]@{Worker=$worker;Handle=$handle}
+        $updateItem.Enabled=$false; $updateItem.Text='Checking GitHub...'
+    } catch {
+        if ($worker) { $worker.Dispose() }
+        Show-FvUpdateResult ([pscustomobject]@{Status='unavailable';CurrentVersion=$meta.ReleaseVersion;LatestVersion='';ReleaseUrl='';Message='Could not check for updates. Check your connection and try again. Your installed version is '+$meta.ReleaseVersion+'.'})
+    }
+}
+function Complete-FvUpdateCheck {
+    if (-not $script:updateJob -or -not $script:updateJob.Handle.IsCompleted) { return }
+    $job=$script:updateJob; $script:updateJob=$null
+    try {
+        $results=@($job.Worker.EndInvoke($job.Handle))
+        if ($job.Worker.HadErrors -or $results.Count -ne 1) { throw 'Update checker failed.' }
+        $result=$results[0]
+    } catch {
+        $result=[pscustomobject]@{Status='unavailable';CurrentVersion=$meta.ReleaseVersion;LatestVersion='';ReleaseUrl='';Message='Could not check for updates. Check your connection and try again. Your installed version is '+$meta.ReleaseVersion+'.'}
+    } finally {
+        $job.Worker.Dispose(); $updateItem.Text='Check for updates...'; $updateItem.Enabled=$true
+    }
+    Show-FvUpdateResult $result
 }
 function Show-FvEmail {
     if (-not $script:session) { return }
@@ -319,7 +384,7 @@ function Update-FvDashboard {
         if ($state -ne $script:lastState) { $script:lastState=$state; Update-FvLinks }
         elseif ($state -eq 'running') { Update-FvLinks }
         if ($state -eq 'finished' -and -not $script:receipt) {
-            $candidate=@(Get-ChildItem -LiteralPath $script:session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+            $candidate=@(if ((Get-FvProp $script:session 'export_mode') -eq 'crs') { Join-Path (Join-Path $script:session.output 'CRS') 'CRS_EXPORT.json' | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } } elseif ((Get-FvProp $script:session 'export_mode') -eq 'rescue') { Join-Path (Join-Path $script:session.output 'RESCUE') 'RESCUE_EXPORT.json' | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } } else { Get-ChildItem -LiteralPath $script:session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } })
             $stamp=$(if ($candidate.Count -eq 1) { (Get-Item -LiteralPath $candidate[0]).LastWriteTimeUtc.Ticks.ToString() } else { 'none' })
             if ($stamp -ne $script:receiptStamp) { $script:receiptStamp=$stamp; $script:receipt=Get-FvReceipt $script:session; Update-FvLinks }
         }
@@ -329,6 +394,8 @@ function Update-FvDashboard {
         else { $seconds=([DateTime]::UtcNow-[DateTime]::Parse($script:session.started_utc)).TotalSeconds }
         $eventsPath=$null
         if ($script:receipt) { $eventsPath=Resolve-FvArtifact $script:session (Get-FvProp $script:receipt 'structured_events') }
+        if (-not $eventsPath -and (Get-FvProp $script:session 'export_mode') -eq 'rescue') { $eventsPath=Resolve-FvArtifact $script:session (Join-Path (Join-Path $script:session.output 'RESCUE') 'EVENTS.jsonl') }
+        if (-not $eventsPath -and (Get-FvProp $script:session 'export_mode') -eq 'crs') { $eventsPath=Resolve-FvArtifact $script:session (Join-Path (Join-Path $script:session.output 'CRS') 'EVENTS.jsonl') }
         if (-not $eventsPath) { $eventFiles=@(Get-ChildItem -LiteralPath $script:session.output -File -Filter '*_EVENTS.jsonl' -ErrorAction SilentlyContinue); if ($eventFiles.Count -eq 1) { $eventsPath=$eventFiles[0].FullName } }
         if ($eventsPath) {
             $slice=Read-FvEventSlice $eventsPath $script:eventOffset
@@ -348,11 +415,16 @@ function Update-FvDashboard {
         if ($null -ne $progress.Percent) { $bar.Style='Continuous'; $bar.Value=$progress.Percent } else { $bar.Style='Marquee'; $bar.MarqueeAnimationSpeed=$(if ($state -eq 'running') { 25 } else { 0 }) }
         if ($state -in @('running','starting')) {
             $statusLabel.Text="$(if ($state -eq 'running') { 'Running' } else { 'Starting' }) | Output this run: $($script:session.output)"
+            if (-not $eventsPath) {
+                $stageLabel.Text=$(if (Test-Path -LiteralPath (Join-Path $meta.EngineRoot 'runtime/python.exe') -PathType Leaf) { 'Preparing package dependencies and checking the selected extraction mode...' } else { 'Preparing bundled Python for first use. This may take a minute or two.' })
+            }
         } elseif ($state -eq 'finished') {
             $exit=[int]$script:session.exit_code; $receiptStatus=Get-FvProp $script:receipt 'status'
             $outcome=Get-FvOutcome $script:session $script:receipt
             if ($outcome -eq 'completed') { $statusLabel.Text='Completed | receipt validated for this run' }
-            elseif ($outcome -eq 'completed_with_gaps') { $statusLabel.Text='Completed with gaps | read report and QC' }
+            elseif ($outcome -eq 'experimental_export_verified') { $statusLabel.Text='Experimental RESCUE created | qualification pending' }
+            elseif ($outcome -eq 'completed_with_gaps') { $statusLabel.Text='Completed with gaps | read report for missing or unsupported metadata' }
+            elseif ($receiptStatus -eq 'unsupported_profile') { $statusLabel.Text='No RESCUE model created | project is outside the tested static-model profile; CRS-only mode is available' }
             elseif ($outcome -eq 'cancelled') { $statusLabel.Text='Backend cancelled (exit 130) | partial evidence may remain' }
             else { $statusLabel.Text="Backend failed or receipt missing/mismatched (exit $exit; receipt $receiptStatus). $(if (-not $script:receipt) { Get-FvReceiptProblem $script:session })" }
         } elseif ($state -eq 'launch_failed') { $statusLabel.Text="Launcher failed: $(Get-FvProp $script:session 'launch_error')" }
@@ -360,7 +432,7 @@ function Update-FvDashboard {
         if ($script:recordedStages.Count) {
             $recent=@($script:recordedStages | Select-Object -Last 5)
             $parts=@(); for ($i=0;$i -lt $recent.Count;$i++) {
-                $label=$(if ($i -lt $recent.Count-1) { 'earlier' } elseif ($state -eq 'finished') { $(if ((Get-FvOutcome $script:session $script:receipt) -eq 'completed_with_gaps') { 'gaps' } elseif ((Get-FvOutcome $script:session $script:receipt) -eq 'completed') { 'completed' } else { 'failed' }) } else { 'running' })
+                $label=$(if ($i -lt $recent.Count-1) { 'earlier' } elseif ($state -eq 'finished') { $(if ((Get-FvOutcome $script:session $script:receipt) -eq 'experimental_export_verified') { 'experimental' } elseif ((Get-FvOutcome $script:session $script:receipt) -eq 'completed_with_gaps') { 'gaps' } elseif ((Get-FvOutcome $script:session $script:receipt) -eq 'completed') { 'completed' } else { 'failed' }) } else { 'running' })
                 $parts+= "Stage $($recent[$i]) $label"
             }
             $stageStrip.Text='Recorded stages: '+($parts -join '  |  ')
@@ -374,7 +446,7 @@ function Update-FvDashboard {
         if ($script:terminalRefreshPending) {
             if (-not $script:scanJobs.ContainsKey('run') -or $script:scanJobs['run'].HasExited) { Start-FvScan 'run' }
             if (-not $script:scanJobs.ContainsKey('selected') -or $script:scanJobs['selected'].HasExited) { Start-FvScan 'selected' }
-            if ($script:lastScan.ContainsKey('run') -and $script:lastScan.ContainsKey('selected')) { $script:terminalRefreshPending=$false }
+            if ($script:lastScan.ContainsKey('run') -and ($modeBox.SelectedIndex -eq 3 -or $script:lastScan.ContainsKey('selected'))) { $script:terminalRefreshPending=$false }
         }
         if (-not $script:session -or $state -notin @('running','starting')) { Start-FvScan 'input'; Start-FvScan 'selected' }
         $sizeLabel.Text="Input exact .pet + matching .ptd: $(Format-FvScan 'input')`r`nOutput this run: $(Format-FvScan 'run')`r`nSelected output folder total (may include other runs): $(Format-FvScan 'selected')"
@@ -382,7 +454,7 @@ function Update-FvDashboard {
         if ($script:session.stdout -and (Test-Path -LiteralPath $script:session.stdout -PathType Leaf)) { $detail.Text="Run folder: $($script:session.output)`r`nExternal references: size unknown and excluded from the exact-project count.`r`nLauncher output tail (max 8 KiB):`r`n"+(Read-FvTail $script:session.stdout 8192) }
     } catch { $statusLabel.Text='Display error: '+$_.Exception.Message }
 }
-$timer=New-Object Windows.Forms.Timer; $timer.Interval=1000; $timer.Add_Tick({ Update-FvDashboard }); $timer.Start()
+$timer=New-Object Windows.Forms.Timer; $timer.Interval=1000; $timer.Add_Tick({ Complete-FvUpdateCheck; Update-FvDashboard }); $timer.Start()
 $form.Add_FormClosing({
     if ($script:session -and (Get-FvSessionState $script:session) -in @('starting','running')) {
         $answer=[Windows.Forms.MessageBox]::Show('Extraction continues independently. Minimize this window and keep watching? Choose No to close the window while extraction continues.','Extraction running',[Windows.Forms.MessageBoxButtons]::YesNoCancel)
@@ -395,12 +467,19 @@ try {
         try { $script:session=Get-FvLatestSession $PackageRoot }
         catch { $script:sessionLoadError=$_.Exception.Message; $runButton.Enabled=$false; $statusLabel.Text='Saved session could not be verified; new work is blocked.'; $detail.Text=$script:sessionLoadError }
         if ($script:session) {
-            $projectBox.Text=$script:session.project; $outputBox.Text=$script:session.selected_output; $modeBox.SelectedIndex=$(if ($script:session.report_only) { 1 } else { 0 })
+            $projectBox.Text=$script:session.project; $outputBox.Text=$script:session.selected_output; $modeBox.SelectedIndex=$(if ((Get-FvProp $script:session 'export_mode') -eq 'crs') { 3 } elseif ((Get-FvProp $script:session 'export_mode') -eq 'rescue') { 2 } elseif ($script:session.report_only) { 1 } else { 0 })
             Start-FvScan 'input'; Start-FvScan 'selected'; Update-FvDashboard
         }
         [void]$form.ShowDialog()
     } else {
-        $form.Add_Shown({ $bitmap=New-Object Drawing.Bitmap($form.Width,$form.Height); $form.DrawToBitmap($bitmap,(New-Object Drawing.Rectangle(0,0,$form.Width,$form.Height))); $bitmap.Save($SmokeScreenshot,[Drawing.Imaging.ImageFormat]::Png); $bitmap.Dispose(); $form.Close() })
+        if ($SmokeSessionFile) {
+            $script:session=Read-FvJson $SmokeSessionFile 65536
+            if (-not $script:session -or $script:session.state -ne 'finished') { throw 'Smoke session must be a saved completed backend run.' }
+            $projectBox.Text=$script:session.project; $outputBox.Text=$script:session.selected_output
+            $modeBox.SelectedIndex=$(if ((Get-FvProp $script:session 'export_mode') -eq 'crs') { 3 } elseif ((Get-FvProp $script:session 'export_mode') -eq 'rescue') { 2 } elseif ($script:session.report_only) { 1 } else { 0 })
+            Update-FvDashboard
+        }
+        $form.Add_Shown({ $bitmap=New-Object Drawing.Bitmap($form.Width,$form.Height); $form.DrawToBitmap($bitmap,(New-Object Drawing.Rectangle(0,0,$form.Width,$form.Height))); $bitmap.Save($SmokeScreenshot,[Drawing.Imaging.ImageFormat]::Png); $bitmap.Dispose(); Write-FvJson ($SmokeScreenshot+'.json') @{title=$form.Text;release=$meta.ReleaseVersion;preparation=$meta.PreparationRevision;runtime_prepared=(Test-Path -LiteralPath (Join-Path $meta.EngineRoot 'runtime/python.exe') -PathType Leaf);status_text=$statusLabel.Text;timer_text=$timerLabel.Text;run_enabled=$runButton.Enabled;receipt_admitted=($null -ne $script:receipt);reports=@($reportChoice.Items);mode=[string]$modeBox.SelectedItem;modes=@($modeBox.Items);help_items=@($helpMenu.Items | ForEach-Object { $_.Text });detail_text=$detail.Text}; $form.Close() })
         [void]$form.ShowDialog()
     }
-} finally { $timer.Stop(); $form.Dispose(); if ($created) { $mutex.ReleaseMutex() }; $mutex.Dispose(); if (-not $SmokeScreenshot -and (Test-Path -LiteralPath $ownerPath)) { try { $owner=Read-FvJson $ownerPath 8192; if ($owner.pid -eq $PID) { Remove-Item -LiteralPath $ownerPath -Force } } catch {} } }
+} finally { $timer.Stop(); if ($script:updateJob) { $script:updateJob.Worker.Stop(); $script:updateJob.Worker.Dispose(); $script:updateJob=$null }; $form.Dispose(); if ($created) { $mutex.ReleaseMutex() }; $mutex.Dispose(); if (-not $SmokeScreenshot -and (Test-Path -LiteralPath $ownerPath)) { try { $owner=Read-FvJson $ownerPath 8192; if ($owner.pid -eq $PID) { Remove-Item -LiteralPath $ownerPath -Force } } catch {} } }

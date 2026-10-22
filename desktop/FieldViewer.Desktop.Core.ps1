@@ -14,11 +14,21 @@ function Get-FvMetadata([string]$PackageRoot) {
     $toolkit = Read-FvJson (Join-Path $engine 'toolkit.json') 65536
     if (-not $toolkit) { throw 'Engine toolkit.json is unavailable.' }
     $edition = Read-FvJson (Join-Path $PackageRoot 'EDITION.json') 65536
-    [pscustomobject]@{ EngineRoot=$engine; Version=[string]$toolkit.version; Build=[string]$toolkit.build_revision;
-        Edition=$(if ($edition) { [string]$edition.edition } else { 'Desktop development' });
-        GuiRevision=$(if ($edition) { [string]$edition.gui_revision } else { 'source' });
-        EngineTag=$(if ($edition) { [string]$edition.engine_tag } else { 'unpackaged' });
-        EngineZipSha256=$(if ($edition) { [string]$edition.engine_zip_sha256 } else { 'unpackaged' }) }
+    $release=[string](Get-FvProp $edition 'release_version')
+    if (-not $release) { $release=[string](Get-FvProp $toolkit 'release_version') }
+    if (-not $release) { $release=[string](Get-FvProp $toolkit 'version') }
+    $preparation=[string](Get-FvProp $edition 'preparation_revision')
+    if (-not $preparation) { $preparation='development' }
+    $source=[string](Get-FvProp $edition 'source_revision')
+    if (-not $source) { $source='development' }
+    [pscustomobject]@{ EngineRoot=$engine; PackageRoot=[IO.Path]::GetFullPath($PackageRoot);
+        Version=[string](Get-FvProp $toolkit 'version'); Build=[string](Get-FvProp $toolkit 'build_revision');
+        ReleaseVersion=$release; PreparationRevision=$preparation; SourceRevision=$source;
+        RescueExportAvailable=((Get-FvProp $toolkit 'rescue_export_available') -ne $false);
+        Edition=$(if ($edition) { [string](Get-FvProp $edition 'edition') } else { 'Desktop development' });
+        GuiRevision=$(if ($edition) { [string](Get-FvProp $edition 'gui_revision') } else { 'source' });
+        EngineTag=$(if ($edition) { [string](Get-FvProp $edition 'engine_tag') } else { 'unpackaged' });
+        EngineZipSha256=$(if ($edition) { [string](Get-FvProp $edition 'engine_zip_sha256') } else { 'unpackaged' }) }
 }
 function Read-FvJson([string]$Path, [long]$MaxBytes=262144) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
@@ -119,19 +129,90 @@ function Assert-FvReportPathBudget([string]$Output) {
         }
     }
 }
-function New-FvSession([string]$PackageRoot,[string]$Project,[string]$Output,[bool]$ReportOnly) {
+function Get-FvRescueRuntime([string]$PackageRoot) {
+    $engine=Get-FvEngineRoot $PackageRoot
+    $launcher=Join-Path $engine 'scripts/launch_rescue_export.ps1'
+    $localConfig=Join-Path $PackageRoot 'rescue_runtime.local.json'
+    $config=if (Test-Path -LiteralPath $localConfig -PathType Leaf) { $localConfig } else { Join-Path $engine 'rescue_runtime.json' }
+    if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) { throw 'RESCUE launcher is unavailable in this package.' }
+    if (-not (Test-Path -LiteralPath $config -PathType Leaf)) { throw "RESCUE runtime configuration is missing: $config" }
+    if (-not (Test-FvNoReparse $launcher) -or -not (Test-FvNoReparse $config)) { throw 'RESCUE launcher or runtime configuration uses a junction or symbolic link.' }
+    $runtime=Read-FvJson $config 65536
+    $schema=[string](Get-FvProp $runtime 'schema')
+    if ($schema -cnotin @('fieldviewer.rescue-runtime/1','fieldviewer.rescue-runtime/2')) { throw 'RESCUE runtime configuration schema is invalid.' }
+    if ((Test-Path -LiteralPath $localConfig -PathType Leaf) -and $schema -cne 'fieldviewer.rescue-runtime/1') { throw 'Local RESCUE override must use runtime schema 1.' }
+    foreach ($name in @('python','writer','validator','profile')) {
+        $path=[string](Get-FvProp $runtime $name)
+        if ($schema -ceq 'fieldviewer.rescue-runtime/2') { $path=Resolve-FvPortableRescueFile $config $path $name ($name -ceq 'python') }
+        elseif (-not $path -or -not [IO.Path]::IsPathRooted($path) -or -not (Test-Path -LiteralPath $path -PathType Leaf) -or -not (Test-FvNoReparse $path)) { throw "RESCUE runtime $name must be an existing absolute file without reparse points." }
+    }
+    if ($schema -ceq 'fieldviewer.rescue-runtime/2') {
+        foreach ($name in @('enrichment_writer','stratigraphy_writer','interval_writer','receiver_interval_writer','receiver_global_writer','receiver_reader')) {
+            $path=Get-FvProp $runtime $name
+            $digestValue=Get-FvProp $runtime ($name+'_sha256')
+            if (($null -eq $path) -ne ($null -eq $digestValue)) { throw "RESCUE runtime $name path and SHA-256 must be paired." }
+            if ($null -ne $path) {
+                Resolve-FvPortableRescueFile $config ([string]$path) $name | Out-Null
+                if ([string]$digestValue -cnotmatch '^[0-9a-fA-F]{64}$') { throw "RESCUE runtime $name SHA-256 is invalid." }
+            }
+        }
+    }
+    foreach ($name in @('writer_sha256','validator_sha256','profile_sha256')) {
+        if ([string](Get-FvProp $runtime $name) -cnotmatch '^[0-9a-fA-F]{64}$') { throw "RESCUE runtime $name must be a SHA-256 digest." }
+    }
+    return [pscustomobject]@{ Config=[IO.Path]::GetFullPath($config); Launcher=$launcher }
+}
+function Resolve-FvPortableRescueFile([string]$Config,[string]$Raw,[string]$Name,[bool]$AllowPendingManagedPython=$false) {
+    if (-not $Raw -or $Raw -match '[:\x00]' -or $Raw -match '^[\\/]' ) { throw "Invalid package-relative RESCUE path: $Name" }
+    $parts=$Raw -split '[\\/]'
+    foreach ($part in $parts) {
+        if (-not $part -or $part -eq '.' -or $part -eq '..' -or $part -match '[ .]$') { throw "Invalid package-relative RESCUE path: $Name" }
+    }
+    $root=[IO.Path]::GetFullPath((Split-Path -Parent $Config))
+    $path=$root
+    foreach ($part in $parts) { $path=Join-Path $path $part }
+    $path=[IO.Path]::GetFullPath($path)
+    if (-not (Test-FvWithin $path $root $false) -or -not (Test-FvNoReparse $path)) { throw "RESCUE runtime $Name must be a local package file without reparse points." }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        # The managed runtime is expanded by the engine launcher on first use.
+        # Only its exact canonical executable may be pending, and only when the
+        # same engine carries the standalone marker and bundled offline cache.
+        $marker=Join-Path $root 'STANDALONE.txt'
+        $cache=Join-Path $root 'bootstrap/runtime.zip'
+        if (-not ($AllowPendingManagedPython -and $Name -ceq 'python' -and $Raw -ceq 'runtime/python.exe' -and
+            (Test-Path -LiteralPath $marker -PathType Leaf) -and (Test-FvNoReparse $marker) -and
+            (Test-Path -LiteralPath $cache -PathType Leaf) -and (Test-FvNoReparse $cache))) {
+            throw "RESCUE runtime $Name must be a local package file without reparse points."
+        }
+    }
+    return $path
+}
+function New-FvSession([string]$PackageRoot,[string]$Project,[string]$Output,[bool]$ReportOnly,[bool]$Rescue=$false,[bool]$CrsOnly=$false) {
+    if (($Rescue -and $CrsOnly) -or ($ReportOnly -and ($Rescue -or $CrsOnly))) { throw 'Choose one extraction mode.' }
     $paths=Assert-FvInputs $Project $Output
-    Assert-FvReportPathBudget $paths.Output
+    if ($Rescue) { $rescueRuntime=Get-FvRescueRuntime $PackageRoot }
+    elseif (-not $CrsOnly) { Assert-FvReportPathBudget $paths.Output }
+    $engine=Get-FvEngineRoot $PackageRoot
+    if ($CrsOnly) {
+        $crsLauncher=Join-Path $engine 'scripts/launch_crs_extract.ps1'
+        if (-not (Test-Path -LiteralPath $crsLauncher -PathType Leaf) -or -not (Test-FvNoReparse $crsLauncher)) { throw 'CRS-only launcher is unavailable in this package.' }
+    }
     $id=[guid]::NewGuid().ToString('N'); $run=Join-Path $paths.Output ('FV_'+$id.Substring(0,16))
     # New-Item without Force rejects an existing run folder rather than reusing it.
     New-Item -ItemType Directory -Path $run -ErrorAction Stop | Out-Null
-    $engine=Get-FvEngineRoot $PackageRoot
     $exe=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not (Test-Path -LiteralPath $exe)) { throw 'Windows PowerShell 5.1 executable is missing.' }
-    $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $engine 'scripts/launch_standalone_petrel.ps1'),'-ProjectFile',$paths.Project,'-OutputRoot',$run,'-CompanionMode','convert','-NoPause','-FullHash','-RunToCompletion')
-    if ($ReportOnly) { $args+= '-ReportOnly' }
+    if ($Rescue) {
+        $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$rescueRuntime.Launcher,'-ProjectFile',$paths.Project,'-OutputRoot',$run,'-RuntimeConfig',$rescueRuntime.Config)
+    } elseif ($CrsOnly) {
+        $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$crsLauncher,'-ProjectFile',$paths.Project,'-OutputRoot',$run)
+    } else {
+        $args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $engine 'scripts/launch_standalone_petrel.ps1'),'-ProjectFile',$paths.Project,'-OutputRoot',$run,'-CompanionMode','convert','-NoPause','-FullHash','-RunToCompletion')
+        if ($ReportOnly) { $args+= '-ReportOnly' }
+    }
     $session=[ordered]@{ schema='fieldviewer.desktop.session/1'; id=$id; package_root=[IO.Path]::GetFullPath($PackageRoot);
         project=$paths.Project; ptd=$paths.Ptd; selected_output=$paths.Output; output=$run; report_only=$ReportOnly;
+        export_mode=$(if ($Rescue) { 'rescue' } elseif ($CrsOnly) { 'crs' } else { 'standard' }); rescue_runtime_config=$(if ($Rescue) { $rescueRuntime.Config } else { $null });
         executable=$exe; arguments=$args; argument_line=(Join-FvArgs $args); pid=$null; creation_utc=$null;
         command_line=$null; started_utc=[DateTime]::UtcNow.ToString('o'); ended_utc=$null; exit_code=$null;
         state='starting'; stdout=(Join-Path $run 'GUI_LAUNCHER_STDOUT.txt'); stderr=(Join-Path $run 'GUI_LAUNCHER_STDERR.txt');
@@ -173,6 +254,19 @@ function Get-FvOutcome($Session,$Receipt) {
     if ($state -eq 'launch_failed') { return 'launcher_failed' }
     if ($state -ne 'finished') { return $state }
     $exit=[int](Get-FvProp $Session 'exit_code'); $status=Get-FvProp $Receipt 'status'
+    if ((Get-FvProp $Session 'export_mode') -eq 'crs') {
+        if ($exit -eq 130) { return 'cancelled' }
+        if ($Receipt -and (Test-FvCrsReceipt $Session $Receipt)) {
+            if ($exit -eq 0 -and $status -eq 'completed') { return 'completed' }
+            if ($exit -eq 10 -and $status -eq 'completed_with_gaps') { return 'completed_with_gaps' }
+        }
+        return 'failed_or_missing_receipt'
+    }
+    if ((Get-FvProp $Session 'export_mode') -eq 'rescue') {
+        if ($exit -eq 0 -and $status -eq 'experimental_export_verified' -and (Test-FvRescueReceipt $Session $Receipt)) { return 'experimental_export_verified' }
+        if ($exit -eq 130) { return 'cancelled' }
+        return 'failed_or_missing_receipt'
+    }
     if ($exit -eq 0 -and $status -eq 'completed') { return 'completed' }
     if ($exit -eq 10 -and $status -eq 'completed_with_gaps') { return 'completed_with_gaps' }
     if ($exit -eq 130) { return 'cancelled' }
@@ -180,6 +274,22 @@ function Get-FvOutcome($Session,$Receipt) {
 }
 function Get-FvReceipt($Session) {
     if (-not (Test-Path -LiteralPath $Session.output -PathType Container)) { return $null }
+    if ((Get-FvProp $Session 'export_mode') -eq 'crs') {
+        $path=Join-Path (Join-Path $Session.output 'CRS') 'CRS_EXPORT.json'
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or -not (Test-FvNoReparse $path)) { return $null }
+        try { $receipt=Read-FvJson $path 33554432; if (Test-FvCrsReceipt $Session $receipt) { return $receipt } } catch {}
+        return $null
+    }
+    if ((Get-FvProp $Session 'export_mode') -eq 'rescue') {
+        $root=Join-Path $Session.output 'RESCUE'
+        $path=Join-Path $root 'RESCUE_EXPORT.json'
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or -not (Test-FvNoReparse $path)) { return $null }
+        try {
+            $receipt=Read-FvJson $path 33554432
+            if (Test-FvRescueReceipt $Session $receipt) { return $receipt }
+        } catch {}
+        return $null
+    }
     $files=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
     if ($files.Count -ne 1) { return $null }
     if (-not (Test-FvWithin $files[0] $Session.output) -or -not (Test-FvNoReparse $files[0])) { return $null }
@@ -188,11 +298,57 @@ function Get-FvReceipt($Session) {
     try { return (Read-FvJson $files[0] 33554432) } catch { return $null }
 }
 function Get-FvReceiptProblem($Session) {
+    if ((Get-FvProp $Session 'export_mode') -eq 'crs') { return 'CRS_EXPORT.json is missing, malformed, or does not bind to this run and its artifacts.' }
+    if ((Get-FvProp $Session 'export_mode') -eq 'rescue') { return 'RESCUE_EXPORT.json is missing, malformed, or does not bind to this run and its artifacts.' }
     $files=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'RUN_RESULT.json' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
     if ($files.Count -eq 0) { return 'No RUN_RESULT.json was written in this GUI run.' }
     if ($files.Count -ne 1) { return 'Multiple RUN_RESULT.json files exist in this GUI run; identity is ambiguous.' }
     if ((Get-Item -LiteralPath $files[0]).Length -gt 33554432) { return 'RUN_RESULT.json exceeds the GUI 32 MiB reader limit; open it from this run folder for manual review.' }
     return 'RUN_RESULT.json is malformed or its paths did not validate.'
+}
+function Test-FvCrsReceipt($Session,$Receipt) {
+    if ((Get-FvProp $Receipt 'schema') -cne 'fieldviewer.crs-export/1') { return $false }
+    $root=Join-Path $Session.output 'CRS'; $request=Get-FvProp $Receipt 'request'; $status=Get-FvProp $Receipt 'status'
+    if ((Get-FvProp $request 'project_file') -cne $Session.project -or (Get-FvProp $request 'output_root') -cne $root) { return $false }
+    if ($status -cnotin @('completed','completed_with_gaps','failed')) { return $false }
+    foreach ($field in @('physical_crs_verified','physical_datum_verified','petrel_launched','data_store_read')) { if ((Get-FvProp $Receipt $field) -ne $false) { return $false } }
+    if ($status -ne 'failed' -and (Get-FvProp $Receipt 'source_integrity_unchanged') -ne $true) { return $false }
+    if ((Get-FvProp $Receipt 'export_directory') -cne $root -or -not (Test-FvNoReparse $root)) { return $false }
+    foreach ($field in @('full_report','metadata_file','manifest_file')) {
+        if (-not (Test-FvRescueArtifact (Get-FvProp $Receipt $field) $root 'file')) { return $false }
+    }
+    return $true
+}
+function Test-FvRescueReceipt($Session,$Receipt) {
+    if ((Get-FvProp $Receipt 'schema') -cne 'fieldviewer.rescue-export/1') { return $false }
+    $root=Join-Path $Session.output 'RESCUE'
+    $request=Get-FvProp $Receipt 'request'
+    if ((Get-FvProp $request 'project_file') -cne $Session.project -or (Get-FvProp $request 'output_root') -cne $root) { return $false }
+    $status=Get-FvProp $Receipt 'status'
+    if ($status -cnotin @('experimental_export_verified','failed','unsupported_profile')) { return $false }
+    if ((Get-FvProp $Receipt 'complete_model_qualified') -ne $false -or (Get-FvProp $Receipt 'independent_receiver') -ne $false) { return $false }
+    if (-not (Test-FvWithin $root $Session.output) -or -not (Test-FvNoReparse $root)) { return $false }
+    foreach ($field in @('full_report','diagnostic_summary','process_log','structured_events','file_index')) {
+        $path=Get-FvProp $Receipt $field
+        if ($status -eq 'experimental_export_verified' -or $path) {
+            if (-not (Test-FvRescueArtifact $path $root 'file')) { return $false }
+        }
+    }
+    $qc=Get-FvProp $Receipt 'qc'; $qcPath=Get-FvProp $qc 'report_path'
+    if ($status -eq 'experimental_export_verified' -or $qcPath) { if (-not (Test-FvRescueArtifact $qcPath $root 'file')) { return $false } }
+    $export=Get-FvProp $Receipt 'export_directory'
+    if ($status -eq 'experimental_export_verified' -or $export) {
+        if (-not $export -or $export -cne (Join-Path $root 'model') -or -not (Test-FvRescueArtifact $export $root 'dir')) { return $false }
+    }
+    return $true
+}
+function Test-FvRescueArtifact($Path,[string]$Root,[string]$Kind) {
+    if ($Path -isnot [string] -or -not [IO.Path]::IsPathRooted($Path)) { return $false }
+    try {
+        $full=[IO.Path]::GetFullPath($Path)
+        if ($full -cne $Path -or -not (Test-FvWithin $full $Root $false) -or -not (Test-FvNoReparse $full)) { return $false }
+        return (Test-Path -LiteralPath $full -PathType $(if ($Kind -eq 'dir') { 'Container' } else { 'Leaf' }))
+    } catch { return $false }
 }
 function Get-FvBoundRun($Session) {
     $dirs=@(Get-ChildItem -LiteralPath $Session.output -Directory -Filter '*_data' -ErrorAction SilentlyContinue)
@@ -222,6 +378,26 @@ function Get-FvLinks($Session,$Receipt) {
     $links=[ordered]@{ reports=[ordered]@{}; folders=[ordered]@{} }
     $links.folders['Selected output']=$(if ((Test-Path -LiteralPath $Session.selected_output -PathType Container) -and (Test-FvNoReparse $Session.selected_output)) { [string]$Session.selected_output } else { $null })
     $links.folders['This run']=Resolve-FvArtifact $Session $Session.output 'dir'
+    if ((Get-FvProp $Session 'export_mode') -eq 'crs') {
+        if (-not $Receipt -or -not (Test-FvCrsReceipt $Session $Receipt)) { return $links }
+        $links.folders['CRS and datum']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'export_directory') 'dir'
+        $links.reports['CRS and datum report']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'full_report')
+        $links.reports['CRS and datum (JSON)']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'metadata_file')
+        $links.reports['CRS receipt (JSON)']=Resolve-FvArtifact $Session (Join-Path (Join-Path $Session.output 'CRS') 'CRS_EXPORT.json')
+        $links.reports['CRS file manifest']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'manifest_file')
+        return $links
+    }
+    if ((Get-FvProp $Session 'export_mode') -eq 'rescue') {
+        if (-not $Receipt -or -not (Test-FvRescueReceipt $Session $Receipt)) { return $links }
+        $links.folders['RESCUE model']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'export_directory') 'dir'
+        $links.reports['RESCUE report']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'full_report')
+        $links.reports['RESCUE QC (JSON)']=Resolve-FvArtifact $Session (Get-FvProp (Get-FvProp $Receipt 'qc') 'report_path')
+        $links.reports['RESCUE receipt (JSON)']=Resolve-FvArtifact $Session (Join-Path (Join-Path $Session.output 'RESCUE') 'RESCUE_EXPORT.json')
+        $links.reports['Diagnostics']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'diagnostic_summary')
+        $links.reports['View log']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'process_log')
+        $links.reports['File index (CSV)']=Resolve-FvArtifact $Session (Get-FvProp $Receipt 'file_index')
+        return $links
+    }
     if (-not $Receipt) {
         $bound=Get-FvBoundRun $Session
         if (-not $bound) { return $links }

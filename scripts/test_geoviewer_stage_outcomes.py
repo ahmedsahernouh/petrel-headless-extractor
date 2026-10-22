@@ -48,6 +48,14 @@ class StageOutcomeTests(unittest.TestCase):
         self.assertIn('completed with object-level gaps', row['reason'])
         self.assertEqual(row['exit_code'], 10)
 
+    def test_companion_path_gap_is_partial_even_with_successful_stage_exit(self):
+        self.write_report({'status':'partial','has_gaps':True,
+                           'counts':{'preserved':1,'converted_source_files':1,'skipped_path_limit':1}})
+        self.assertEqual(stage.record(self.root,'companions',0,self.report),0)
+        row=self.read_row()
+        self.assertEqual(row['status'],'partial')
+        self.assertEqual(row['exit_code'],0)
+
     def test_truncated_object_list_or_count_disagreement_never_claims_completion(self):
         report = self.partial()
         report['objects'] = report['objects'][:1]

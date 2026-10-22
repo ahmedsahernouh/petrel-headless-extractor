@@ -1,0 +1,657 @@
+{
+  "files": [
+    {
+      "package_path": "AGENT_INTEGRATION.md",
+      "sha256": "5b4d033f6fdde50f13f22738e0ac0f79b167da1b21d4c771f9f4dcc1fbbb1c76",
+      "source_path": "AGENT_INTEGRATION.md"
+    },
+    {
+      "package_path": "CONTACT.md",
+      "sha256": "430f7877967c2e97e3dacff31814d3833bdd056e51e74b50193e5f404b3b2e03",
+      "source_path": "CONTACT.md"
+    },
+    {
+      "package_path": "FieldViewer/CITATION.cff",
+      "sha256": "5c73802422fd825e738985b491ae93d827bdb4eeca6b7c3e58a13f7798e7c1b2",
+      "source_path": "CITATION.cff"
+    },
+    {
+      "package_path": "FieldViewer/LICENSE",
+      "sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5",
+      "source_path": "LICENSE"
+    },
+    {
+      "package_path": "FieldViewer/NOTICE",
+      "sha256": "c4d22d2f9ee3889c1a130d2359cf77201675eda97cbc34572fd72042d5242c0f",
+      "source_path": "NOTICE"
+    },
+    {
+      "package_path": "FieldViewer/scripts/doctor_portable_petrel_toolkit.ps1",
+      "sha256": "47deadf49fcf784ea68cd0aee9804f9b38bd6a8934166b83a19d538c5fcfa63c",
+      "source_path": "scripts/doctor_portable_petrel_toolkit.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/export_petrel_native_project_zero_gui.ps1",
+      "sha256": "5f4873b856478d9a2e170951aae37c80cf4619d69b96727737647e5a1bd471f6",
+      "source_path": "scripts/export_petrel_native_project_zero_gui.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/export_petrel_native_semantic_zero_gui.py",
+      "sha256": "8fa5fb6d7110e784a40a70ca84071959ea2ed41e7a2480f95f7429cf41b40d80",
+      "source_path": "scripts/export_petrel_native_semantic_zero_gui.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/export_petrel_native_spatial_zero_gui.py",
+      "sha256": "547851b22147461f4be87c6a32571e2f821da29e4e1a0117cb65df5de44e5626",
+      "source_path": "scripts/export_petrel_native_spatial_zero_gui.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_connectors.py",
+      "sha256": "b6fd7f9aff82611121cf463749bc2c9234cb8ac30bc124737ba6f66ba9587d79",
+      "source_path": "scripts/fieldviewer_connectors.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_crs.py",
+      "sha256": "dde7729201d0586ca0205aa77d4144615bfa6890afaecfa71058115e27734169",
+      "source_path": "scripts/fieldviewer_crs.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_crs_batch.py",
+      "sha256": "f6ab0a970ee04d31f883f54c4852b29e00e89dbf0fa6dca387598d1913fa97ba",
+      "source_path": "scripts/fieldviewer_crs_batch.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_handoff_intake.py",
+      "sha256": "b00f6ea666d50579064bceb7d3b0fcf541405f5e7a9c695b04e4e1249de8c0df",
+      "source_path": "scripts/fieldviewer_handoff_intake.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_opendtect_project.py",
+      "sha256": "18192798a73a641efa3b7ec2fa2ef8e35450e85c068c3acfa994c944dbf25bce",
+      "source_path": "scripts/fieldviewer_opendtect_project.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_paleoscan_project.py",
+      "sha256": "2fbb3673b7ff1cddc2fe12e649c215932913db623a543957254c0cca6d2c0f50",
+      "source_path": "scripts/fieldviewer_paleoscan_project.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_paleoscan_segy.py",
+      "sha256": "347cf597a002a2847924658acdd7e5a8b3114b440db4cc7fec285d2abd5748e6",
+      "source_path": "scripts/fieldviewer_paleoscan_segy.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_rescue.py",
+      "sha256": "b8d9e4f242a68e5863885781f0aa866aef384b8a711ff2cb801ad80a8e553cb7",
+      "source_path": "scripts/fieldviewer_rescue.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/fieldviewer_seismic_native.py",
+      "sha256": "77b35fe3abd2a2fdf4123137b518333731b088a87455ea6746a1e6582b739200",
+      "source_path": "scripts/fieldviewer_seismic_native.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_assessment_shards.py",
+      "sha256": "8151eb720476ddbcbcbeadbfa56dabe8e89ab40d3ee8625c607e6a041b8650cb",
+      "source_path": "scripts/geoviewer_assessment_shards.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_contract.py",
+      "sha256": "1885e4b7550236b4f2aa35738ec69aa171d607a3d4a7043f3e91a0c13a2a3902",
+      "source_path": "scripts/geoviewer_contract.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_contract_publication.py",
+      "sha256": "a60df0f1263674af67cb5f109a205dc4e4ea4d32a3f9d8caf5b559a11a958919",
+      "source_path": "scripts/geoviewer_contract_publication.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_contract_retention.py",
+      "sha256": "dc7e9c6fa48a51539bf7e75fd54913ca0593d3e3fb47f083566c6766067c5753",
+      "source_path": "scripts/geoviewer_contract_retention.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_delivery.py",
+      "sha256": "bab1187c5b859713fbc66865e785d5a97dc9b9a56ae373f6614832a26481af81",
+      "source_path": "scripts/geoviewer_delivery.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_diagnostics.py",
+      "sha256": "f7c92840e03e616e5390ef63b6db5e443cc95d04e75d637307074d01d618947e",
+      "source_path": "scripts/geoviewer_diagnostics.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_incremental.py",
+      "sha256": "18edf0e633d20a8759a4a5ece1348987fbb62c52580ecfe6f816b378b7c954a9",
+      "source_path": "scripts/geoviewer_incremental.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_io.py",
+      "sha256": "93ea5a2fa66024de6b9b82a72eb1b42d0fd8633752ca2c7051ac81844e3ac3e3",
+      "source_path": "scripts/geoviewer_io.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_lanes.py",
+      "sha256": "3f7b58db047d0274ad7b7bb36d7f6f0cc214948db7a56e47a342bb26943caace",
+      "source_path": "scripts/geoviewer_lanes.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_legacy_contract.py",
+      "sha256": "7cc5b89ddd7171100f8f8aea7ac47872dc842dfc7998f88d624839af26192015",
+      "source_path": "scripts/geoviewer_legacy_contract.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_map.py",
+      "sha256": "a403592fbcb934ef22ff9126f4767e23740cefebae5f487e0afc0e46a76f608b",
+      "source_path": "scripts/geoviewer_map.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_metadata.py",
+      "sha256": "f13f30a5e8cb0319eeeaadcb65925fab0f82e011be55a3f350c14e32f7b3d1f5",
+      "source_path": "scripts/geoviewer_metadata.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_metadata_evidence.py",
+      "sha256": "feb03712d29b645dc3eda9b1afd49419bc7a05cfa1fa43159c6bd83373e0d507",
+      "source_path": "scripts/geoviewer_metadata_evidence.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_native_receipt.py",
+      "sha256": "abf9031f9b52e3ef2ea1bdc2cf70148ba5b26d02b8dc7c9ae9771ba4df3016cc",
+      "source_path": "scripts/geoviewer_native_receipt.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_operation_timing.py",
+      "sha256": "9234e24e3d3ad8e74188d458e9e69fdd4bc9cc656fa4c0c63a90a89e66111b22",
+      "source_path": "scripts/geoviewer_operation_timing.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_output_paths.py",
+      "sha256": "7aa322e6b7001c2f1f196517fbf4bf923368b58abf86460568e6b9ebe3713496",
+      "source_path": "scripts/geoviewer_output_paths.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_paths.py",
+      "sha256": "151ec2d040f6d29e26b6e12bd494d1e68b5d4969097a4c5ec6653acf7467d798",
+      "source_path": "scripts/geoviewer_paths.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_preparation_report.py",
+      "sha256": "cde1cbe70ea67b59b6cdeb6d5559e655964a8aa6ecedb8858f0acffec8b72f29",
+      "source_path": "scripts/geoviewer_preparation_report.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_receiving_profiles.py",
+      "sha256": "5040bed75f5bdbe5ae880126731cb43811a6eccb790aeb0a43da8e6b7165dcd5",
+      "source_path": "scripts/geoviewer_receiving_profiles.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_result_access.py",
+      "sha256": "d19a20d72a3895cc25f49998120a564b016ee69a761d47800325f8de51e1f0ba",
+      "source_path": "scripts/geoviewer_result_access.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_seismic_delivery.py",
+      "sha256": "fa0835bef0641a8187a9bc2cf0146bcce48b5446cc7783cb92a1c1a4cea21581",
+      "source_path": "scripts/geoviewer_seismic_delivery.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_stage.py",
+      "sha256": "5eff39dc3169ba1a9d506e7bde6b5f5ef5c178f3773285a9541c02fe61d9e559",
+      "source_path": "scripts/geoviewer_stage.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_support.ps1",
+      "sha256": "33ee11d02121e4f50f7f8281f3eb24305c5e4ee42dd29cf0eca6297146f627ef",
+      "source_path": "scripts/geoviewer_support.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_support.py",
+      "sha256": "4d6593e5e0372f865937bb443a304a560100bb0b6310b04b54a676a59d0414d4",
+      "source_path": "scripts/geoviewer_support.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_surface_registration.py",
+      "sha256": "195c7927187030620b59f9e69c70e5f194a92ca8ca9c83258a5e9368557389c0",
+      "source_path": "scripts/geoviewer_surface_registration.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/geoviewer_trace.py",
+      "sha256": "7cbd9ebc6789f98967619e484f8280aa2916f2bc3fe7987e9d320472e9cc8ec0",
+      "source_path": "scripts/geoviewer_trace.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/invoke_portable_petrel_extract.ps1",
+      "sha256": "138620d7af51308a104e1a067ad4148eecf3d15e0e53c5d789e998022839490d",
+      "source_path": "scripts/invoke_portable_petrel_extract.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/launch_crs_extract.ps1",
+      "sha256": "07b9e0739b3493174ab7598f8018fb4a5955ab0ddff77886b324f84af2822c2d",
+      "source_path": "scripts/launch_crs_extract.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/launch_rescue_export.ps1",
+      "sha256": "b5f6b779731dc58ee2c8a1586eb43c565e5c4cf9efae63658d0268a849cc71c8",
+      "source_path": "scripts/launch_rescue_export.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/launch_standalone_petrel.ps1",
+      "sha256": "0fb5d12b9e91991c352f6637dfccb5efa2285af9d2f1697f7252ed1fbc53e46f",
+      "source_path": "scripts/launch_standalone_petrel.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/launch_zgy_conversion.ps1",
+      "sha256": "53bcb9205f4a57686f112bf3b08103d94f8f6b5b6d97358e73163f3ce27dd2e8",
+      "source_path": "scripts/launch_zgy_conversion.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/new_export_package.ps1",
+      "sha256": "8464fb4809b25c71ebbbbd4799f4ace75f49c67f791dd617cc4ba92a80341fd7",
+      "source_path": "scripts/new_export_package.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_crs_datum.py",
+      "sha256": "f78143c474f84510128832a46bf57611db3ae3dd3683c9ad72d11e8e8e70670b",
+      "source_path": "scripts/petrel_crs_datum.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_eclipse_geometry.py",
+      "sha256": "08943cf08c8e8559c89a86fa587feb84f83cd58103d350dca78b17dc4580ec85",
+      "source_path": "scripts/petrel_eclipse_geometry.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_fault_controls.py",
+      "sha256": "70ff7596247c30b1cce6ade58ff6611dba040206933e6ffb5dd9c4ceb9de9ea0",
+      "source_path": "scripts/petrel_fault_controls.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_fault_state_context.py",
+      "sha256": "dafd69599f4b16aac735e6af2052c134671caa0e653f4cb794410a0570c87b2b",
+      "source_path": "scripts/petrel_fault_state_context.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_file_convert.py",
+      "sha256": "37dabfba7440083f62457b789e14f8b84e33d8f16c4269b0c5b32280f3cccfef",
+      "source_path": "scripts/petrel_file_convert.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_geoscience_tools.py",
+      "sha256": "196f133840a36c963b8f974575822ce115965811255fe0a282420a9e6e590a3c",
+      "source_path": "scripts/petrel_geoscience_tools.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_grid_interfaces.py",
+      "sha256": "1362dac39efcf79f25608d673b88310c9694166496118af2195547fad20e0524",
+      "source_path": "scripts/petrel_grid_interfaces.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_grid_partition.py",
+      "sha256": "535625d447ac1f4004b8f8a84a4a8ed4adbdc991e839d2e152a2728539f46326",
+      "source_path": "scripts/petrel_grid_partition.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_keypillar_boundaries.py",
+      "sha256": "8306be905d7846a3a8aec9bad80f20d911ba660ecfc22ef7bfb1e463d15cdec3",
+      "source_path": "scripts/petrel_keypillar_boundaries.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_mcp_dependencies.ps1",
+      "sha256": "177bab5e97bc9b1f03492fac491860885b86ced565ce88f4c84e08538bf6158c",
+      "source_path": "scripts/petrel_mcp_dependencies.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_model_stratigraphy.py",
+      "sha256": "a89005314ac62f76954ce755e4b40187d99bcffd00cdaed193bbea489873e4a3",
+      "source_path": "scripts/petrel_model_stratigraphy.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_binary.py",
+      "sha256": "ad01c7f98ebf4370c79d93c19c6f3ecdf6093872712b35ca19eca6a899fc7c93",
+      "source_path": "scripts/petrel_native_binary.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_geometry_attributes.py",
+      "sha256": "5bd708d162ccf8266be7e86f50bd2a7093c47145ff273cf3264d2964c5fff74a",
+      "source_path": "scripts/petrel_native_geometry_attributes.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_log_evidence.py",
+      "sha256": "9b7d171a439596e16fdf0d488f10f67437687d594153ba9ffe41dfe17796049a",
+      "source_path": "scripts/petrel_native_log_evidence.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_polygon_bindings.py",
+      "sha256": "e7305c4382887ccea463d9cc592d9748219fd13eefe6f7e1aae81769a05f54a4",
+      "source_path": "scripts/petrel_native_polygon_bindings.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_recovery.py",
+      "sha256": "773f3a46b3ce835f0db7dbc8c83e5298b4ce719cb0591a237355a4f0de214b79",
+      "source_path": "scripts/petrel_native_recovery.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_native_well_evidence.py",
+      "sha256": "278131ca01f45db83bdc3dd4d6d7a528f0d33ca3384af46ce6ee218930153f23",
+      "source_path": "scripts/petrel_native_well_evidence.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_progress.py",
+      "sha256": "4d53e3d18edc31d08ca6ea968e9eb519f865a1a3169508ba2c270e92f69e5b54",
+      "source_path": "scripts/petrel_progress.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_project_seismic.py",
+      "sha256": "bab79dfaca382a3bae44f17c5d34246d6570a2ad5d5bb51e300d48e028b279ac",
+      "source_path": "scripts/petrel_project_seismic.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_property_history.py",
+      "sha256": "aa95f4790e03d29c0fd4b7d725f768b61213063cb550114196ef78eebd469ccd",
+      "source_path": "scripts/petrel_property_history.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_regular_grid_stream.py",
+      "sha256": "c12b8e2cd5bfbb204586ff2c7cca44964675061fa6d5771454556908115a2737",
+      "source_path": "scripts/petrel_regular_grid_stream.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_reservoir_geometry.py",
+      "sha256": "6273fd931d0fe6268b99c535df58383670baf5466315c16bbc590b4da435dfb2",
+      "source_path": "scripts/petrel_reservoir_geometry.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_reservoir_links.py",
+      "sha256": "8ab6fb1d57f1b43ad238599b276eb14b49c262599c0580ed302c363ff3ad9e92",
+      "source_path": "scripts/petrel_reservoir_links.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_reservoir_structure.py",
+      "sha256": "0d4db9182a4944c3535d74f598d4ec2b550332f36b2a5351ea0924e240c79b4c",
+      "source_path": "scripts/petrel_reservoir_structure.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_seismic_integrity.py",
+      "sha256": "ed6e34f311ab34d91d6d1d945820be2f569bb0d7c0085792f77994a7579feb87",
+      "source_path": "scripts/petrel_seismic_integrity.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_surface_export.py",
+      "sha256": "58ae0495f8405d4b6869bb76ca3acb67ec907de9d4637c454e203462abb50af5",
+      "source_path": "scripts/petrel_surface_export.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/petrel_visual_report.py",
+      "sha256": "d4ec213eb6de8ff9b7bd264a9ab85abe50a3ab1b9f2fad5bf309021e01508421",
+      "source_path": "scripts/petrel_visual_report.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/portable_petrel_companion_extract.py",
+      "sha256": "76c7b5d5020fe187da9e4b66a2827568e0da8a73325269308106ce27e8220442",
+      "source_path": "scripts/portable_petrel_companion_extract.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/probe_petrel_reservoir_structure.py",
+      "sha256": "382cdb289f6f39d0da3f6f2e8c3fc4ca317fdf33f627470feb9c9431db643983",
+      "source_path": "scripts/probe_petrel_reservoir_structure.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/register_petrel_file_exports.ps1",
+      "sha256": "71e1e01434420231de7c2a89c6e8620584cfc500188cfe21b0ff2816499f95f8",
+      "source_path": "scripts/register_petrel_file_exports.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/repair_standalone_dependencies.ps1",
+      "sha256": "3c8d5e3b95e97f2718406965c5ffff725bdf7f6b82a0c0bc0dc1f41343ff8b14",
+      "source_path": "scripts/repair_standalone_dependencies.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/report_petrel_project_audit.py",
+      "sha256": "2ffb641014367ab537132846c045ba439a10e1e6d220c59618bc5b0bee538b46",
+      "source_path": "scripts/report_petrel_project_audit.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/standalone_petrel_extract.py",
+      "sha256": "78fdc3c4b2b8cacaae2ba225fc5b1ed0684ad9dfaee30aaf37a3e978c00bcb9a",
+      "source_path": "scripts/standalone_petrel_extract.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_companion_large_files.py",
+      "sha256": "a1fa993119b6f71c0bee9966b2ff7e0caab0edf5a31d1ce183f2cd9ec22b5627",
+      "source_path": "scripts/test_companion_large_files.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_companion_path_isolation.py",
+      "sha256": "32c2f0b80e42730b1ef920cdb417fa6ce686d018ee15cc984e7ffa666b20b344",
+      "source_path": "scripts/test_companion_path_isolation.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_crs_launcher.ps1",
+      "sha256": "b8752f8d9daa15ee30f02fd969328cd29a6fecdf0bc2b37dff119c45c126235c",
+      "source_path": "scripts/test_crs_launcher.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_fieldviewer_crs.py",
+      "sha256": "0af4b0ade160fe3813f6ee38d58986d2bf5c40209cc0a3f80da4a90db27fdffc",
+      "source_path": "scripts/test_fieldviewer_crs.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_fieldviewer_crs_batch.py",
+      "sha256": "540227c3fbf25622d8d761722d1eda234d62c72fdcb31c0d499045e41b978a2c",
+      "source_path": "scripts/test_fieldviewer_crs_batch.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_geoviewer_release.py",
+      "sha256": "9419aefc6affca7d146e4ac5a132060066b7c3ee199f1852b78f0a0ac6bd3c9f",
+      "source_path": "scripts/test_geoviewer_release.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_geoviewer_robustness.py",
+      "sha256": "524d03966badb5cd6aef9318daa12517767229f3f8cc4cd6226900899b432feb",
+      "source_path": "scripts/test_geoviewer_robustness.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_geoviewer_stage_outcomes.py",
+      "sha256": "b912fc3705d2d1a9d72f2f7c988ede1f3592a31ffc768d20ee25a11ca872f1b6",
+      "source_path": "scripts/test_geoviewer_stage_outcomes.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_geoviewer_support.py",
+      "sha256": "9147542f8015956716a72b7ff01b03d7b405e120b9d314d21edb72ce4ba911ec",
+      "source_path": "scripts/test_geoviewer_support.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_output_path_preflight.py",
+      "sha256": "9725293d7a5fce190c41d98842f194093105f7a86879eed2fc2842801564d2bb",
+      "source_path": "scripts/test_output_path_preflight.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_binary_conversion.py",
+      "sha256": "227d44a3a0006c15a8bd26572a31692c5f87c679813f464a054fb0cf80de0d8a",
+      "source_path": "scripts/test_petrel_binary_conversion.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_crs_datum.py",
+      "sha256": "bf45a69e9eb38590939f4fca33b4b9c6a670d97883a7e9c0f42f3bf98fb4d19d",
+      "source_path": "scripts/test_petrel_crs_datum.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_native_recovery.py",
+      "sha256": "6984370e1df4ccfb1f1a1aa3b93baa1e8b0f23f3323abf2e890b7b476be6bbe4",
+      "source_path": "scripts/test_petrel_native_recovery.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_native_spatial_zero_gui.py",
+      "sha256": "49e2918deab6dbf0489b263624ebd6401a3447124da6665f720b08472e03f232",
+      "source_path": "scripts/test_petrel_native_spatial_zero_gui.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_progress.py",
+      "sha256": "39d07d87754a9bf0fcf9d8774fc000830b64bbc3ea24b6e39b591f10f611813a",
+      "source_path": "scripts/test_petrel_progress.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_property_history.py",
+      "sha256": "8b35aede5b8fad0b74ffcaf671dcdef1449d3cfa93cc2154285f1615e5971252",
+      "source_path": "scripts/test_petrel_property_history.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_surface_export.py",
+      "sha256": "be148f446a0f2851cc90ecaf76f3fc3bd9a0c34834f67d0a5e432edaa4855ddd",
+      "source_path": "scripts/test_petrel_surface_export.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_petrel_visual_report.py",
+      "sha256": "09fb69f5c16b08b838fe7809e8345cc7474a16b52a2779b4dfd3f1606e618870",
+      "source_path": "scripts/test_petrel_visual_report.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_points3_identity_stream.py",
+      "sha256": "c4c1c44938bb0c22b14b77b1e79cb449e11cd2bb9b0713aafc2c3b7f73c0d95a",
+      "source_path": "scripts/test_points3_identity_stream.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_portable_petrel_toolkit.ps1",
+      "sha256": "5068e5dad90ee8797caa7413b079f4e1fd15e4fd7a871b4152720e97525bf089",
+      "source_path": "scripts/test_portable_petrel_toolkit.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_project_seismic.py",
+      "sha256": "5606238660bbaba462965622cc7395461034b8ba193eafb69cd0d579cc816317",
+      "source_path": "scripts/test_project_seismic.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/test_regular_grid_stream.py",
+      "sha256": "b563e6a09f20489dbcec8e236de9bbca72d5db89055c2f5973f7fe350e586068",
+      "source_path": "scripts/test_regular_grid_stream.py"
+    },
+    {
+      "package_path": "FieldViewer/scripts/validate_export_package.ps1",
+      "sha256": "7c195b8e2bdc5ad0efc766d7ae33c00e821f53fb7681ecb9476bef193ce87714",
+      "source_path": "scripts/validate_export_package.ps1"
+    },
+    {
+      "package_path": "FieldViewer/scripts/validate_geoviewer_contract.py",
+      "sha256": "b5b330d66707d2f0284c9383a8c8c98e53c26fb3846f25edfceaf5c9c072b80e",
+      "source_path": "scripts/validate_geoviewer_contract.py"
+    },
+    {
+      "package_path": "FieldViewer/toolkit.json",
+      "sha256": "da84fd0cbcf80a1604e9006037942b6068b95f14d4b6f8b3c04586ef5f836f50",
+      "source_path": "toolkit.json"
+    },
+    {
+      "package_path": "FieldViewer_CRS_Audit.ps1",
+      "sha256": "47daa6db61bb946b47d44af8d8d41f8c11271dd6fcaece78e51095397743e8d7",
+      "source_path": "FieldViewer_CRS_Audit.ps1"
+    },
+    {
+      "package_path": "FieldViewer_Desktop.bat",
+      "sha256": "660c99925f58073e62dc0e98d73735ad3742ef9039fe836bcaaca6b10bc73a43",
+      "source_path": "FieldViewer_Desktop.bat"
+    },
+    {
+      "package_path": "FieldViewer_data_extractor.bat",
+      "sha256": "b79144153979a78b64f0b76cdfddd5d19f0b4e9fcef370fa3364d22a6fa6b104",
+      "source_path": "FieldViewer_data_extractor.bat"
+    },
+    {
+      "package_path": "KNOWN_LIMITATIONS.md",
+      "sha256": "76e7b64e40127a963b253e0f9bf99b2625b60447aa3828f6aa99f7297b5d1f9a",
+      "source_path": "KNOWN_LIMITATIONS.md"
+    },
+    {
+      "package_path": "RELEASE_NOTES.md",
+      "sha256": "7e0b234d5121daafce6511377461f3370b790c73fc501507a7cfa1f4557cff91",
+      "source_path": "RELEASE_NOTES.md"
+    },
+    {
+      "package_path": "Start Here.html",
+      "sha256": "680d4c1fb7822807850f682ef1f87ac1453eb321322a3c8142f21e3d9ffc901f",
+      "source_path": "Start Here.html"
+    },
+    {
+      "package_path": "Start Here.pdf",
+      "sha256": "d790940fd29233c6c1ad320a7b9d79d547d1d56577961e293881a3f3c0feae3b",
+      "source_path": "Start Here.pdf"
+    },
+    {
+      "package_path": "desktop/FieldViewer.Desktop.Core.ps1",
+      "sha256": "381736582772d088524961307039f5c25a7864af7deb725a8044e9d830726239",
+      "source_path": "desktop/FieldViewer.Desktop.Core.ps1"
+    },
+    {
+      "package_path": "desktop/FieldViewer.Desktop.Mail.ps1",
+      "sha256": "e31de15da22e936546ac6fa042695a1a7c9c00c75a37825998ac31f10b335b0e",
+      "source_path": "desktop/FieldViewer.Desktop.Mail.ps1"
+    },
+    {
+      "package_path": "desktop/FieldViewer.Desktop.SizeScan.ps1",
+      "sha256": "5c191ede609977c721eea942df46d9da6e703e0bbe8caf68bb89596c0138c36a",
+      "source_path": "desktop/FieldViewer.Desktop.SizeScan.ps1"
+    },
+    {
+      "package_path": "desktop/FieldViewer.Desktop.Supervisor.ps1",
+      "sha256": "235f3ee664f2e76ffcbf5ad31ef7bd6001b4209d4f33293fd32327dfaa12af3d",
+      "source_path": "desktop/FieldViewer.Desktop.Supervisor.ps1"
+    },
+    {
+      "package_path": "desktop/FieldViewer.Desktop.Updates.ps1",
+      "sha256": "68b2a4f633ded4a106af16b8d4a8555bde0e0296f3bc24f271fe4d41c52093ef",
+      "source_path": "desktop/FieldViewer.Desktop.Updates.ps1"
+    },
+    {
+      "package_path": "desktop/FieldViewer.Desktop.ps1",
+      "sha256": "3f1d18e052230bd6335c802f488b82e98b21a959d6c64e1c1234799f0ff2f663",
+      "source_path": "desktop/FieldViewer.Desktop.ps1"
+    },
+    {
+      "package_path": "skills/petrel-crs-drive-audit/SKILL.md",
+      "sha256": "dcc40e2977a8015967cb34546c16c35557f979459bf47e1641f6e19deecd5e22",
+      "source_path": "skills/petrel-crs-drive-audit/SKILL.md"
+    },
+    {
+      "package_path": "skills/petrel-crs-drive-audit/agents/openai.yaml",
+      "sha256": "bfadbf2042438d629ec178d4fcfb276ee5462d8b8024ea8842df82fcdcfea98c",
+      "source_path": "skills/petrel-crs-drive-audit/agents/openai.yaml"
+    },
+    {
+      "package_path": "skills/petrel-crs-drive-audit/scripts/audit.ps1",
+      "sha256": "728fc9f44bf50451d4c5152615f79b2b0caf642c6ee214bc53991eba23b08e8e",
+      "source_path": "skills/petrel-crs-drive-audit/scripts/audit.ps1"
+    },
+    {
+      "package_path": "skills.md",
+      "sha256": "5b69a13da481d2efd48a01f39b6efe49dacfb164eaaa8c2c6622cf8c3f1adb08",
+      "source_path": "skills.md"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/License.md",
+      "sha256": "7f378a4367be6ccff61ea0f5408ebf73b35f2a1635573d1129239afb83c819bd",
+      "source_path": "third_party/segyio/License.md"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/COPYING",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "source_path": "third_party/segyio/COPYING"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/segyio-1.9.14-source.tar.gz",
+      "sha256": "fdb25f24cf12681553c146fc80645dd058d0b40c9cc56542b2ab91859bd3db44",
+      "source_path": "third_party/segyio/segyio-1.9.14-source.tar.gz"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/SOURCE_PROVENANCE.json",
+      "sha256": "ebc3ee5e976a618649c0fd079e64ca2f2aa3a2e2880b1958a78dc71a92de883f",
+      "source_path": "third_party/segyio/SOURCE_PROVENANCE.json"
+    },
+    {
+      "package_path": "FieldViewer/third_party/segyio/README.md",
+      "sha256": "9dc229ecd22425e456702ac5c470437e26eb6cf3eddd6d6bd4d9744a9fc2f6bd",
+      "source_path": "third_party/segyio/README.md"
+    }
+  ],
+  "preparation": "r11",
+  "schema": "fieldviewer.release-source-map/1",
+  "version": "1.0.0-beta.3"
+}

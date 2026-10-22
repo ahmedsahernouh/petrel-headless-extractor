@@ -24,6 +24,13 @@ def fits_file(path):
     return windows_length(path) <= FILE_LIMIT and windows_length(path.parent) <= DIRECTORY_LIMIT
 
 
+def companion_reservation(relative):
+    """Companion paths are qualified per file, independently of native recovery."""
+    parts = Path(relative).parts
+    return bool(parts and (parts[0] in ('09_source_companions', '10_converted_ascii')
+                          or parts[:2] == ('02_wells', 'well_tops')))
+
+
 class ExportPathBudgetError(ValueError):
     """No safe readable alias fits; the validated original must remain visible."""
 

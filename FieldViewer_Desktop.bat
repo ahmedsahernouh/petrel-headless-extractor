@@ -3,9 +3,14 @@ rem Copyright 2026 Ahmed Saher Nouh
 rem SPDX-License-Identifier: Apache-2.0
 setlocal EnableExtensions DisableDelayedExpansion
 set "FV_DESKTOP_ROOT=%~dp0."
+if /I "%~1"=="--prepare-runtime" goto prepare_runtime
 if /I "%~1"=="--smoke" goto smoke
 start "Field Viewer Desktop" "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File "%~dp0desktop\FieldViewer.Desktop.ps1" -PackageRoot "%FV_DESKTOP_ROOT%"
 exit /b 0
+
+:prepare_runtime
+call "%~dp0FieldViewer_data_extractor.bat" --check -NoPause
+exit /b %errorlevel%
 
 :smoke
 if "%~2"=="" exit /b 2

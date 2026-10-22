@@ -1,0 +1,4 @@
+interface:
+  display_name: "Petrel CRS Drive Audit"
+  short_description: "Audit Petrel CRS and datum metadata into CSV"
+  default_prompt: "Use $petrel-crs-drive-audit to audit the Petrel projects on my chosen drive and produce a CRS and datum comparison CSV."

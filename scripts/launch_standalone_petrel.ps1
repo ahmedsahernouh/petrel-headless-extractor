@@ -61,7 +61,7 @@ try {
         Write-Output 'Or: FieldViewer_data_extractor.bat --check -NoPause'
         $exitCode=0; exit 0
     }
-    Write-Output "Field Viewer Data Extractor - Beta version (1.0.0)"
+    Write-Output "Field Viewer Data Extractor 1.0.0 - standalone, read-only"
     if ([System.IO.Path]::GetExtension($ProjectFile) -ieq '.zgy' -or $Inspect -or $Capabilities) {
         Invoke-ZgyInput
         $exitCode=$LASTEXITCODE; exit $exitCode

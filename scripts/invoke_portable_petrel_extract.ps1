@@ -235,7 +235,7 @@ if (-not $SkipCompanionExtraction) {
         --mode $CompanionMode `
         --max-file-bytes $MaxCompanionFileBytes @seismicArgs
     $companionCode = Get-PetrelMcpLastExitCode
-    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category companions --code $companionCode
+    & $pythonExe (Join-Path $PSScriptRoot 'geoviewer_stage.py') --package $exportPackage --category companions --code $companionCode --report (Join-Path $exportPackage '07_workflows_reports/portable_extractor/companion_capability_report.json')
     if ((Get-PetrelMcpLastExitCode) -ne 0) { exit 1 }
 } else {
     Write-Output "Stage 3/6: skipped by request"

@@ -96,9 +96,12 @@ def plan_run_paths(output, label, *, timestamp=None, token=None, project_file=No
     # Keep this width synchronized with new_export_package.ps1. It is a
     # reservation, not the identity of the package later created by PowerShell.
     package_placeholder = 'p_00000000_000000_000000'
-    from geoviewer_output_paths import source_reservations, reservation_failure
+    from geoviewer_output_paths import source_reservations, reservation_failure, companion_reservation
     reservations, inventoried_files = source_reservations(project_file, companion_mode) if project_file else ([], 0)
+    required_reservations = [p for p in reservations if not companion_reservation(p)]
+    companion_reservations = [p for p in reservations if companion_reservation(p)]
     last_error = None
+    best_plan = None
     for length in range(len(name), 0, -1):
         stem = name[:length] + suffix
         native = output / (stem + '_data') / 'extraction/package' / package_placeholder / 'native_data'
@@ -110,7 +113,7 @@ def plan_run_paths(output, label, *, timestamp=None, token=None, project_file=No
         if failure:
             last_error = 'Readable export paths exceed Windows profile: ' + repr(failure)
             continue
-        failure = reservation_failure(native.parent, reservations)
+        failure = reservation_failure(native.parent, required_reservations)
         if failure:
             last_error = 'Source-relative output exceeds Windows profile: ' + repr(failure)
             continue
@@ -132,14 +135,26 @@ def plan_run_paths(output, label, *, timestamp=None, token=None, project_file=No
         if failure:
             last_error='Native output exceeds Windows UTF-16 path profile: '+repr(failure)
             continue
-        return dict(stem=stem, original_stem=original_stem,
+        deferred = [failure for p in companion_reservations
+                    if (failure := reservation_failure(native.parent, [p]))]
+        candidate = dict(stem=stem, original_stem=original_stem,
                     label_shortened=stem != original_stem,
                     label_characters_removed=len(original_stem)-len(stem),
                     output_root=str(output), planned_native_root=str(native),
                     object_path_plans=plans,
                     source_files_inventoried=inventoried_files, source_path_reservations=len(reservations),
+                    companion_path_policy='Per-file gaps; a companion path cannot reject independent native extraction',
+                    deferred_companion_path_count=len(deferred), deferred_companion_paths=deferred,
                     scope='Native object paths and, when supplied, source-relative native snapshots, '
-                          'companions, supported derivatives, readable exports and shallow quarantine; Windows bounded-path profile')
+                          'readable exports and shallow quarantine; companion copy/derivative paths are qualified per file')
+        # Shorten the display label when this rescues more companion destinations.
+        # If every companion fits, retain the longest already-qualified label.
+        if best_plan is None or len(deferred) < best_plan['deferred_companion_path_count']:
+            best_plan = candidate
+        if not deferred:
+            return candidate
+    if best_plan is not None:
+        return best_plan
     raise g.InputError('Output path preflight failed before extraction. Even the shortest run label '
                        'does not fit. Choose a shorter output root. ' + str(last_error))
 
@@ -252,6 +267,10 @@ def main():
         diagnostics.event('environment',**environment_info(run))
         diagnostics.event('started',request=vars(args),preflight=doctor)
         diagnostics.event('output_path_plan', **path_plan)
+        if path_plan.get('deferred_companion_path_count'):
+            diagnostics.event('companion_paths_deferred', severity='warning',
+                count=path_plan['deferred_companion_path_count'],
+                reason='These companion destinations exceed the bounded path profile. Their individual files will be copied/converted where qualified or recorded as gaps; native extraction continues.')
         gio.atomic_json(run/'OUTPUT_PATH_PLAN.json', path_plan)
         def optional(category, action):
             try:

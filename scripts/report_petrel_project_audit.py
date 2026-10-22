@@ -481,10 +481,12 @@ def png_dimensions(path: Path) -> tuple[int | None, int | None]:
     return None, None
 
 
-def gather_media(package: Path, max_embed_bytes: int = 12 * 1024 * 1024) -> dict:
+def gather_media(package: Path, max_embed_bytes: int = 12 * 1024 * 1024,
+                 max_total_embed_bytes: int = 8 * 1024 * 1024) -> dict:
     from geoviewer_io import pending_output
     image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
     items = []
+    embedded_bytes = 0
     for path in sorted((item for item in package.rglob("*") if item.suffix.lower() in image_extensions
                         and not pending_output(item) and item.is_file()), key=lambda item: str(item).casefold()):
         relative = path.relative_to(package).as_posix()
@@ -494,11 +496,18 @@ def gather_media(package: Path, max_embed_bytes: int = 12 * 1024 * 1024) -> dict
         width, height = png_dimensions(path)
         payload = ""
         status = "linked_not_embedded_size_limit"
-        if size <= max_embed_bytes:
+        if size <= max_embed_bytes and size > max_total_embed_bytes - embedded_bytes:
+            status = "linked_not_embedded_total_budget"
+        elif size <= max_embed_bytes:
             mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             try:
-                payload = f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-                status = "embedded"
+                data = path.read_bytes()
+                if len(data) <= max_total_embed_bytes - embedded_bytes:
+                    payload = f"data:{mime};base64," + base64.b64encode(data).decode("ascii")
+                    embedded_bytes += len(data)
+                    status = "embedded"
+                else:
+                    status = "linked_not_embedded_total_budget"
             except OSError:
                 status = "unreadable"
         lower = relative.casefold()
@@ -521,7 +530,9 @@ def gather_media(package: Path, max_embed_bytes: int = 12 * 1024 * 1024) -> dict
                 "data_uri": payload,
             }
         )
-    return {"available": bool(items), "image_count": len(items), "images": items}
+    return {"available": bool(items), "image_count": len(items), "images": items,
+            "embedded_image_count": sum(item['embed_status']=='embedded' for item in items),
+            "embedded_bytes": embedded_bytes, "embedding_budget_bytes": max_total_embed_bytes}
 
 
 def decimate_xy(points: list[tuple[float, float]], maximum: int) -> list[tuple[float, float]]:
@@ -1419,7 +1430,7 @@ def render_html(audit: dict, title: str) -> str:
       <div class="boundary">{esc(crs_warning)}</div></div></section>
     <section id="maps"><h2>Spatial overview, base maps, and saved project images</h2>{map_controls}{render_spatial_svg(overview)}<p class="note">{esc(map_note)}</p>
       <h3>Saved images and screenshots</h3><div class="gallery">{gallery_html}</div>
-      <p class="note">Images are embedded exactly as found in the copied project/package. They are visual evidence and are not used to infer coordinates, interpretation, or approval.</p></section>
+      <p class="note">Saved images are preserved unchanged in the package. This page previews selected images and links to the rest. They are visual evidence and are not used to infer coordinates, interpretation, or approval.</p></section>
     <section id="coverage"><h2>Extraction coverage and remaining boundaries</h2>{coverage_html}{recovery_html}
       <p>Native log/surface recovery: <strong>{esc(native.get('native_recovery_status', 'not_run'))}</strong>.
       {esc(json.dumps(native.get('native_recovery_status_counts', {}), sort_keys=True))}.

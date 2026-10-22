@@ -5,3 +5,18 @@
 *.md text eol=lf
 *.json text eol=lf
 *.pdf binary
+
+# Preserve the exact source bytes bound by RELEASE_SOURCE_MAP.json.
+scripts/** -text
+desktop/** -text
+skills/** -text
+*.bat -text
+*.ps1 -text
+*.md -text
+*.json -text
+*.cff -text
+*.html -text
+
+LICENSE -text
+NOTICE -text
+third_party/** -text

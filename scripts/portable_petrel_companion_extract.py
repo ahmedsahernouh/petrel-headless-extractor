@@ -20,6 +20,7 @@ import argparse
 from contextlib import ExitStack
 import csv
 import datetime as dt
+import errno
 import hashlib
 import petrel_progress as progress
 import json
@@ -54,6 +55,48 @@ INVENTORY_FIELDS = (
 
 class WorkbookLimitError(RuntimeError):
     """Optional workbook conversion stopped; its source copy remains usable."""
+
+
+class WorkbookPathLimitError(WorkbookLimitError):
+    """An actual workbook sheet CSV cannot fit the qualified output profile."""
+
+
+def path_limit_error(exc: OSError) -> bool:
+    """Recognize only OS path-length failures, not general copy or I/O errors."""
+    return getattr(exc, "winerror", None) == 206 or exc.errno == errno.ENAMETOOLONG
+
+
+def cleanup_new_path_limited_output(path: Path) -> str:
+    """Remove only a new exact target; report path-limited cleanup uncertainty."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        if not path_limit_error(exc):
+            raise
+        return f"Cleanup unverified for {path}: {type(exc).__name__}: {exc}"
+    return ""
+
+
+def unqualified_output(paths: list[Path]) -> Path | None:
+    from geoviewer_output_paths import fits_file
+
+    return next((path for path in paths if not fits_file(path)), None)
+
+
+def conversion_output_family(category: str, destination: Path) -> list[Path]:
+    """Check known derivatives; workbook sheet names are checked when read."""
+    if category == "las_well_data":
+        return [destination.with_suffix(s) for s in (".csv", ".summary.json")]
+    if category == "excel_workbook":
+        return [destination / "workbook.summary.json"]
+    if category == "gis_shapefile_geometry":
+        suffixes = (".csv", ".geojson", ".prj", ".summary.json")
+        pending = destination.parent / "shp_conversion_00000000" / destination.name
+        return ([destination.with_suffix(s) for s in suffixes] +
+                [pending.with_suffix(s) for s in suffixes])
+    if category == "petrel_well_tops_ascii":
+        return [destination.with_suffix(s) for s in (".csv", ".summary.json")]
+    return []
 
 
 def workbook_event(kind: str, **fields: Any) -> None:
@@ -369,7 +412,7 @@ def convert_workbook(source: Path, destination_root: Path, *,
             target = destination_root / name
             from geoviewer_output_paths import fits_file, windows_length, WORKBOOK_FILENAME_RESERVE
             if windows_length(name)>WORKBOOK_FILENAME_RESERVE or not fits_file(target):
-                raise WorkbookLimitError('Workbook output path exceeds the qualified Windows path profile; original workbook is preserved.')
+                raise WorkbookPathLimitError('Workbook output path exceeds the qualified Windows path profile; original workbook is preserved.')
             row_count = nonempty_cell_count = max_columns = 0
             workbook_event('companion_workbook_sheet_started', source=str(source), sheet=sheet.title,
                            declared_rows=sheet.max_row, declared_columns=sheet.max_column)
@@ -693,8 +736,11 @@ def main() -> int:
     pruned_toolkit_roots=[]
     walked_files=list(project_files(project_root,pruned_toolkit_roots))
     petrel_project_files=sorted(path.resolve() for path in walked_files if path.suffix.lower()=='.pet')
-    petrel_store_roots=sorted({parent.resolve() for path in walked_files for parent in path.parents
-                              if parent.suffix.lower()=='.ptd' and is_relative_to(parent,project_root)})
+    # Deduplicate lexical store roots before any network path resolution. Native
+    # stores can contain thousands of files, all outside this companion lane.
+    petrel_store_paths={parent for path in walked_files for parent in path.parents
+                        if parent.suffix.lower()=='.ptd' and is_relative_to(parent,project_root)}
+    petrel_store_roots=sorted({parent.resolve() for parent in petrel_store_paths})
     neighbor_project_files = [path for path in petrel_project_files if path != project_file]
     neighbor_store_roots = [path for path in petrel_store_roots if path != ptd_root]
 
@@ -752,11 +798,17 @@ def main() -> int:
     failed = 0
     limited = 0
     skipped = 0
+    skipped_path_limit = 0
+    conversion_path_limited = 0
     toolkit_files_excluded = 0
     source_copy_root = export_package / "09_source_companions"
     converted_root = export_package / "10_converted_ascii"
 
     for source in sorted(walked_files):
+        # Prune known native-store paths before per-file stat/resolve calls.
+        # Keep the resolved check below for companion links into native stores.
+        if any(is_relative_to(source, store_root) for store_root in petrel_store_paths):
+            continue
         if not source.is_file():
             continue
         source_resolved = source.resolve()
@@ -812,51 +864,116 @@ def main() -> int:
                 skipped += 1
             elif source.suffix.lower() in PRESERVE_SUFFIXES or text_like:
                 target = source_copy_root / Path(source_rel)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
-                if source_hash_before != sha256(target):
-                    raise RuntimeError(f"Copy hash mismatch: {source}")
-                preserved_path = rel(export_package, target)
-                outputs.append((target, "companion_source_preserved", "Hash-verified source companion copy."))
-                preserved += 1
-                status = "preserved"
+                bad_path = unqualified_output([target])
+                if bad_path is not None:
+                    skipped += 1
+                    skipped_path_limit += 1
+                    status = "skipped_path_limit"
+                    error = f"Preservation output exceeds qualified Windows path profile: {bad_path}"
+                    conversion_gap = "source_preservation_path_limit"
+                else:
+                    existed_before = target.exists()
+                    try:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source, target)
+                    except OSError as exc:
+                        if not path_limit_error(exc) or existed_before:
+                            raise
+                        # copy2 may have created a partial target. Remove only
+                        # this invocation's target; never touch a prior copy.
+                        cleanup_gap = cleanup_new_path_limited_output(target)
+                        skipped += 1
+                        skipped_path_limit += 1
+                        status = "skipped_path_limit"
+                        error = f"Preservation output path failed at runtime: {type(exc).__name__}: {exc}"
+                        if cleanup_gap:
+                            error += f"; {cleanup_gap}"
+                        conversion_gap = "source_preservation_path_limit"
+                    else:
+                        if source_hash_before != sha256(target):
+                            raise RuntimeError(f"Copy hash mismatch: {source}")
+                        preserved_path = rel(export_package, target)
+                        outputs.append((target, "companion_source_preserved", "Hash-verified source companion copy."))
+                        preserved += 1
+                        status = "preserved"
 
         # A skipped/empty file must never reach a converter or acquire a false
         # "converted_and_preserved" status without a preserved source copy.
         if args.mode == "convert" and preserved_path:
-            try:
-                generated: list[Path] = []
-                if category == "las_well_data" and optional["lasio"] == "available":
-                    generated, _ = convert_las(source, converted_root / "las" / Path(source_rel))
-                elif category == "excel_workbook" and optional["openpyxl"] == "available":
-                    generated, _ = convert_workbook(source, converted_root / "workbooks" / Path(source_rel).with_suffix(""),
-                                                    max_seconds=args.workbook_max_seconds,
-                                                    max_cells=args.workbook_max_cells)
-                elif category == "gis_shapefile_geometry" and optional["shapefile"] == "available":
-                    generated, shape_summary = convert_shapefile(source, converted_root / "gis" / Path(source_rel))
-                    if not shape_summary['attributes_complete']:
-                        conversion_gap = shape_summary['attribute_status']
-                elif category == "petrel_well_tops_ascii":
-                    generated, _ = convert_petrel_well_tops_ascii(
-                        source,
-                        export_package / "02_wells" / "well_tops" / Path(source_rel),
-                    )
-                if generated:
-                    converted += 1
-                    status = "converted_and_preserved"
-                    for target in generated:
-                        converted_paths.append(rel(export_package, target))
-                        outputs.append((target, "companion_converted_ascii", f"Converted from {source_rel}; source preserved separately."))
-                elif category in {"las_well_data", "excel_workbook", "gis_shapefile_geometry", "petrel_well_tops_ascii"}:
-                    status = "preserved_converter_unavailable"
-            except WorkbookLimitError as exc:
+            destination = {
+                "las_well_data": converted_root / "las" / Path(source_rel),
+                "excel_workbook": converted_root / "workbooks" / Path(source_rel).with_suffix(""),
+                "gis_shapefile_geometry": converted_root / "gis" / Path(source_rel),
+                "petrel_well_tops_ascii": export_package / "02_wells" / "well_tops" / Path(source_rel),
+            }.get(category)
+            converter_ready = (category == "petrel_well_tops_ascii" or
+                               optional.get({"las_well_data": "lasio",
+                                             "excel_workbook": "openpyxl",
+                                             "gis_shapefile_geometry": "shapefile"}.get(category, "")) == "available")
+            family = conversion_output_family(category, destination) if destination and converter_ready else []
+            bad_path = unqualified_output(family)
+            if bad_path is not None:
                 limited += 1
-                status = "preserved_conversion_limited"
-                error = str(exc)
-            except Exception as exc:  # file-specific degradation is intentional
-                failed += 1
-                status = "preserved_conversion_failed"
-                error = f"{type(exc).__name__}: {exc}"
+                conversion_path_limited += 1
+                status = "preserved_conversion_path_limited"
+                conversion_gap = "derivative_output_path_limit"
+                error = f"Conversion output exceeds qualified Windows path profile: {bad_path}"
+            else:
+                existing_derivatives = {path for path in family if path.exists()}
+                try:
+                    generated: list[Path] = []
+                    if category == "las_well_data" and optional["lasio"] == "available":
+                        generated, _ = convert_las(source, converted_root / "las" / Path(source_rel))
+                    elif category == "excel_workbook" and optional["openpyxl"] == "available":
+                        generated, _ = convert_workbook(source, converted_root / "workbooks" / Path(source_rel).with_suffix(""),
+                                                        max_seconds=args.workbook_max_seconds,
+                                                        max_cells=args.workbook_max_cells)
+                    elif category == "gis_shapefile_geometry" and optional["shapefile"] == "available":
+                        generated, shape_summary = convert_shapefile(source, converted_root / "gis" / Path(source_rel))
+                        if not shape_summary['attributes_complete']:
+                            conversion_gap = shape_summary['attribute_status']
+                    elif category == "petrel_well_tops_ascii":
+                        generated, _ = convert_petrel_well_tops_ascii(
+                            source,
+                            export_package / "02_wells" / "well_tops" / Path(source_rel),
+                        )
+                    if generated:
+                        converted += 1
+                        status = "converted_and_preserved"
+                        for target in generated:
+                            converted_paths.append(rel(export_package, target))
+                            outputs.append((target, "companion_converted_ascii", f"Converted from {source_rel}; source preserved separately."))
+                    elif category in {"las_well_data", "excel_workbook", "gis_shapefile_geometry", "petrel_well_tops_ascii"}:
+                        status = "preserved_converter_unavailable"
+                except WorkbookPathLimitError as exc:
+                    limited += 1
+                    conversion_path_limited += 1
+                    status = "preserved_conversion_path_limited"
+                    conversion_gap = "derivative_output_path_limit"
+                    error = str(exc)
+                except WorkbookLimitError as exc:
+                    limited += 1
+                    status = "preserved_conversion_limited"
+                    error = str(exc)
+                except OSError as exc:
+                    if path_limit_error(exc):
+                        cleanup_gaps = [gap for path in family if path not in existing_derivatives
+                                        if (gap := cleanup_new_path_limited_output(path))]
+                        limited += 1
+                        conversion_path_limited += 1
+                        status = "preserved_conversion_path_limited"
+                        conversion_gap = "derivative_output_path_limit"
+                        error = f"Conversion output path failed at runtime: {type(exc).__name__}: {exc}"
+                        if cleanup_gaps:
+                            error += "; " + "; ".join(cleanup_gaps)
+                    else:
+                        failed += 1
+                        status = "preserved_conversion_failed"
+                        error = f"{type(exc).__name__}: {exc}"
+                except Exception as exc:  # file-specific degradation is intentional
+                    failed += 1
+                    status = "preserved_conversion_failed"
+                    error = f"{type(exc).__name__}: {exc}"
 
         source_hash_after = sha256(source)
         if source_hash_after != source_hash_before:
@@ -908,6 +1025,8 @@ def main() -> int:
         "source_mutated": False,
         "petrel_launched": False,
         "mode": args.mode,
+        "status": "partial" if skipped_path_limit or conversion_path_limited else "completed",
+        "has_gaps": bool(skipped_path_limit or conversion_path_limited),
         "optional_dependencies": optional,
         "limits": {"max_preserved_file_bytes": args.max_file_bytes,
                    "workbook_max_seconds": args.workbook_max_seconds,
@@ -923,7 +1042,10 @@ def main() -> int:
             "converted_sources_with_gaps": sum(bool(row['conversion_gap']) for row in rows),
             "conversion_failures": failed,
             "conversion_limited": limited,
-            "skipped_size_limit": skipped,
+            "skipped_files": skipped,
+            "skipped_size_limit": sum(row["status"] == "skipped_size_limit" for row in rows),
+            "skipped_path_limit": skipped_path_limit,
+            "conversion_path_limited": conversion_path_limited,
             "unsupported_or_manual": len(unsupported),
             "neighbor_petrel_project_files_excluded": len(neighbor_project_files),
             "neighbor_petrel_store_directories_excluded": len(neighbor_store_roots),
